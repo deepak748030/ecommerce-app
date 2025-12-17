@@ -227,8 +227,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: 6,
+        paddingVertical: 6,
         backgroundColor: colors.card,
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
         width: 32,
     },
     listContent: {
-        paddingHorizontal: 8,
+        paddingHorizontal: 6,
         gap: 2,
     },
     transactionCard: {

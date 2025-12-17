@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingVertical: 0,
-    paddingHorizontal: 10,
+    paddingHorizontal: 6,
     paddingBottom: 90,
   },
   actionButtons: {

@@ -35,7 +35,6 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="event/[id]" />
           <Stack.Screen name="booking/[id]" />
-          <Stack.Screen name="booking-details/[id]" />
           <Stack.Screen name="chat/[id]" />
           <Stack.Screen name="search" />
           <Stack.Screen name="notifications" />
@@ -43,6 +42,10 @@ export default function RootLayout() {
           <Stack.Screen name="payment" />
           <Stack.Screen name="help-support" />
           <Stack.Screen name="privacy-policy" />
+          <Stack.Screen name="my-orders" />
+          <Stack.Screen name="saved-addresses" />
+          <Stack.Screen name="rewards" />
+          <Stack.Screen name="app-settings" />
           <Stack.Screen name="+not-found" />
         </Stack>
         <StatusBar style="auto" />

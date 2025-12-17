@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
-import { User, Package, MapPin, CreditCard, Bell, HelpCircle, Settings, LogOut, ChevronRight, Sun, Moon, Gift, Shield } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { User, Package, MapPin, Bell, HelpCircle, Settings, LogOut, ChevronRight, Sun, Moon, Gift, Shield } from 'lucide-react-native';
 
 const mockUser = {
   name: 'John Doe',
@@ -18,28 +19,31 @@ export default function ProfileScreen() {
 
   const styles = createStyles(colors, isDark);
 
+  const handleMenuPress = (route: string) => {
+    router.push(route as any);
+  };
+
   const menuSections = [
     {
-      title: 'Orders & Payments',
+      title: 'Orders & Addresses',
       items: [
-        { id: '1', icon: Package, label: 'My Orders', badge: '3 Active' },
-        { id: '2', icon: MapPin, label: 'Saved Addresses', badge: '2' },
-        { id: '3', icon: CreditCard, label: 'Payment Methods', badge: '' },
+        { id: '1', icon: Package, label: 'My Orders', badge: '3 Active', route: '/my-orders' },
+        { id: '2', icon: MapPin, label: 'Saved Addresses', badge: '2', route: '/saved-addresses' },
       ],
     },
     {
       title: 'Account',
       items: [
-        { id: '4', icon: Gift, label: 'Rewards & Points', badge: `${mockUser.points} pts` },
-        { id: '5', icon: Bell, label: 'Notifications', badge: '' },
-        { id: '6', icon: Shield, label: 'Privacy & Security', badge: '' },
+        { id: '4', icon: Gift, label: 'Rewards & Points', badge: `${mockUser.points} pts`, route: '/rewards' },
+        { id: '5', icon: Bell, label: 'Notifications', badge: '', route: '/notifications' },
+        { id: '6', icon: Shield, label: 'Privacy & Security', badge: '', route: '/privacy-policy' },
       ],
     },
     {
       title: 'Support',
       items: [
-        { id: '7', icon: HelpCircle, label: 'Help Center', badge: '' },
-        { id: '8', icon: Settings, label: 'App Settings', badge: '' },
+        { id: '7', icon: HelpCircle, label: 'Help Center', badge: '', route: '/help-support' },
+        { id: '8', icon: Settings, label: 'App Settings', badge: '', route: '/app-settings' },
       ],
     },
   ];
@@ -114,6 +118,7 @@ export default function ProfileScreen() {
                       styles.menuItem,
                       index < section.items.length - 1 && styles.menuItemBorder,
                     ]}
+                    onPress={() => handleMenuPress(item.route)}
                   >
                     <View style={styles.menuIconContainer}>
                       <IconComponent size={20} color={colors.primary} strokeWidth={2} />
