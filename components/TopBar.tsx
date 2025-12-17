@@ -1,12 +1,17 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ShoppingCart, Bell, Sun, Moon } from 'lucide-react-native';
+import { Search, Bell, MapPin, SlidersHorizontal } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { router } from 'expo-router';
 
 export default function TopBar() {
   const insets = useSafeAreaInsets();
-  const { colors, isDark, toggleTheme } = useTheme();
+  const { colors, isDark } = useTheme();
+
+  const handleSearchPress = () => {
+    router.push('/search');
+  };
 
   return (
     <View style={[
@@ -18,36 +23,48 @@ export default function TopBar() {
         borderBottomColor: colors.border,
       }
     ]}>
-      <View style={styles.leftSection}>
-        <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
-          <Text style={styles.logoEmoji}>🥛</Text>
+      {/* Location & Brand */}
+      <View style={styles.topRow}>
+        <View style={styles.leftSection}>
+          <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
+            <Text style={styles.logoEmoji}>🍽️</Text>
+          </View>
+          <View>
+            <Text style={[styles.appName, { color: colors.foreground }]}>The Art Of Bhaojan</Text>
+            <Pressable style={styles.locationRow}>
+              <MapPin size={12} color={colors.primary} />
+              <Text style={[styles.location, { color: colors.mutedForeground }]}>Mumbai, India</Text>
+            </Pressable>
+          </View>
         </View>
-        <View>
-          <Text style={[styles.appName, { color: colors.foreground }]}>Milkey</Text>
-          <Text style={[styles.tagline, { color: colors.mutedForeground }]}>Fresh dairy delivered</Text>
+
+        <View style={styles.rightSection}>
+          <Pressable
+            style={[styles.iconButton, { backgroundColor: colors.secondary }]}
+            onPress={() => router.push('/notifications')}
+          >
+            <Bell size={20} color={colors.foreground} strokeWidth={2} />
+            <View style={styles.notificationDot} />
+          </Pressable>
         </View>
       </View>
 
-      <View style={styles.rightSection}>
+      {/* Search Bar */}
+      <View style={styles.searchRow}>
         <Pressable
-          style={[styles.iconButton, { backgroundColor: colors.secondary, borderColor: colors.border }]}
-          onPress={toggleTheme}
+          style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={handleSearchPress}
         >
-          {isDark ? (
-            <Sun size={18} color={colors.primary} strokeWidth={2.5} />
-          ) : (
-            <Moon size={18} color={colors.primary} strokeWidth={2.5} />
-          )}
+          <Search size={18} color={colors.mutedForeground} />
+          <Text style={[styles.searchPlaceholder, { color: colors.mutedForeground }]}>
+            Search products, brands...
+          </Text>
         </Pressable>
         <Pressable
-          style={[styles.iconButton, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+          style={[styles.filterButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={handleSearchPress}
         >
-          <Bell size={18} color={colors.foreground} strokeWidth={2} />
-        </Pressable>
-        <Pressable
-          style={[styles.iconButton, { backgroundColor: colors.secondary, borderColor: colors.border }]}
-        >
-          <ShoppingCart size={18} color={colors.foreground} strokeWidth={2} />
+          <SlidersHorizontal size={20} color={colors.foreground} />
         </Pressable>
       </View>
     </View>
@@ -56,21 +73,25 @@ export default function TopBar() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 12,
-    paddingBottom: 10,
+    paddingHorizontal: 6,
+    paddingBottom: 12,
+  },
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
   },
   leftSection: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flex: 1,
   },
   logoContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -78,11 +99,18 @@ const styles = StyleSheet.create({
     fontSize: 22,
   },
   appName: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
   },
-  tagline: {
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  location: {
     fontSize: 11,
+    fontWeight: '600',
   },
   rightSection: {
     flexDirection: 'row',
@@ -90,11 +118,47 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  searchContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
     borderWidth: 1,
+    gap: 10,
+  },
+  searchPlaceholder: {
+    fontSize: 14,
+    flex: 1,
+  },
+  filterButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

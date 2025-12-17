@@ -2,13 +2,14 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
-import { User, Settings, Bell, HelpCircle, LogOut, ChevronRight, Sun, Moon } from 'lucide-react-native';
+import { User, Package, MapPin, CreditCard, Bell, HelpCircle, Settings, LogOut, ChevronRight, Sun, Moon, Gift, Shield } from 'lucide-react-native';
 
 const mockUser = {
-  name: 'Ramesh Dairy Farm',
+  name: 'John Doe',
   phone: '+91 9876543210',
-  email: 'ramesh@dairy.com',
-  role: 'Dairy Owner',
+  email: 'john.doe@email.com',
+  orders: 12,
+  points: 2450,
 };
 
 export default function ProfileScreen() {
@@ -17,10 +18,30 @@ export default function ProfileScreen() {
 
   const styles = createStyles(colors, isDark);
 
-  const menuItems = [
-    { id: '1', icon: Settings, label: 'Settings', action: () => { } },
-    { id: '2', icon: Bell, label: 'Notifications', action: () => { } },
-    { id: '3', icon: HelpCircle, label: 'Help & Support', action: () => { } },
+  const menuSections = [
+    {
+      title: 'Orders & Payments',
+      items: [
+        { id: '1', icon: Package, label: 'My Orders', badge: '3 Active' },
+        { id: '2', icon: MapPin, label: 'Saved Addresses', badge: '2' },
+        { id: '3', icon: CreditCard, label: 'Payment Methods', badge: '' },
+      ],
+    },
+    {
+      title: 'Account',
+      items: [
+        { id: '4', icon: Gift, label: 'Rewards & Points', badge: `${mockUser.points} pts` },
+        { id: '5', icon: Bell, label: 'Notifications', badge: '' },
+        { id: '6', icon: Shield, label: 'Privacy & Security', badge: '' },
+      ],
+    },
+    {
+      title: 'Support',
+      items: [
+        { id: '7', icon: HelpCircle, label: 'Help Center', badge: '' },
+        { id: '8', icon: Settings, label: 'App Settings', badge: '' },
+      ],
+    },
   ];
 
   return (
@@ -32,54 +53,91 @@ export default function ProfileScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Profile Card */}
         <View style={styles.profileCard}>
-          <View style={styles.avatarContainer}>
+          <View style={styles.avatarRow}>
             <View style={styles.avatar}>
-              <User size={40} color={colors.white} />
+              <User size={36} color={colors.white} strokeWidth={2} />
             </View>
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>{mockUser.name}</Text>
+              <Text style={styles.userEmail}>{mockUser.email}</Text>
+              <Text style={styles.userPhone}>{mockUser.phone}</Text>
+            </View>
+            <Pressable style={styles.editButton}>
+              <Text style={styles.editButtonText}>Edit</Text>
+            </Pressable>
           </View>
-          <Text style={styles.userName}>{mockUser.name}</Text>
-          <Text style={styles.userRole}>{mockUser.role}</Text>
-          <View style={styles.contactInfo}>
-            <Text style={styles.contactText}>{mockUser.phone}</Text>
-            <Text style={styles.contactText}>{mockUser.email}</Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{mockUser.orders}</Text>
+              <Text style={styles.statLabel}>Orders</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{mockUser.points}</Text>
+              <Text style={styles.statLabel}>Points</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>Gold</Text>
+              <Text style={styles.statLabel}>Tier</Text>
+            </View>
           </View>
         </View>
 
         {/* Theme Toggle */}
         <Pressable style={styles.themeToggle} onPress={toggleTheme}>
           <View style={styles.themeIconContainer}>
-            {isDark ? <Moon size={20} color={colors.primary} /> : <Sun size={20} color={colors.primary} />}
+            {isDark ? <Moon size={22} color={colors.primary} /> : <Sun size={22} color={colors.primary} />}
           </View>
           <View style={styles.themeInfo}>
             <Text style={styles.themeLabel}>Appearance</Text>
             <Text style={styles.themeValue}>{isDark ? 'Dark Mode' : 'Light Mode'}</Text>
           </View>
-          <View style={[styles.themeBadge, { backgroundColor: isDark ? colors.primary : colors.success }]}>
+          <View style={[styles.themeBadge, { backgroundColor: isDark ? '#8B5CF6' : colors.success }]}>
             <Text style={styles.themeBadgeText}>{isDark ? 'Dark' : 'Light'}</Text>
           </View>
         </Pressable>
 
-        {/* Menu Items */}
-        <View style={styles.menuSection}>
-          {menuItems.map((item) => {
-            const IconComponent = item.icon;
-            return (
-              <Pressable key={item.id} style={styles.menuItem} onPress={item.action}>
-                <View style={styles.menuIconContainer}>
-                  <IconComponent size={20} color={colors.primary} />
-                </View>
-                <Text style={styles.menuLabel}>{item.label}</Text>
-                <ChevronRight size={18} color={colors.mutedForeground} />
-              </Pressable>
-            );
-          })}
-        </View>
+        {/* Menu Sections */}
+        {menuSections.map((section) => (
+          <View key={section.title} style={styles.menuSection}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <View style={styles.menuCard}>
+              {section.items.map((item, index) => {
+                const IconComponent = item.icon;
+                return (
+                  <Pressable
+                    key={item.id}
+                    style={[
+                      styles.menuItem,
+                      index < section.items.length - 1 && styles.menuItemBorder,
+                    ]}
+                  >
+                    <View style={styles.menuIconContainer}>
+                      <IconComponent size={20} color={colors.primary} strokeWidth={2} />
+                    </View>
+                    <Text style={styles.menuLabel}>{item.label}</Text>
+                    {item.badge ? (
+                      <View style={styles.menuBadge}>
+                        <Text style={styles.menuBadgeText}>{item.badge}</Text>
+                      </View>
+                    ) : null}
+                    <ChevronRight size={18} color={colors.mutedForeground} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ))}
 
         {/* Logout Button */}
         <Pressable style={styles.logoutButton}>
-          <LogOut size={20} color={colors.destructive} />
+          <LogOut size={20} color={colors.destructive} strokeWidth={2} />
           <Text style={styles.logoutText}>Logout</Text>
         </Pressable>
+
+        {/* App Version */}
+        <Text style={styles.versionText}>Version 1.0.0</Text>
       </ScrollView>
     </View>
   );
@@ -91,15 +149,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 6,
     paddingBottom: 12,
     backgroundColor: colors.background,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   title: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
     color: colors.foreground,
   },
   scrollView: {
@@ -108,73 +166,109 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 6,
     paddingTop: 12,
-    paddingBottom: 80,
+    paddingBottom: 100,
   },
   profileCard: {
     backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
+    borderRadius: 18,
+    padding: 18,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  avatarContainer: {
-    marginBottom: 12,
+  avatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  userInfo: {
+    flex: 1,
+    marginLeft: 14,
+  },
   userName: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: colors.foreground,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  userRole: {
+  userEmail: {
     fontSize: 13,
-    color: colors.primary,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  contactInfo: {
-    alignItems: 'center',
-  },
-  contactText: {
-    fontSize: 12,
     color: colors.mutedForeground,
     marginBottom: 2,
   },
+  userPhone: {
+    fontSize: 12,
+    color: colors.mutedForeground,
+  },
+  editButton: {
+    backgroundColor: colors.secondary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  editButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.secondary,
+    borderRadius: 12,
+    padding: 14,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: colors.border,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.primary,
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: colors.mutedForeground,
+    fontWeight: '600',
+  },
   themeToggle: {
     backgroundColor: colors.card,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: colors.border,
   },
   themeIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: colors.secondary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   themeInfo: {
     flex: 1,
   },
   themeLabel: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: colors.foreground,
     marginBottom: 2,
   },
@@ -183,20 +277,31 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.mutedForeground,
   },
   themeBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
   themeBadgeText: {
     color: colors.white,
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   menuSection: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.mutedForeground,
+    marginBottom: 10,
+    marginLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  menuCard: {
     backgroundColor: colors.card,
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
-    marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -204,6 +309,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
+  },
+  menuItemBorder: {
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -222,20 +329,38 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '600',
     color: colors.foreground,
   },
+  menuBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  menuBadgeText: {
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: '700',
+  },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.destructive + '15',
-    borderRadius: 12,
-    padding: 14,
-    gap: 8,
+    backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.1)',
+    borderRadius: 14,
+    padding: 16,
+    gap: 10,
     borderWidth: 1,
-    borderColor: colors.destructive + '30',
+    borderColor: isDark ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.2)',
   },
   logoutText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: colors.destructive,
+  },
+  versionText: {
+    fontSize: 12,
+    color: colors.mutedForeground,
+    textAlign: 'center',
+    marginTop: 20,
   },
 });
