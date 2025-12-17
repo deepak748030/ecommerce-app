@@ -1,138 +1,51 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { ArrowLeft, Smartphone, Wallet } from 'lucide-react-native';
-import { colors } from '@/lib/colors';
-import { Event } from '@/lib/mockData';
+import { ArrowLeft, Smartphone, Wallet, CreditCard, CheckCircle } from 'lucide-react-native';
+import { allProducts, Event } from '@/lib/mockData';
 import { SuccessModal } from '@/components/SuccessModal';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { eventsApi, bookingsApi, ServerEvent, getToken } from '@/lib/api';
-
-// Helper to map ServerEvent to Event format
-const mapServerEventToEvent = (serverEvent: ServerEvent): Event => ({
-  id: serverEvent._id,
-  title: serverEvent.title,
-  image: serverEvent.image,
-  images: serverEvent.images,
-  location: serverEvent.location,
-  fullLocation: serverEvent.fullLocation,
-  category: serverEvent.category,
-  price: serverEvent.price,
-  mrp: serverEvent.mrp,
-  rating: serverEvent.rating,
-  reviews: serverEvent.reviews,
-  badge: serverEvent.badge,
-  description: serverEvent.description,
-  date: serverEvent.date,
-  time: serverEvent.time,
-  services: serverEvent.services,
-  vendor: {
-    id: serverEvent.vendor._id,
-    name: serverEvent.vendor.name,
-    avatar: serverEvent.vendor.avatar,
-    phone: serverEvent.vendor.phone || '',
-    email: serverEvent.vendor.email || '',
-    experience: serverEvent.vendor.experience || `${serverEvent.vendor.experienceYears || 0}+ years experience`,
-  },
-});
+import { useTheme } from '@/hooks/useTheme';
 
 export default function PaymentScreen() {
-  const { eventId, selectedDate, price } = useLocalSearchParams();
+  const { eventId, price } = useLocalSearchParams();
+  const { colors } = useTheme();
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [upiId, setUpiId] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [event, setEvent] = useState<Event | null>(null);
-  const [eventLoading, setEventLoading] = useState(true);
+  const [product, setProduct] = useState<Event | null>(null);
 
-  const insets = useSafeAreaInsets();
-
-  const bookingDate = selectedDate ? new Date(selectedDate as string) : new Date();
   const bookingPrice = parseInt(price as string) || 0;
 
   useEffect(() => {
-    const loadEvent = async () => {
-      try {
-        const result = await eventsApi.getById(eventId as string);
-        const eventData = (result as any).data || (result as any).response;
-
-        if (result.success && eventData && eventData._id) {
-          setEvent(mapServerEventToEvent(eventData));
-        }
-      } catch (error) {
-        console.error('Error loading event:', error);
-      } finally {
-        setEventLoading(false);
-      }
-    };
-
-    loadEvent();
+    const foundProduct = allProducts.find(e => e.id === eventId);
+    setProduct(foundProduct || null);
   }, [eventId]);
 
-  if (eventLoading) {
+  const styles = createStyles(colors);
+
+  if (!product) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>Product not found</Text>
+          <Pressable style={[styles.goBackButton, { backgroundColor: colors.primary }]} onPress={() => router.back()}>
+            <Text style={[styles.goBackButtonText, { color: colors.primaryForeground }]}>Go Back</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
     );
   }
 
-  if (!event) {
-    return (
-      <View style={[styles.container, styles.errorContainer]}>
-        <Text style={styles.errorText}>Event not found</Text>
-        <Pressable style={styles.goBackButton} onPress={() => router.back()}>
-          <Text style={styles.goBackButtonText}>Go Back</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  const handlePayment = async () => {
-    if (paymentMethod === 'upi' && !upiId) {
-      return;
-    }
+  const handlePayment = () => {
+    if (paymentMethod === 'upi' && !upiId) return;
 
     setIsProcessing(true);
-
-    try {
-      // Check if user is authenticated
-      const token = await getToken();
-      console.log('Payment - Token check:', token ? 'Token exists' : 'No token');
-
-      if (!token) {
-        setIsProcessing(false);
-        Alert.alert('Login Required', 'Please login to make a booking.', [
-          { text: 'Login', onPress: () => router.push('/') },
-          { text: 'Cancel', style: 'cancel' }
-        ]);
-        return;
-      }
-
-      // Create booking via API
-      console.log('Payment - Creating booking with token');
-      const result = await bookingsApi.create({
-        eventId: event.id,
-        eventDate: bookingDate.toISOString(),
-        guests: 1,
-        paymentMethod: paymentMethod,
-        notes: paymentMethod === 'upi' ? `UPI ID: ${upiId}` : 'Digital Wallet Payment',
-      });
-
-      console.log('Payment - Booking result:', result.success, result.message);
-
-      if (result.success) {
-        setIsProcessing(false);
-        setShowSuccess(true);
-      } else {
-        setIsProcessing(false);
-        Alert.alert('Error', result.message || 'Failed to create booking. Please try again.');
-      }
-    } catch (error) {
+    setTimeout(() => {
       setIsProcessing(false);
-      console.error('Error creating booking:', error);
-      Alert.alert('Error', 'Failed to create booking. Please try again.');
-    }
+      setShowSuccess(true);
+    }, 1500);
   };
 
   const handleSuccessClose = () => {
@@ -140,370 +53,336 @@ export default function PaymentScreen() {
     router.replace('/(tabs)');
   };
 
+  const paymentMethods = [
+    { id: 'upi', title: 'UPI', subtitle: 'GPay, PhonePe, Paytm', icon: Smartphone },
+    { id: 'wallet', title: 'Wallet', subtitle: 'Digital wallets', icon: Wallet },
+    { id: 'card', title: 'Card', subtitle: 'Credit/Debit card', icon: CreditCard },
+  ];
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 1 }]}>
+      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <ArrowLeft size={24} color={colors.foreground} />
+          <ArrowLeft size={22} color={colors.foreground} />
         </Pressable>
-        <Text style={styles.headerTitle}>Payment</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Payment</Text>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          {/* Booking Summary */}
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Prebooking Summary</Text>
-            <View style={styles.summaryContent}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Service</Text>
-                <Text style={styles.summaryValue}>{event.title}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Category</Text>
-                <Text style={styles.summaryValue}>{event.category}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Vendor</Text>
-                <Text style={styles.summaryValue}>{event.vendor.name}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Location</Text>
-                <Text style={styles.summaryValue}>{event.location}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Date</Text>
-                <Text style={styles.summaryValue}>{bookingDate.toLocaleDateString('en-IN')}</Text>
-              </View>
-
-              <View style={styles.separator} />
-
-              <View style={styles.servicesSection}>
-                <Text style={styles.servicesLabel}>Services Included</Text>
-                {event.services.slice(0, 3).map((service, index) => (
-                  <Text key={index} style={styles.serviceItem}>✓ {service}</Text>
-                ))}
-              </View>
-
-              <View style={styles.separator} />
-
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Total Amount</Text>
-                <Text style={styles.totalAmount}>₹{bookingPrice.toLocaleString()}</Text>
-              </View>
+          {/* Product Summary */}
+          <View style={[styles.productCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Image source={{ uri: product.image }} style={styles.productImage} />
+            <View style={styles.productInfo}>
+              <Text style={[styles.productTitle, { color: colors.foreground }]} numberOfLines={2}>{product.title}</Text>
+              <Text style={[styles.productCategory, { color: colors.mutedForeground }]}>{product.category}</Text>
+              <Text style={[styles.productPrice, { color: colors.primary }]}>₹{bookingPrice.toLocaleString()}</Text>
             </View>
           </View>
 
           {/* Payment Methods */}
-          <View style={styles.paymentSection}>
-            <Text style={styles.paymentTitle}>Select Payment Method</Text>
-
-            {/* UPI */}
-            <Pressable
-              style={[
-                styles.paymentOption,
-                paymentMethod === 'upi' && styles.selectedPaymentOption
-              ]}
-              onPress={() => setPaymentMethod('upi')}
-            >
-              <View style={styles.paymentOptionHeader}>
-                <View style={styles.radioButton}>
-                  {paymentMethod === 'upi' && <View style={styles.radioButtonInner} />}
-                </View>
-                <Smartphone size={24} color={colors.primary} />
-                <View style={styles.paymentOptionText}>
-                  <Text style={styles.paymentOptionTitle}>UPI</Text>
-                  <Text style={styles.paymentOptionSubtitle}>Pay using UPI apps</Text>
-                </View>
-              </View>
-              {paymentMethod === 'upi' && (
-                <View style={styles.paymentForm}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter UPI ID (e.g., user@paytm)"
-                    value={upiId}
-                    onChangeText={setUpiId}
-                    autoCapitalize="none"
-                  />
-                </View>
-              )}
-            </Pressable>
-
-            {/* Wallet */}
-            <Pressable
-              style={[
-                styles.paymentOption,
-                paymentMethod === 'wallet' && styles.selectedPaymentOption
-              ]}
-              onPress={() => setPaymentMethod('wallet')}
-            >
-              <View style={styles.paymentOptionHeader}>
-                <View style={styles.radioButton}>
-                  {paymentMethod === 'wallet' && <View style={styles.radioButtonInner} />}
-                </View>
-                <Wallet size={24} color={colors.primary} />
-                <View style={styles.paymentOptionText}>
-                  <Text style={styles.paymentOptionTitle}>Digital Wallet</Text>
-                  <Text style={styles.paymentOptionSubtitle}>Paytm, PhonePe, Google Pay</Text>
-                </View>
-              </View>
-            </Pressable>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Payment Method</Text>
+          <View style={styles.paymentMethods}>
+            {paymentMethods.map((method) => {
+              const Icon = method.icon;
+              const isSelected = paymentMethod === method.id;
+              return (
+                <Pressable
+                  key={method.id}
+                  style={[
+                    styles.paymentOption,
+                    { backgroundColor: colors.card, borderColor: isSelected ? colors.primary : colors.border }
+                  ]}
+                  onPress={() => setPaymentMethod(method.id)}
+                >
+                  <View style={[styles.radioOuter, { borderColor: isSelected ? colors.primary : colors.border }]}>
+                    {isSelected && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
+                  </View>
+                  <View style={[styles.paymentIcon, { backgroundColor: colors.secondary }]}>
+                    <Icon size={18} color={colors.primary} />
+                  </View>
+                  <View style={styles.paymentText}>
+                    <Text style={[styles.paymentTitle, { color: colors.foreground }]}>{method.title}</Text>
+                    <Text style={[styles.paymentSubtitle, { color: colors.mutedForeground }]}>{method.subtitle}</Text>
+                  </View>
+                  {isSelected && <CheckCircle size={18} color={colors.primary} />}
+                </Pressable>
+              );
+            })}
           </View>
 
-          {/* Pay Button */}
+          {/* UPI Input */}
+          {paymentMethod === 'upi' && (
+            <View style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.inputLabel, { color: colors.foreground }]}>Enter UPI ID</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.foreground }]}
+                placeholder="yourname@upi"
+                placeholderTextColor={colors.mutedForeground}
+                value={upiId}
+                onChangeText={setUpiId}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+            </View>
+          )}
+
+          {/* Price Summary */}
+          <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Item Total</Text>
+              <Text style={[styles.summaryValue, { color: colors.foreground }]}>₹{bookingPrice.toLocaleString()}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Delivery</Text>
+              <Text style={[styles.summaryValue, { color: colors.success }]}>FREE</Text>
+            </View>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <View style={styles.summaryRow}>
+              <Text style={[styles.totalLabel, { color: colors.foreground }]}>Amount to Pay</Text>
+              <Text style={[styles.totalValue, { color: colors.foreground }]}>₹{bookingPrice.toLocaleString()}</Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Bottom Bar */}
+      <SafeAreaView edges={['bottom']} style={[styles.bottomBar, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+        <View style={styles.bottomContent}>
+          <View style={styles.bottomPrice}>
+            <Text style={[styles.bottomLabel, { color: colors.mutedForeground }]}>Total</Text>
+            <Text style={[styles.bottomTotal, { color: colors.foreground }]}>₹{bookingPrice.toLocaleString()}</Text>
+          </View>
           <Pressable
             style={[
               styles.payButton,
+              { backgroundColor: colors.primary },
               (isProcessing || (paymentMethod === 'upi' && !upiId)) && styles.disabledButton
             ]}
             onPress={handlePayment}
             disabled={isProcessing || (paymentMethod === 'upi' && !upiId)}
           >
-            <View style={styles.buttonContent}>
-              {isProcessing && (
-                <ActivityIndicator
-                  size="small"
-                  color={colors.primaryForeground}
-                  style={styles.buttonSpinner}
-                />
-              )}
-              <Text style={styles.payButtonText}>
-                {isProcessing ? 'Processing...' : `Pay ₹${bookingPrice.toLocaleString()}`}
-              </Text>
-            </View>
+            {isProcessing ? (
+              <ActivityIndicator size="small" color={colors.primaryForeground} />
+            ) : (
+              <Text style={[styles.payButtonText, { color: colors.primaryForeground }]}>Pay Now</Text>
+            )}
           </Pressable>
-
-          {/* Disclaimer */}
-          <Text style={styles.disclaimer}>
-            This is a demo prebooking payment. No actual transaction will be made.
-          </Text>
         </View>
-      </ScrollView>
+      </SafeAreaView>
 
       <SuccessModal
         isVisible={showSuccess}
         onClose={handleSuccessClose}
-        title="Booking Request Sent!"
-        message="Your booking request has been sent to the vendor. You will be notified once they accept or decline your request."
+        title="Order Placed!"
+        message="Your order has been placed successfully. You will receive a confirmation shortly."
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
-  },
-  loadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   errorContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   errorText: {
-    fontSize: 16,
-    color: colors.mutedForeground,
-    marginBottom: 16,
+    fontSize: 14,
+    marginBottom: 12,
   },
   goBackButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 8,
   },
   goBackButtonText: {
-    color: colors.primaryForeground,
     fontWeight: '600',
+    fontSize: 13,
   },
   header: {
-    backgroundColor: colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingHorizontal: 16,
+    paddingHorizontal: 6,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   backButton: {
     padding: 4,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.foreground,
+    fontSize: 16,
+    fontWeight: '700',
   },
   scrollView: {
     flex: 1,
   },
   content: {
-    paddingVertical: 0,
-    paddingHorizontal: 10,
-    paddingBottom: 32,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    paddingBottom: 100,
   },
-  summaryCard: {
-    backgroundColor: colors.card,
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 20,
+  productCard: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: colors.border,
   },
-  summaryTitle: {
-    fontSize: 16,
+  productImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+  },
+  productInfo: {
+    flex: 1,
+    marginLeft: 10,
+    justifyContent: 'center',
+  },
+  productTitle: {
+    fontSize: 13,
     fontWeight: '600',
-    color: colors.foreground,
+    marginBottom: 2,
+  },
+  productCategory: {
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  productPrice: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  paymentMethods: {
+    gap: 8,
     marginBottom: 12,
   },
-  summaryContent: {
-    gap: 8,
+  paymentOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 10,
+  },
+  radioOuter: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  paymentIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paymentText: {
+    flex: 1,
+  },
+  paymentTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  paymentSubtitle: {
+    fontSize: 11,
+  },
+  inputCard: {
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+  },
+  summaryCard: {
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
   },
   summaryLabel: {
-    fontSize: 14,
-    color: colors.mutedForeground,
+    fontSize: 12,
   },
   summaryValue: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.foreground,
-    textAlign: 'right',
-    flex: 1,
-    marginLeft: 16,
+    fontSize: 12,
+    fontWeight: '600',
   },
-  separator: {
+  divider: {
     height: 1,
-    backgroundColor: colors.border,
     marginVertical: 8,
   },
-  servicesSection: {
-    gap: 4,
-  },
-  servicesLabel: {
-    fontSize: 12,
-    color: colors.mutedForeground,
-    marginBottom: 4,
-  },
-  serviceItem: {
-    fontSize: 12,
-    color: colors.foreground,
-  },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
   totalLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.foreground,
+    fontSize: 13,
+    fontWeight: '700',
   },
-  totalAmount: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.primary,
+  totalValue: {
+    fontSize: 15,
+    fontWeight: '800',
   },
-  paymentSection: {
-    marginBottom: 20,
+  bottomBar: {
+    borderTopWidth: 1,
   },
-  paymentTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.foreground,
-    marginBottom: 16,
-  },
-  paymentOption: {
-    backgroundColor: colors.card,
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  selectedPaymentOption: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + '10',
-  },
-  paymentOptionHeader: {
+  bottomContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 6,
+    paddingVertical: 12,
   },
-  radioButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+  bottomPrice: {},
+  bottomLabel: {
+    fontSize: 10,
+    marginBottom: 2,
   },
-  radioButtonInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.primary,
-  },
-  paymentOptionText: {
-    flex: 1,
-  },
-  paymentOptionTitle: {
+  bottomTotal: {
     fontSize: 16,
-    fontWeight: '500',
-    color: colors.foreground,
-  },
-  paymentOptionSubtitle: {
-    fontSize: 12,
-    color: colors.mutedForeground,
-  },
-  paymentForm: {
-    marginTop: 12,
-    gap: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    backgroundColor: colors.background,
+    fontWeight: '800',
   },
   payButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: 16,
-    borderRadius: 8,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 10,
+    minWidth: 120,
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonSpinner: {
-    marginRight: 8,
   },
   disabledButton: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   payButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.primaryForeground,
-  },
-  disclaimer: {
-    fontSize: 12,
-    color: colors.mutedForeground,
-    textAlign: 'center',
-    lineHeight: 16,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

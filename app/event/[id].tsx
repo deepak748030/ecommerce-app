@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MapPin, Star, MessageCircle, ShoppingCart, Heart, Minus, Plus } from 'lucide-react-native';
+import { Star, ShoppingCart, Minus, Plus, ChevronRight } from 'lucide-react-native';
 import { allProducts, mockReviews, getFavorites, toggleFavorite, Event, Review } from '@/lib/mockData';
 import { ImageCarousel } from '@/components/ImageCarousel';
 import { useTheme } from '@/hooks/useTheme';
@@ -11,24 +11,19 @@ const { width: screenWidth } = Dimensions.get('window');
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams();
-  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const [activeTab, setActiveTab] = useState('details');
   const [favorites, setFavorites] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
   const [product, setProduct] = useState<Event | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
 
   useEffect(() => {
-    // Find product from all products (mockEvents + trending + fashion)
     const foundProduct = allProducts.find(e => e.id === id);
     setProduct(foundProduct || null);
 
-    // Get reviews for this product
     const productReviews = mockReviews.filter(r => r.eventId === id);
     setReviews(productReviews);
 
-    // Load favorites
     const loadFavorites = async () => {
       const favs = await getFavorites();
       setFavorites(favs);
@@ -40,14 +35,14 @@ export default function ProductDetailsScreen() {
 
   if (!product) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Product not found</Text>
           <Pressable style={styles.backBtn} onPress={() => router.back()}>
             <Text style={styles.backBtnText}>Go Back</Text>
           </Pressable>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -73,8 +68,23 @@ export default function ProductDetailsScreen() {
     router.push(`/booking/${product.id}`);
   };
 
+  // Calculate rating distribution (mock data for now)
+  const totalReviews = product.reviews || 0;
+  const ratingDistribution = {
+    5: Math.round(totalReviews * 0.6),
+    4: Math.round(totalReviews * 0.25),
+    3: Math.round(totalReviews * 0.08),
+    2: Math.round(totalReviews * 0.04),
+    1: Math.round(totalReviews * 0.03),
+  };
+
+  const getBarWidth = (count: number) => {
+    if (totalReviews === 0) return 0;
+    return (count / totalReviews) * 100;
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Image Carousel */}
         <ImageCarousel
@@ -85,44 +95,29 @@ export default function ProductDetailsScreen() {
           isFavorite={isFavorite}
           onBackPress={() => router.back()}
           onFavoritePress={handleToggleFavorite}
-          height={280}
+          height={260}
         />
 
         <View style={styles.content}>
-          {/* Category & Rating Row */}
-          <View style={styles.topRow}>
-            <View style={[styles.categoryBadge, { backgroundColor: colors.secondary }]}>
-              <Text style={[styles.categoryText, { color: colors.primary }]}>{product.category}</Text>
-            </View>
-            <View style={styles.ratingRow}>
-              <Star size={16} color={colors.warning} fill={colors.warning} />
-              <Text style={[styles.ratingText, { color: colors.foreground }]}>{product.rating}</Text>
-              <Text style={[styles.reviewCount, { color: colors.mutedForeground }]}>({product.reviews})</Text>
-            </View>
+          {/* Category Badge */}
+          <View style={[styles.categoryBadge, { backgroundColor: colors.secondary }]}>
+            <Text style={[styles.categoryText, { color: colors.primary }]}>{product.category}</Text>
           </View>
 
           {/* Title */}
           <Text style={[styles.title, { color: colors.foreground }]}>{product.title}</Text>
 
-          {/* Location */}
-          <View style={styles.locationRow}>
-            <MapPin size={16} color={colors.mutedForeground} />
-            <Text style={[styles.locationText, { color: colors.mutedForeground }]}>{product.fullLocation}</Text>
-          </View>
-
           {/* Price Section */}
           <View style={styles.priceSection}>
-            <View style={styles.priceRow}>
-              <Text style={[styles.price, { color: colors.foreground }]}>₹{product.price.toLocaleString()}</Text>
-              {product.mrp > product.price && (
+            <Text style={[styles.price, { color: colors.foreground }]}>₹{product.price.toLocaleString()}</Text>
+            {product.mrp > product.price && (
+              <>
                 <Text style={[styles.mrpPrice, { color: colors.mutedForeground }]}>₹{product.mrp.toLocaleString()}</Text>
-              )}
-              {discountPercent > 0 && (
                 <View style={[styles.discountBadge, { backgroundColor: colors.success }]}>
                   <Text style={styles.discountText}>{discountPercent}% OFF</Text>
                 </View>
-              )}
-            </View>
+              </>
+            )}
           </View>
 
           {/* Quantity Selector */}
@@ -130,132 +125,147 @@ export default function ProductDetailsScreen() {
             <Text style={[styles.quantityLabel, { color: colors.foreground }]}>Quantity</Text>
             <View style={styles.quantityControls}>
               <Pressable
-                style={[styles.quantityBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                style={[styles.quantityBtn, { backgroundColor: colors.secondary }]}
                 onPress={decreaseQuantity}
               >
-                <Minus size={18} color={colors.foreground} />
+                <Minus size={16} color={colors.foreground} />
               </Pressable>
               <Text style={[styles.quantityValue, { color: colors.foreground }]}>{quantity}</Text>
               <Pressable
                 style={[styles.quantityBtn, { backgroundColor: colors.primary }]}
                 onPress={increaseQuantity}
               >
-                <Plus size={18} color={colors.primaryForeground} />
+                <Plus size={16} color={colors.primaryForeground} />
               </Pressable>
             </View>
           </View>
 
-          {/* Seller Info */}
-          <View style={[styles.sellerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.sellerHeader}>
-              <Text style={[styles.sellerTitle, { color: colors.foreground }]}>Seller Information</Text>
-            </View>
-            <View style={styles.sellerContent}>
-              <Image source={{ uri: product.vendor.avatar }} style={styles.sellerAvatar} />
-              <View style={styles.sellerDetails}>
-                <Text style={[styles.sellerName, { color: colors.foreground }]}>{product.vendor.name}</Text>
-                <Text style={[styles.sellerExp, { color: colors.mutedForeground }]}>{product.vendor.experience}</Text>
+          {/* Description */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Description</Text>
+            <Text style={[styles.description, { color: colors.mutedForeground }]}>{product.description}</Text>
+          </View>
+
+          {/* Features */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Features</Text>
+            {product.services.map((service, index) => (
+              <View key={index} style={styles.featureRow}>
+                <View style={[styles.featureDot, { backgroundColor: colors.primary }]} />
+                <Text style={[styles.featureText, { color: colors.mutedForeground }]}>{service}</Text>
               </View>
-              <Pressable style={[styles.chatBtn, { backgroundColor: colors.secondary }]}>
-                <MessageCircle size={20} color={colors.primary} />
-              </Pressable>
-            </View>
+            ))}
           </View>
 
-          {/* Tabs */}
-          <View style={styles.tabsContainer}>
-            <View style={[styles.tabsList, { backgroundColor: colors.secondary }]}>
-              <Pressable
-                style={[styles.tab, activeTab === 'details' && { backgroundColor: colors.card }]}
-                onPress={() => setActiveTab('details')}
-              >
-                <Text style={[styles.tabText, { color: activeTab === 'details' ? colors.foreground : colors.mutedForeground }]}>
-                  Details
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.tab, activeTab === 'reviews' && { backgroundColor: colors.card }]}
-                onPress={() => setActiveTab('reviews')}
-              >
-                <Text style={[styles.tabText, { color: activeTab === 'reviews' ? colors.foreground : colors.mutedForeground }]}>
-                  Reviews
-                </Text>
-              </Pressable>
-            </View>
+          {/* Ratings & Reviews - Play Store Style */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Ratings & Reviews</Text>
 
-            <View style={styles.tabContent}>
-              {activeTab === 'details' ? (
-                <View>
-                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Description</Text>
-                  <Text style={[styles.description, { color: colors.mutedForeground }]}>{product.description}</Text>
+            <View style={[styles.ratingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.ratingsContainer}>
+                {/* Left: Big Rating */}
+                <View style={styles.ratingLeft}>
+                  <Text style={[styles.ratingBig, { color: colors.foreground }]}>{product.rating}</Text>
+                  <View style={styles.starsRow}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        size={12}
+                        color={star <= Math.floor(product.rating) ? colors.warning : colors.muted}
+                        fill={star <= Math.floor(product.rating) ? colors.warning : 'transparent'}
+                      />
+                    ))}
+                  </View>
+                  <Text style={[styles.totalReviewsText, { color: colors.mutedForeground }]}>{totalReviews} reviews</Text>
+                </View>
 
-                  <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 16 }]}>Features</Text>
-                  {product.services.map((service, index) => (
-                    <View key={index} style={styles.featureRow}>
-                      <View style={[styles.featureDot, { backgroundColor: colors.primary }]} />
-                      <Text style={[styles.featureText, { color: colors.mutedForeground }]}>{service}</Text>
+                {/* Right: Rating Bars */}
+                <View style={styles.ratingBars}>
+                  {[5, 4, 3, 2, 1].map((star) => (
+                    <View key={star} style={styles.ratingBarRow}>
+                      <Text style={[styles.starNum, { color: colors.mutedForeground }]}>{star}</Text>
+                      <Star size={10} color={colors.warning} fill={colors.warning} />
+                      <View style={[styles.barBg, { backgroundColor: colors.muted }]}>
+                        <View
+                          style={[
+                            styles.barFill,
+                            { backgroundColor: colors.primary, width: `${getBarWidth(ratingDistribution[star as keyof typeof ratingDistribution])}%` }
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.barCount, { color: colors.mutedForeground }]}>
+                        {ratingDistribution[star as keyof typeof ratingDistribution]}
+                      </Text>
                     </View>
                   ))}
                 </View>
-              ) : (
-                <View>
-                  <View style={styles.reviewsHeader}>
-                    <View style={styles.ratingSummary}>
-                      <Star size={24} color={colors.warning} fill={colors.warning} />
-                      <Text style={[styles.ratingBig, { color: colors.foreground }]}>{product.rating}</Text>
-                      <Text style={[styles.totalReviews, { color: colors.mutedForeground }]}>({product.reviews} reviews)</Text>
-                    </View>
-                  </View>
+              </View>
+            </View>
 
-                  {reviews.length === 0 ? (
-                    <Text style={[styles.noReviews, { color: colors.mutedForeground }]}>No reviews yet</Text>
-                  ) : (
-                    reviews.map((review) => (
-                      <View key={review.id} style={[styles.reviewItem, { borderBottomColor: colors.border }]}>
-                        <View style={styles.reviewHeader}>
-                          <Image source={{ uri: review.userAvatar }} style={styles.reviewerAvatar} />
-                          <View style={styles.reviewerInfo}>
-                            <Text style={[styles.reviewerName, { color: colors.foreground }]}>{review.userName}</Text>
-                            <View style={styles.reviewStars}>
-                              {[...Array(5)].map((_, i) => (
-                                <Star
-                                  key={i}
-                                  size={12}
-                                  color={i < review.rating ? colors.warning : colors.muted}
-                                  fill={i < review.rating ? colors.warning : 'transparent'}
-                                />
-                              ))}
-                            </View>
+            {/* Recent Reviews */}
+            {reviews.length > 0 && (
+              <View style={styles.reviewsList}>
+                {reviews.slice(0, 3).map((review) => (
+                  <View key={review.id} style={[styles.reviewItem, { borderBottomColor: colors.border }]}>
+                    <View style={styles.reviewHeader}>
+                      <Image source={{ uri: review.userAvatar }} style={styles.reviewerAvatar} />
+                      <View style={styles.reviewerInfo}>
+                        <Text style={[styles.reviewerName, { color: colors.foreground }]}>{review.userName}</Text>
+                        <View style={styles.reviewMeta}>
+                          <View style={styles.reviewStars}>
+                            {[1, 2, 3, 4, 5].map((i) => (
+                              <Star
+                                key={i}
+                                size={10}
+                                color={i <= review.rating ? colors.warning : colors.muted}
+                                fill={i <= review.rating ? colors.warning : 'transparent'}
+                              />
+                            ))}
                           </View>
                           <Text style={[styles.reviewDate, { color: colors.mutedForeground }]}>{review.date}</Text>
                         </View>
-                        <Text style={[styles.reviewComment, { color: colors.mutedForeground }]}>{review.comment}</Text>
                       </View>
-                    ))
-                  )}
-                </View>
-              )}
-            </View>
+                    </View>
+                    <Text style={[styles.reviewComment, { color: colors.mutedForeground }]} numberOfLines={2}>
+                      {review.comment}
+                    </Text>
+                  </View>
+                ))}
+
+                {reviews.length > 3 && (
+                  <Pressable style={styles.seeAllBtn}>
+                    <Text style={[styles.seeAllText, { color: colors.primary }]}>See all reviews</Text>
+                    <ChevronRight size={16} color={colors.primary} />
+                  </Pressable>
+                )}
+              </View>
+            )}
+
+            {reviews.length === 0 && (
+              <Text style={[styles.noReviews, { color: colors.mutedForeground }]}>No reviews yet</Text>
+            )}
           </View>
         </View>
       </ScrollView>
 
       {/* Bottom Action Bar */}
-      <View style={[styles.bottomBar, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }]}>
-        <View style={styles.totalSection}>
-          <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Total Price</Text>
-          <Text style={[styles.totalPrice, { color: colors.foreground }]}>₹{(product.price * quantity).toLocaleString()}</Text>
+      <SafeAreaView edges={['bottom']} style={[styles.bottomBar, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+        <View style={styles.bottomContent}>
+          <View style={styles.totalSection}>
+            <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Total</Text>
+            <Text style={[styles.totalPrice, { color: colors.foreground }]}>₹{(product.price * quantity).toLocaleString()}</Text>
+          </View>
+          <View style={styles.actionButtons}>
+            <Pressable style={[styles.cartBtn, { backgroundColor: colors.secondary, borderColor: colors.primary }]} onPress={handleAddToCart}>
+              <ShoppingCart size={18} color={colors.primary} />
+            </Pressable>
+            <Pressable style={[styles.buyBtn, { backgroundColor: colors.primary }]} onPress={handleBuyNow}>
+              <Text style={[styles.buyBtnText, { color: colors.primaryForeground }]}>Buy Now</Text>
+            </Pressable>
+          </View>
         </View>
-        <View style={styles.actionButtons}>
-          <Pressable style={[styles.cartBtn, { backgroundColor: colors.secondary, borderColor: colors.primary }]} onPress={handleAddToCart}>
-            <ShoppingCart size={20} color={colors.primary} />
-          </Pressable>
-          <Pressable style={[styles.buyBtn, { backgroundColor: colors.primary }]} onPress={handleBuyNow}>
-            <Text style={[styles.buyBtnText, { color: colors.primaryForeground }]}>Buy Now</Text>
-          </Pressable>
-        </View>
-      </View>
-    </View>
+      </SafeAreaView>
+    </SafeAreaView>
   );
 }
 
@@ -267,9 +277,9 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: 6,
-    paddingTop: 16,
-    paddingBottom: 120,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 100,
   },
   errorContainer: {
     flex: 1,
@@ -277,301 +287,276 @@ const createStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
   },
   errorText: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.mutedForeground,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   backBtn: {
     backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 8,
   },
   backBtnText: {
     color: colors.primaryForeground,
     fontWeight: '600',
-  },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  categoryBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  categoryText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  ratingText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  reviewCount: {
-    fontSize: 12,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 16,
-  },
-  locationText: {
     fontSize: 13,
   },
-  priceSection: {
-    marginBottom: 16,
+  categoryBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
   },
-  priceRow: {
+  categoryText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+    lineHeight: 24,
+  },
+  priceSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+    marginBottom: 12,
   },
   price: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '800',
   },
   mrpPrice: {
-    fontSize: 16,
+    fontSize: 14,
     textDecorationLine: 'line-through',
   },
   discountBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   discountText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '700',
   },
   quantitySection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 12,
+    padding: 12,
+    borderRadius: 10,
     borderWidth: 1,
     marginBottom: 16,
   },
   quantityLabel: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600',
   },
   quantityControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
   },
   quantityBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
   },
   quantityValue: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700',
-    minWidth: 30,
+    minWidth: 24,
     textAlign: 'center',
   },
-  sellerCard: {
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 16,
-  },
-  sellerHeader: {
-    marginBottom: 12,
-  },
-  sellerTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  sellerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sellerAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-  },
-  sellerDetails: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  sellerName: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  sellerExp: {
-    fontSize: 12,
-  },
-  chatBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabsContainer: {
-    marginTop: 8,
-  },
-  tabsList: {
-    flexDirection: 'row',
-    borderRadius: 10,
-    padding: 4,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  tabContent: {
-    marginTop: 16,
+  section: {
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     marginBottom: 8,
   },
   description: {
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 13,
+    lineHeight: 20,
   },
   featureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
+    gap: 8,
+    marginBottom: 6,
   },
   featureDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   featureText: {
-    fontSize: 14,
+    fontSize: 13,
   },
-  reviewsHeader: {
-    marginBottom: 16,
+  ratingsCard: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 12,
   },
-  ratingSummary: {
+  ratingsContainer: {
     flexDirection: 'row',
+  },
+  ratingLeft: {
     alignItems: 'center',
-    gap: 8,
+    paddingRight: 16,
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
+    minWidth: 80,
   },
   ratingBig: {
-    fontSize: 24,
+    fontSize: 36,
     fontWeight: '800',
   },
-  totalReviews: {
-    fontSize: 14,
+  starsRow: {
+    flexDirection: 'row',
+    gap: 2,
+    marginTop: 2,
   },
-  noReviews: {
-    fontSize: 14,
+  totalReviewsText: {
+    fontSize: 11,
+    marginTop: 4,
+  },
+  ratingBars: {
+    flex: 1,
+    paddingLeft: 12,
+    justifyContent: 'center',
+  },
+  ratingBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  starNum: {
+    fontSize: 11,
+    width: 12,
     textAlign: 'center',
-    paddingVertical: 20,
+  },
+  barBg: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    marginHorizontal: 6,
+    overflow: 'hidden',
+  },
+  barFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  barCount: {
+    fontSize: 10,
+    width: 28,
+    textAlign: 'right',
+  },
+  reviewsList: {
+    marginTop: 4,
   },
   reviewItem: {
-    paddingVertical: 14,
+    paddingVertical: 10,
     borderBottomWidth: 1,
   },
   reviewHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   reviewerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   reviewerInfo: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 8,
   },
   reviewerName: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 2,
+  },
+  reviewMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   reviewStars: {
     flexDirection: 'row',
-    gap: 2,
+    gap: 1,
   },
   reviewDate: {
-    fontSize: 11,
+    fontSize: 10,
   },
   reviewComment: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginLeft: 40,
+  },
+  seeAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  seeAllText: {
     fontSize: 13,
-    lineHeight: 20,
+    fontWeight: '600',
+  },
+  noReviews: {
+    fontSize: 12,
+    textAlign: 'center',
+    paddingVertical: 16,
   },
   bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    borderTopWidth: 1,
+  },
+  bottomContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 6,
-    paddingTop: 14,
-    borderTopWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  totalSection: {
-    flex: 1,
-  },
+  totalSection: {},
   totalLabel: {
-    fontSize: 12,
+    fontSize: 11,
     marginBottom: 2,
   },
   totalPrice: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
   },
   actionButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   cartBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
   },
   buyBtn: {
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
   },
   buyBtnText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
   },
 });

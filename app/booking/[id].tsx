@@ -1,444 +1,395 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { ArrowLeft, Calendar, MapPin, Clock } from 'lucide-react-native';
-import { colors } from '@/lib/colors';
-import { addBooking, Booking, Event } from '@/lib/mockData';
-import { Calendar as CalendarComponent } from '@/components/Calendar';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { eventsApi, bookingsApi, ServerEvent } from '@/lib/api';
-
-// Helper to map ServerEvent to Event format
-const mapServerEventToEvent = (serverEvent: ServerEvent): Event => ({
-  id: serverEvent._id,
-  title: serverEvent.title,
-  image: serverEvent.image,
-  images: serverEvent.images,
-  location: serverEvent.location,
-  fullLocation: serverEvent.fullLocation,
-  category: serverEvent.category,
-  price: serverEvent.price,
-  mrp: serverEvent.mrp,
-  rating: serverEvent.rating,
-  reviews: serverEvent.reviews,
-  badge: serverEvent.badge,
-  description: serverEvent.description,
-  date: serverEvent.date,
-  time: serverEvent.time,
-  services: serverEvent.services,
-  vendor: {
-    id: serverEvent.vendor._id,
-    name: serverEvent.vendor.name,
-    avatar: serverEvent.vendor.avatar,
-    phone: serverEvent.vendor.phone || '',
-    email: serverEvent.vendor.email || '',
-    experience: serverEvent.vendor.experience || `${serverEvent.vendor.experienceYears || 0}+ years experience`,
-  },
-});
+import { ArrowLeft, MapPin, Check, Package, Truck } from 'lucide-react-native';
+import { allProducts, Event } from '@/lib/mockData';
+import { useTheme } from '@/hooks/useTheme';
 
 export default function BookingFlowScreen() {
   const { id } = useLocalSearchParams();
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const { colors } = useTheme();
+  const [product, setProduct] = useState<Event | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [event, setEvent] = useState<Event | null>(null);
-  const [eventLoading, setEventLoading] = useState(true);
-  const [bookedDates, setBookedDates] = useState<string[]>([]);
-  const insets = useSafeAreaInsets();
+  const [quantity] = useState(1);
 
   useEffect(() => {
-    const loadEventAndBookedDates = async () => {
-      try {
-        // Load event and booked dates in parallel
-        const [eventResult, bookedResult] = await Promise.all([
-          eventsApi.getById(id as string),
-          bookingsApi.getBookedDates(id as string)
-        ]);
-
-        const eventData = (eventResult as any).data || (eventResult as any).response;
-        if (eventResult.success && eventData && eventData._id) {
-          setEvent(mapServerEventToEvent(eventData));
-        }
-
-        if (bookedResult.success && (bookedResult as any).data) {
-          setBookedDates((bookedResult as any).data);
-        }
-      } catch (error) {
-        console.error('Error loading event:', error);
-      } finally {
-        setEventLoading(false);
-      }
-    };
-
-    loadEventAndBookedDates();
+    const foundProduct = allProducts.find(e => e.id === id);
+    setProduct(foundProduct || null);
   }, [id]);
 
-  if (eventLoading) {
+  const styles = createStyles(colors);
+
+  if (!product) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>Product not found</Text>
+          <Pressable style={[styles.goBackButton, { backgroundColor: colors.primary }]} onPress={() => router.back()}>
+            <Text style={[styles.goBackButtonText, { color: colors.primaryForeground }]}>Go Back</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
     );
   }
 
-  if (!event) {
-    return (
-      <View style={[styles.container, styles.errorContainer]}>
-        <Text style={styles.errorText}>Event not found</Text>
-        <Pressable style={styles.goBackButton} onPress={() => router.back()}>
-          <Text style={styles.goBackButtonText}>Go Back</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  const discountPercent = product.mrp > product.price
+    ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
+    : 0;
 
-  const handleDateSelect = (date: Date) => {
-    setSelectedDate(date);
-  };
-
-  const handleProceedToPayment = async () => {
-    if (!selectedDate) {
-      Alert.alert('Error', 'Please select a date for prebooking');
-      return;
-    }
-
+  const handleProceedToPayment = () => {
     setIsLoading(true);
-
-    // Simulate processing
     setTimeout(() => {
       setIsLoading(false);
       router.push({
         pathname: '/payment',
         params: {
-          eventId: event.id,
-          selectedDate: selectedDate.toISOString(),
-          price: event.price.toString()
+          eventId: product.id,
+          price: product.price.toString()
         }
       });
     }, 500);
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 1 }]}>
+      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <ArrowLeft size={24} color={colors.foreground} />
+          <ArrowLeft size={22} color={colors.foreground} />
         </Pressable>
-        <Text style={styles.headerTitle}>Book Event</Text>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>Checkout</Text>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          {/* Event Summary */}
-          <View style={styles.eventCard}>
-            <Text style={styles.eventTitle}>{event.title}</Text>
-            <View style={styles.eventInfo}>
-              <View style={styles.infoRow}>
-                <MapPin size={16} color={colors.mutedForeground} />
-                <Text style={styles.infoText}>{event.fullLocation}</Text>
+          {/* Product Card */}
+          <View style={[styles.productCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Image source={{ uri: product.image }} style={styles.productImage} />
+            <View style={styles.productInfo}>
+              <Text style={[styles.productTitle, { color: colors.foreground }]} numberOfLines={2}>{product.title}</Text>
+              <View style={styles.locationRow}>
+                <MapPin size={12} color={colors.mutedForeground} />
+                <Text style={[styles.locationText, { color: colors.mutedForeground }]} numberOfLines={1}>{product.location}</Text>
               </View>
-              <View style={styles.infoRow}>
-                <Clock size={16} color={colors.mutedForeground} />
-                <Text style={styles.infoText}>{event.time}</Text>
+              <View style={styles.priceRow}>
+                <Text style={[styles.productPrice, { color: colors.foreground }]}>₹{product.price.toLocaleString()}</Text>
+                {product.mrp > product.price && (
+                  <Text style={[styles.mrpPrice, { color: colors.mutedForeground }]}>₹{product.mrp.toLocaleString()}</Text>
+                )}
+              </View>
+              {discountPercent > 0 && (
+                <View style={[styles.discountBadge, { backgroundColor: colors.success }]}>
+                  <Text style={styles.discountText}>{discountPercent}% OFF</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Delivery Info */}
+          <View style={[styles.deliveryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.deliveryRow}>
+              <View style={[styles.iconBox, { backgroundColor: colors.secondary }]}>
+                <Truck size={16} color={colors.primary} />
+              </View>
+              <View style={styles.deliveryInfo}>
+                <Text style={[styles.deliveryTitle, { color: colors.foreground }]}>Free Delivery</Text>
+                <Text style={[styles.deliverySubtitle, { color: colors.mutedForeground }]}>Estimated 2-4 business days</Text>
+              </View>
+            </View>
+            <View style={styles.deliveryRow}>
+              <View style={[styles.iconBox, { backgroundColor: colors.secondary }]}>
+                <Package size={16} color={colors.primary} />
+              </View>
+              <View style={styles.deliveryInfo}>
+                <Text style={[styles.deliveryTitle, { color: colors.foreground }]}>Easy Returns</Text>
+                <Text style={[styles.deliverySubtitle, { color: colors.mutedForeground }]}>7 days return policy</Text>
               </View>
             </View>
           </View>
 
-          {/* Date Selection */}
-          <View style={styles.dateSection}>
-            <Text style={styles.sectionTitle}>Select Date for Prebooking</Text>
-            <View style={styles.calendarContainer}>
-              {selectedDate ? (
-                <Text style={styles.selectedDateText}>
-                  Selected: {selectedDate.toLocaleDateString('en-IN', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
-                </Text>
-              ) : (
-                <Text style={styles.placeholderText}>Please select a date below</Text>
-              )}
-              {bookedDates.length > 0 && (
-                <Text style={styles.bookedInfoText}>
-                  Red dates are already booked
-                </Text>
-              )}
-              <CalendarComponent
-                onDateSelect={handleDateSelect}
-                selectedDate={selectedDate}
-                bookedDates={bookedDates}
-              />
-            </View>
-          </View>
-
-          {/* Services */}
-          <View style={styles.servicesCard}>
-            <Text style={styles.servicesTitle}>Service Details</Text>
-            <Text style={styles.servicesDescription}>
-              This prebooking includes all the services mentioned below
-            </Text>
-            <View style={styles.servicesList}>
-              {event.services.map((service, index) => (
+          {/* What's Included */}
+          {product.services && product.services.length > 0 && (
+            <View style={[styles.includedCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>What's Included</Text>
+              {product.services.map((service, index) => (
                 <View key={index} style={styles.serviceItem}>
-                  <Text style={styles.checkmark}>✓</Text>
-                  <Text style={styles.serviceText}>{service}</Text>
+                  <View style={[styles.checkIcon, { backgroundColor: colors.secondary }]}>
+                    <Check size={10} color={colors.primary} />
+                  </View>
+                  <Text style={[styles.serviceText, { color: colors.mutedForeground }]}>{service}</Text>
                 </View>
               ))}
+            </View>
+          )}
+
+          {/* Order Summary */}
+          <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Order Summary</Text>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Price ({quantity} item)</Text>
+              <Text style={[styles.summaryValue, { color: colors.foreground }]}>₹{product.mrp.toLocaleString()}</Text>
+            </View>
+            {discountPercent > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Discount</Text>
+                <Text style={[styles.summaryValue, { color: colors.success }]}>-₹{(product.mrp - product.price).toLocaleString()}</Text>
+              </View>
+            )}
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Delivery</Text>
+              <Text style={[styles.summaryValue, { color: colors.success }]}>FREE</Text>
+            </View>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <View style={styles.summaryRow}>
+              <Text style={[styles.totalLabel, { color: colors.foreground }]}>Total Amount</Text>
+              <Text style={[styles.totalValue, { color: colors.foreground }]}>₹{product.price.toLocaleString()}</Text>
             </View>
           </View>
         </View>
       </ScrollView>
 
       {/* Bottom Bar */}
-      <View style={styles.bottomBar}>
-        <View style={styles.priceSection}>
-          <View style={styles.priceRow}>
-            <Text style={styles.price}>₹{event.price.toLocaleString()}</Text>
-            {event.mrp > event.price && (
-              <Text style={styles.mrpPrice}>₹{event.mrp.toLocaleString()}</Text>
-            )}
+      <SafeAreaView edges={['bottom']} style={[styles.bottomBar, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+        <View style={styles.bottomContent}>
+          <View style={styles.bottomPrice}>
+            <Text style={[styles.bottomLabel, { color: colors.mutedForeground }]}>Total</Text>
+            <Text style={[styles.bottomTotal, { color: colors.foreground }]}>₹{product.price.toLocaleString()}</Text>
           </View>
-          {event.mrp > event.price && (
-            <Text style={styles.discountText}>
-              {Math.round(((event.mrp - event.price) / event.mrp) * 100)}% off
-            </Text>
-          )}
+          <Pressable
+            style={[styles.proceedButton, { backgroundColor: colors.primary }]}
+            onPress={handleProceedToPayment}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color={colors.primaryForeground} />
+            ) : (
+              <Text style={[styles.proceedButtonText, { color: colors.primaryForeground }]}>Place Order</Text>
+            )}
+          </Pressable>
         </View>
-        <Pressable
-          style={[
-            styles.proceedButton,
-            (!selectedDate || isLoading) && styles.disabledButton
-          ]}
-          onPress={handleProceedToPayment}
-          disabled={!selectedDate || isLoading}
-        >
-          <View style={styles.buttonContent}>
-            {isLoading && (
-              <ActivityIndicator
-                size="small"
-                color={colors.primaryForeground}
-                style={styles.buttonSpinner}
-              />
-            )}
-            <Text style={styles.proceedButtonText}>
-              {isLoading ? 'Processing...' : 'Proceed to Payment'}
-            </Text>
-          </View>
-        </Pressable>
-      </View>
-    </View>
+      </SafeAreaView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
-  },
-  loadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   errorContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   errorText: {
-    fontSize: 16,
-    color: colors.mutedForeground,
-    marginBottom: 16,
+    fontSize: 14,
+    marginBottom: 12,
   },
   goBackButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 8,
   },
   goBackButtonText: {
-    color: colors.primaryForeground,
     fontWeight: '600',
+    fontSize: 13,
   },
   header: {
-    backgroundColor: colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   backButton: {
     padding: 4,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.foreground,
+    fontSize: 16,
+    fontWeight: '700',
   },
   scrollView: {
     flex: 1,
   },
   content: {
-    paddingVertical: 0,
-    paddingHorizontal: 10,
-    paddingBottom: 120,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    paddingBottom: 100,
   },
-  eventCard: {
-    backgroundColor: colors.card,
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 20,
+  productCard: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.border,
   },
-  eventTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.foreground,
-    marginBottom: 8,
+  productImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
   },
-  eventInfo: {
-    gap: 6,
+  productInfo: {
+    flex: 1,
+    marginLeft: 10,
   },
-  infoRow: {
+  productTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: colors.mutedForeground,
-  },
-  dateSection: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.foreground,
-    marginBottom: 12,
-  },
-  calendarContainer: {
-    backgroundColor: colors.muted,
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  selectedDateText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.foreground,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  placeholderText: {
-    fontSize: 14,
-    color: colors.mutedForeground,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  bookedInfoText: {
-    fontSize: 12,
-    color: colors.destructive,
-    textAlign: 'center',
-    marginBottom: 8,
-    fontStyle: 'italic',
-  },
-  servicesCard: {
-    backgroundColor: colors.muted,
-    borderRadius: 8,
-    padding: 16,
-  },
-  servicesTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.foreground,
-    marginBottom: 8,
-  },
-  servicesDescription: {
-    fontSize: 14,
-    color: colors.mutedForeground,
-    marginBottom: 12,
-  },
-  servicesList: {
     gap: 4,
+    marginBottom: 6,
   },
-  serviceItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  checkmark: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  serviceText: {
-    fontSize: 14,
-    color: colors.foreground,
-  },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 16,
-  },
-  priceSection: {
+  locationText: {
+    fontSize: 11,
     flex: 1,
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
-  price: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.foreground,
+  productPrice: {
+    fontSize: 16,
+    fontWeight: '800',
   },
   mrpPrice: {
-    fontSize: 14,
-    color: colors.mutedForeground,
+    fontSize: 12,
     textDecorationLine: 'line-through',
   },
+  discountBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 4,
+  },
   discountText: {
-    fontSize: 11,
-    color: colors.success,
-    fontWeight: '600',
-    marginTop: 2,
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
   },
-  proceedButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+  deliveryCard: {
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    gap: 12,
   },
-  buttonContent: {
+  deliveryRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  iconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buttonSpinner: {
-    marginRight: 8,
+  deliveryInfo: {
+    flex: 1,
   },
-  disabledButton: {
-    opacity: 0.7,
+  deliveryTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  deliverySubtitle: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  includedCard: {
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  serviceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  checkIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serviceText: {
+    fontSize: 12,
+    flex: 1,
+  },
+  summaryCard: {
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  summaryLabel: {
+    fontSize: 12,
+  },
+  summaryValue: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    marginVertical: 8,
+  },
+  totalLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  totalValue: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  bottomBar: {
+    borderTopWidth: 1,
+  },
+  bottomContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 6,
+    paddingVertical: 12,
+  },
+  bottomPrice: {},
+  bottomLabel: {
+    fontSize: 10,
+    marginBottom: 2,
+  },
+  bottomTotal: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  proceedButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    minWidth: 130,
+    alignItems: 'center',
   },
   proceedButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.primaryForeground,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
