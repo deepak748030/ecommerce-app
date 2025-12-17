@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, Pressable } from 'react-native';
 import { Heart, Star, ShoppingBag } from 'lucide-react-native';
-import { colors } from '@/lib/colors';
 import { Event } from '@/lib/mockData';
 import { getImageUrl } from '@/lib/api';
 import { router } from 'expo-router';
+import { useTheme } from '@/hooks/useTheme';
 
 interface EventCardProps {
   event: Event;
@@ -13,11 +13,15 @@ interface EventCardProps {
 }
 
 export default function EventCard({ event, isFavorite = false, onToggleFavorite }: EventCardProps) {
+  const { colors } = useTheme();
+
   const handlePress = () => {
     router.push(`/event/${event.id}`);
   };
 
   const imageUri = getImageUrl(event.image);
+
+  const styles = createStyles(colors);
 
   return (
     <Pressable
@@ -73,8 +77,8 @@ export default function EventCard({ event, isFavorite = false, onToggleFavorite 
             )}
             <Text style={styles.price}>₹{event.price.toLocaleString()}</Text>
           </View>
-          <Pressable style={styles.bagButton}>
-            <ShoppingBag size={16} color="#fff" />
+          <Pressable style={[styles.bagButton, { backgroundColor: colors.primary }]}>
+            <ShoppingBag size={16} color={colors.primaryForeground} />
           </Pressable>
         </View>
       </View>
@@ -82,12 +86,14 @@ export default function EventCard({ event, isFavorite = false, onToggleFavorite 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   card: {
-    backgroundColor: '#1a1a2e',
-    borderRadius: 12,
+    backgroundColor: colors.card,
+    borderRadius: 8,
     overflow: 'hidden',
-    height: 240,
+    height: 230,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   imageContainer: {
     position: 'relative',
@@ -114,7 +120,7 @@ const styles = StyleSheet.create({
   discountBadge: {
     position: 'absolute',
     top: 8,
-    right: 40,
+    right: 45,
     backgroundColor: '#00c853',
     paddingHorizontal: 6,
     paddingVertical: 3,
@@ -141,7 +147,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: colors.foreground,
     lineHeight: 20,
   },
   ratingContainer: {
@@ -151,12 +157,12 @@ const styles = StyleSheet.create({
   },
   rating: {
     fontSize: 12,
-    color: '#fff',
+    color: colors.foreground,
     fontWeight: '600',
   },
   reviews: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.6)',
+    color: colors.mutedForeground,
   },
   bottomRow: {
     flexDirection: 'row',
@@ -170,16 +176,15 @@ const styles = StyleSheet.create({
   },
   mrpPrice: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.mutedForeground,
     textDecorationLine: 'line-through',
   },
   price: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#00e676',
+    color: colors.primary,
   },
   bagButton: {
-    backgroundColor: '#6c5ce7',
     padding: 8,
     borderRadius: 10,
   },

@@ -8,8 +8,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Event } from '@/lib/mockData';
 
 const { width } = Dimensions.get('window');
-const BANNER_WIDTH = width - 12;
-const CARD_WIDTH = (width - 12 - 8) / 2;
+const BANNER_WIDTH = width - 32;
+const CARD_WIDTH = (width - 20) / 2;
 
 const categories = [
   { id: '1', name: 'Fruits', image: 'https://images.pexels.com/photos/1132047/pexels-photo-1132047.jpeg?auto=compress&cs=tinysrgb&w=200', color: '#FEE2E2' },
@@ -99,12 +99,14 @@ export default function HomeScreen() {
           onScroll={handleBannerScroll}
           scrollEventThrottle={16}
           contentContainerStyle={styles.bannerScrollContainer}
+          snapToInterval={BANNER_WIDTH + 12}
+          decelerationRate="fast"
         >
-          {banners.map((banner) => (
+          {banners.map((banner, index) => (
             <LinearGradient
               key={banner.id}
               colors={isDark ? ['#1E3A2F', banner.gradient[1]] as const : [banner.gradient[0], banner.gradient[1]] as const}
-              style={styles.banner}
+              style={[styles.banner, index === banners.length - 1 && { marginRight: 0 }]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
@@ -132,7 +134,7 @@ export default function HomeScreen() {
         <View style={styles.bannerDots}>
           {banners.map((_, index) => (
             <Pressable key={index} onPress={() => {
-              bannerScrollRef.current?.scrollTo({ x: index * BANNER_WIDTH, animated: true });
+              bannerScrollRef.current?.scrollTo({ x: index * (BANNER_WIDTH + 12), animated: true });
               setCurrentBanner(index);
             }}>
               <View style={[styles.dot, currentBanner === index && styles.activeDot]} />
@@ -361,7 +363,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   categoryIconContainer: {
     width: 60,
     height: 60,
-    borderRadius: 16,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -370,7 +372,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   categoryImage: {
     width: 60,
     height: 60,
-    borderRadius: 16,
+    borderRadius: 10,
   },
   categoryName: {
     fontSize: 12,
@@ -382,9 +384,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 20,
   },
   productCardContainer: {
-    width: 160,
+    width: 170,
   },
   gridContainer: {
+
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',

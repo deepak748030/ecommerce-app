@@ -93,8 +93,10 @@ export default function ProfileScreen() {
             <Text style={styles.themeLabel}>Appearance</Text>
             <Text style={styles.themeValue}>{isDark ? 'Dark Mode' : 'Light Mode'}</Text>
           </View>
-          <View style={[styles.themeBadge, { backgroundColor: isDark ? '#8B5CF6' : colors.success }]}>
-            <Text style={styles.themeBadgeText}>{isDark ? 'Dark' : 'Light'}</Text>
+          <View style={styles.toggleContainer}>
+            <View style={[styles.toggleTrack, isDark && styles.toggleTrackActive]}>
+              <View style={[styles.toggleThumb, isDark && styles.toggleThumbActive]} />
+            </View>
           </View>
         </Pressable>
 
@@ -276,15 +278,28 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 12,
     color: colors.mutedForeground,
   },
-  themeBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
+  toggleContainer: {
+    padding: 4,
   },
-  themeBadgeText: {
-    color: colors.white,
-    fontSize: 11,
-    fontWeight: '700',
+  toggleTrack: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.border,
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  toggleTrackActive: {
+    backgroundColor: colors.primary,
+  },
+  toggleThumb: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.white,
+  },
+  toggleThumbActive: {
+    alignSelf: 'flex-end',
   },
   menuSection: {
     marginBottom: 20,

@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, RefreshControl, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, RefreshControl, NativeSyntheticEvent, NativeScrollEvent, Dimensions } from 'react-native';
 import { Search, ListFilter, X, ArrowUpDown, TrendingUp, TrendingDown } from 'lucide-react-native';
-import { colors } from '@/lib/colors';
 import { getFavorites, toggleFavorite, Event } from '@/lib/mockData';
 import TopBar from '@/components/TopBar';
 import EventCard from '@/components/EventCard';
 import { categoriesApi, eventsApi, Category, MinimalServerEvent } from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useLocalSearchParams } from 'expo-router';
+import { useTheme } from '@/hooks/useTheme';
 
+const { width } = Dimensions.get('window');
+const CARD_WIDTH = (width - 40) / 2;
 const ITEMS_PER_PAGE = 12;
 
 // Helper to map MinimalServerEvent to Event format for listing screens
@@ -41,6 +43,7 @@ const mapMinimalEventToEvent = (serverEvent: MinimalServerEvent): Event => ({
 
 export default function SearchScreen() {
   const params = useLocalSearchParams<{ category?: string }>();
+  const { colors } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -273,9 +276,11 @@ export default function SearchScreen() {
     setPriceSort('none');
   };
 
+  const styles = createStyles(colors);
+
   return (
     <View style={styles.container}>
-      <TopBar />
+      <TopBar hideSearch />
 
       <ScrollView
         style={styles.scrollView}
@@ -568,7 +573,7 @@ export default function SearchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -578,7 +583,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingHorizontal: 16,
     paddingBottom: 90,
   },
   searchRow: {
@@ -625,10 +630,11 @@ const styles = StyleSheet.create({
   eventsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
+    gap: 4,
   },
   eventCardContainer: {
-    width: '48%',
+    width: CARD_WIDTH,
   },
   loadingContainer: {
     paddingVertical: 40,

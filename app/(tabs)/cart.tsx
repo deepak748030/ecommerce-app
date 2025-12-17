@@ -131,7 +131,7 @@ export default function CartScreen() {
                     </ScrollView>
 
                     {/* Checkout Button */}
-                    <View style={[styles.checkoutContainer, { paddingBottom: insets.bottom + 90 }]}>
+                    <View style={[styles.checkoutContainer, { paddingBottom: 12 }]}>
                         <Pressable style={styles.checkoutButton}>
                             <View style={styles.checkoutInfo}>
                                 <Text style={styles.checkoutTotal}>₹{total}</Text>
@@ -165,7 +165,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         borderBottomColor: colors.border,
     },
     title: {
-        fontSize: 24,
+        fontSize: 18,
         fontWeight: '800',
         color: colors.foreground,
     },
@@ -237,18 +237,18 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     },
     cartItem: {
         backgroundColor: colors.card,
-        borderRadius: 14,
-        padding: 14,
+        borderRadius: 3,
+        padding: 6,
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 0,
         borderWidth: 1,
         borderColor: colors.border,
     },
     itemIconContainer: {
         width: 60,
         height: 60,
-        borderRadius: 14,
+        borderRadius: 4,
         backgroundColor: colors.secondary,
         alignItems: 'center',
         justifyContent: 'center',
@@ -380,8 +380,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     },
     checkoutButton: {
         backgroundColor: colors.primary,
-        borderRadius: 14,
-        padding: 16,
+        borderRadius: 8,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -393,7 +394,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         color: colors.white,
     },
     checkoutItems: {
-        fontSize: 12,
+        fontSize: 10,
         color: 'rgba(255,255,255,0.8)',
     },
     checkoutAction: {
