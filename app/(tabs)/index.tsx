@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Image } from 'react-native';
-import { Heart, Star, ArrowRight, Sparkles, Flame, Zap } from 'lucide-react-native';
+import { ArrowRight, Sparkles, Flame, Zap } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import TopBar from '@/components/TopBar';
+import EventCard from '@/components/EventCard';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Event } from '@/lib/mockData';
 
 const { width } = Dimensions.get('window');
 const BANNER_WIDTH = width - 12;
@@ -20,18 +22,18 @@ const categories = [
   { id: '8', name: 'Toys', image: 'https://images.pexels.com/photos/163036/mario-luigi-yoschi-figures-163036.jpeg?auto=compress&cs=tinysrgb&w=200', color: '#D1FAE5' },
 ];
 
-const trendingProducts = [
-  { id: '1', name: 'Fresh Apples', price: '₹120', originalPrice: '₹150', rating: 4.8, reviews: 234, image: 'https://images.pexels.com/photos/1510392/pexels-photo-1510392.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Sale', discount: '20% OFF' },
-  { id: '2', name: 'Organic Bananas', price: '₹60', originalPrice: '₹80', rating: 4.9, reviews: 456, image: 'https://images.pexels.com/photos/2872755/pexels-photo-2872755.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Organic', discount: '25% OFF' },
-  { id: '3', name: 'Premium Mangoes', price: '₹250', originalPrice: '₹300', rating: 4.7, reviews: 189, image: 'https://images.pexels.com/photos/918643/pexels-photo-918643.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Premium', discount: '17% OFF' },
-  { id: '4', name: 'Fresh Oranges', price: '₹90', originalPrice: '₹110', rating: 4.6, reviews: 321, image: 'https://images.pexels.com/photos/42059/citrus-diet-food-fresh-42059.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Fresh', discount: '18% OFF' },
+const trendingProducts: Event[] = [
+  { id: 'trend-1', title: 'Fresh Apples', price: 120, mrp: 150, rating: 4.8, reviews: 234, image: 'https://images.pexels.com/photos/1510392/pexels-photo-1510392.jpeg?auto=compress&cs=tinysrgb&w=300', badge: '20% OFF', location: 'Fresh Market', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
+  { id: 'trend-2', title: 'Organic Bananas', price: 60, mrp: 80, rating: 4.9, reviews: 456, image: 'https://images.pexels.com/photos/2872755/pexels-photo-2872755.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Organic', location: 'Farm Fresh', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
+  { id: 'trend-3', title: 'Premium Mangoes', price: 250, mrp: 300, rating: 4.7, reviews: 189, image: 'https://images.pexels.com/photos/918643/pexels-photo-918643.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Premium', location: 'Tropical Store', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
+  { id: 'trend-4', title: 'Fresh Oranges', price: 90, mrp: 110, rating: 4.6, reviews: 321, image: 'https://images.pexels.com/photos/42059/citrus-diet-food-fresh-42059.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Fresh', location: 'City Market', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
 ];
 
-const fashionProducts = [
-  { id: '1', name: 'Summer T-Shirt', price: '₹599', originalPrice: '₹999', rating: 4.5, reviews: 567, image: 'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Trending' },
-  { id: '2', name: 'Denim Jeans', price: '₹1,299', originalPrice: '₹1,999', rating: 4.7, reviews: 892, image: 'https://images.pexels.com/photos/1598507/pexels-photo-1598507.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Bestseller' },
-  { id: '3', name: 'Sneakers', price: '₹2,499', originalPrice: '₹3,999', rating: 4.8, reviews: 1234, image: 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Hot Deal' },
-  { id: '4', name: 'Sunglasses', price: '₹799', originalPrice: '₹1,499', rating: 4.4, reviews: 445, image: 'https://images.pexels.com/photos/701877/pexels-photo-701877.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'New' },
+const fashionProducts: Event[] = [
+  { id: 'fashion-1', title: 'Summer T-Shirt', price: 599, mrp: 999, rating: 4.5, reviews: 567, image: 'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Trending', location: 'Fashion Hub', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
+  { id: 'fashion-2', title: 'Denim Jeans', price: 1299, mrp: 1999, rating: 4.7, reviews: 892, image: 'https://images.pexels.com/photos/1598507/pexels-photo-1598507.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Bestseller', location: 'Style Store', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
+  { id: 'fashion-3', title: 'Sneakers', price: 2499, mrp: 3999, rating: 4.8, reviews: 1234, image: 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Hot Deal', location: 'Shoe Palace', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
+  { id: 'fashion-4', title: 'Sunglasses', price: 799, mrp: 1499, rating: 4.4, reviews: 445, image: 'https://images.pexels.com/photos/701877/pexels-photo-701877.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'New', location: 'Eye Wear', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
 ];
 
 const banners = [
@@ -183,35 +185,13 @@ export default function HomeScreen() {
           contentContainerStyle={styles.productsContainer}
         >
           {trendingProducts.map((product) => (
-            <Pressable key={product.id} style={styles.productCard}>
-              <View style={styles.productBadge}>
-                <Text style={styles.productBadgeText}>{product.discount}</Text>
-              </View>
-              <Pressable
-                style={styles.wishlistButton}
-                onPress={() => toggleWishlist(`trend-${product.id}`)}
-              >
-                <Heart
-                  size={18}
-                  color={wishlist.includes(`trend-${product.id}`) ? '#EF4444' : colors.mutedForeground}
-                  fill={wishlist.includes(`trend-${product.id}`) ? '#EF4444' : 'transparent'}
-                />
-              </Pressable>
-              <Image source={{ uri: product.image }} style={styles.productImage} />
-              <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
-              <View style={styles.ratingRow}>
-                <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                <Text style={styles.ratingText}>{product.rating}</Text>
-                <Text style={styles.reviewsText}>({product.reviews})</Text>
-              </View>
-              <View style={styles.priceRow}>
-                <Text style={styles.productPrice}>{product.price}</Text>
-                <Text style={styles.originalPrice}>{product.originalPrice}</Text>
-              </View>
-              <Pressable style={styles.addToCartButton}>
-                <Text style={styles.addToCartText}>Add to Cart</Text>
-              </Pressable>
-            </Pressable>
+            <View key={product.id} style={styles.productCardContainer}>
+              <EventCard
+                event={product}
+                isFavorite={wishlist.includes(product.id)}
+                onToggleFavorite={() => toggleWishlist(product.id)}
+              />
+            </View>
           ))}
         </ScrollView>
 
@@ -229,35 +209,13 @@ export default function HomeScreen() {
 
         <View style={styles.gridContainer}>
           {fashionProducts.map((product) => (
-            <Pressable key={product.id} style={styles.gridProductCard}>
-              <View style={[styles.productBadge, { backgroundColor: '#8B5CF6' }]}>
-                <Text style={styles.productBadgeText}>{product.badge}</Text>
-              </View>
-              <Pressable
-                style={styles.wishlistButton}
-                onPress={() => toggleWishlist(`fashion-${product.id}`)}
-              >
-                <Heart
-                  size={18}
-                  color={wishlist.includes(`fashion-${product.id}`) ? '#EF4444' : colors.mutedForeground}
-                  fill={wishlist.includes(`fashion-${product.id}`) ? '#EF4444' : 'transparent'}
-                />
-              </Pressable>
-              <Image source={{ uri: product.image }} style={styles.gridProductImage} />
-              <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
-              <View style={styles.ratingRow}>
-                <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                <Text style={styles.ratingText}>{product.rating}</Text>
-                <Text style={styles.reviewsText}>({product.reviews})</Text>
-              </View>
-              <View style={styles.priceRow}>
-                <Text style={styles.productPrice}>{product.price}</Text>
-                <Text style={styles.originalPrice}>{product.originalPrice}</Text>
-              </View>
-              <Pressable style={styles.addToCartButton}>
-                <Text style={styles.addToCartText}>Add to Cart</Text>
-              </Pressable>
-            </Pressable>
+            <View key={product.id} style={styles.gridProductCard}>
+              <EventCard
+                event={product}
+                isFavorite={wishlist.includes(product.id)}
+                onToggleFavorite={() => toggleWishlist(product.id)}
+              />
+            </View>
           ))}
         </View>
       </ScrollView>
@@ -420,98 +378,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.foreground,
   },
   productsContainer: {
-    gap: 12,
+    gap: 8,
     marginBottom: 20,
   },
-  productCard: {
+  productCardContainer: {
     width: 160,
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  productBadge: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    backgroundColor: colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    zIndex: 1,
-  },
-  productBadgeText: {
-    color: colors.white,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  wishlistButton: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  productImage: {
-    width: '100%',
-    height: 100,
-    borderRadius: 12,
-    marginTop: 10,
-    marginBottom: 10,
-  },
-  productName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.foreground,
-    marginBottom: 6,
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-    gap: 4,
-  },
-  ratingText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.foreground,
-  },
-  reviewsText: {
-    fontSize: 11,
-    color: colors.mutedForeground,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 10,
-  },
-  productPrice: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  originalPrice: {
-    fontSize: 12,
-    color: colors.mutedForeground,
-    textDecorationLine: 'line-through',
-  },
-  addToCartButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  addToCartText: {
-    color: colors.white,
-    fontSize: 12,
-    fontWeight: '700',
   },
   gridContainer: {
     flexDirection: 'row',
@@ -522,17 +393,5 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   gridProductCard: {
     width: CARD_WIDTH,
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  gridProductImage: {
-    width: '100%',
-    height: 90,
-    borderRadius: 12,
-    marginTop: 10,
-    marginBottom: 10,
   },
 });

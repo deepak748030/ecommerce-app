@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, Pressable } from 'react-native';
-import { Heart, MapPin, Star } from 'lucide-react-native';
+import { Heart, Star, ShoppingBag } from 'lucide-react-native';
 import { colors } from '@/lib/colors';
 import { Event } from '@/lib/mockData';
 import { getImageUrl } from '@/lib/api';
@@ -17,14 +17,13 @@ export default function EventCard({ event, isFavorite = false, onToggleFavorite 
     router.push(`/event/${event.id}`);
   };
 
-  // Get full image URL from path
   const imageUri = getImageUrl(event.image);
 
   return (
     <Pressable
       style={styles.card}
       onPress={handlePress}
-      android_ripple={{ color: colors.muted }}
+      android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
     >
       <View style={styles.imageContainer}>
         <Image source={{ uri: imageUri }} style={styles.image} />
@@ -35,51 +34,6 @@ export default function EventCard({ event, isFavorite = false, onToggleFavorite 
           </View>
         )}
 
-        <Pressable
-          style={styles.favoriteButton}
-          onPress={onToggleFavorite}
-          android_ripple={{ color: colors.primary, borderless: true }}
-        >
-          <Heart
-            size={16}
-            color={colors.primary}
-            fill={isFavorite ? colors.primary : 'transparent'}
-          />
-        </Pressable>
-      </View>
-
-      <View style={styles.content}>
-        <View style={styles.topContent}>
-          <Text style={styles.title} numberOfLines={2}>
-            {event.title}
-          </Text>
-
-          <View style={styles.locationRow}>
-            <MapPin size={12} color={colors.mutedForeground} />
-            <Text style={styles.location} numberOfLines={1}>
-              {event.location}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.bottomRow}>
-          <View style={styles.ratingContainer}>
-            <Star size={12} color={colors.warning} fill={colors.warning} />
-            <Text style={styles.rating}>
-              {event.rating} ({event.reviews})
-            </Text>
-          </View>
-
-          <View style={styles.priceWrapper}>
-            {event.mrp && event.mrp > event.price && (
-              <Text style={styles.mrpPrice}>₹{event.mrp.toLocaleString()}</Text>
-            )}
-            <View style={styles.priceContainer}>
-              <Text style={styles.price}>₹{event.price.toLocaleString()}</Text>
-            </View>
-          </View>
-        </View>
-
         {event.mrp && event.mrp > event.price && (
           <View style={styles.discountBadge}>
             <Text style={styles.discountText}>
@@ -87,6 +41,42 @@ export default function EventCard({ event, isFavorite = false, onToggleFavorite 
             </Text>
           </View>
         )}
+
+        <Pressable
+          style={styles.favoriteButton}
+          onPress={onToggleFavorite}
+          android_ripple={{ color: colors.primary, borderless: true }}
+        >
+          <Heart
+            size={16}
+            color={isFavorite ? '#ff4757' : '#fff'}
+            fill={isFavorite ? '#ff4757' : 'transparent'}
+          />
+        </Pressable>
+      </View>
+
+      <View style={styles.content}>
+        <Text style={styles.title} numberOfLines={2}>
+          {event.title}
+        </Text>
+
+        <View style={styles.ratingContainer}>
+          <Star size={12} color="#ffc107" fill="#ffc107" />
+          <Text style={styles.rating}>{event.rating}</Text>
+          <Text style={styles.reviews}>({event.reviews})</Text>
+        </View>
+
+        <View style={styles.bottomRow}>
+          <View style={styles.priceWrapper}>
+            {event.mrp && event.mrp > event.price && (
+              <Text style={styles.mrpPrice}>₹{event.mrp.toLocaleString()}</Text>
+            )}
+            <Text style={styles.price}>₹{event.price.toLocaleString()}</Text>
+          </View>
+          <Pressable style={styles.bagButton}>
+            <ShoppingBag size={16} color="#fff" />
+          </Pressable>
+        </View>
       </View>
     </Pressable>
   );
@@ -94,71 +84,65 @@ export default function EventCard({ event, isFavorite = false, onToggleFavorite 
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.card,
-    borderRadius: 8,
+    backgroundColor: '#1a1a2e',
+    borderRadius: 12,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-    height: 210,
+    height: 240,
   },
   imageContainer: {
     position: 'relative',
   },
   image: {
     width: '100%',
-    height: 100,
+    height: 130,
     resizeMode: 'cover',
   },
   badge: {
     position: 'absolute',
     top: 8,
     left: 8,
-    backgroundColor: colors.warning,
+    backgroundColor: '#ffc107',
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   badgeText: {
-    color: colors.foreground,
+    color: '#1a1a2e',
     fontSize: 10,
     fontWeight: 'bold',
+  },
+  discountBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 40,
+    backgroundColor: '#00c853',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  discountText: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   favoriteButton: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     padding: 6,
-    borderRadius: 6,
+    borderRadius: 20,
   },
   content: {
-    padding: 8,
+    padding: 12,
     flex: 1,
-    flexDirection: 'column',
     justifyContent: 'space-between',
-  },
-  topContent: {
-    gap: 6,
   },
   title: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.foreground,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  location: {
-    fontSize: 12,
-    color: colors.mutedForeground,
-    flex: 1,
-  },
-  bottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    color: '#fff',
+    lineHeight: 20,
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -167,41 +151,36 @@ const styles = StyleSheet.create({
   },
   rating: {
     fontSize: 12,
-    color: colors.mutedForeground,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  reviews: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   priceWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   mrpPrice: {
-    fontSize: 10,
-    color: colors.mutedForeground,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.5)',
     textDecorationLine: 'line-through',
   },
-  priceContainer: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
   price: {
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: 'bold',
-    color: colors.primaryForeground,
+    color: '#00e676',
   },
-  discountBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 40,
-    backgroundColor: colors.success,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  discountText: {
-    fontSize: 9,
-    fontWeight: 'bold',
-    color: colors.white,
+  bagButton: {
+    backgroundColor: '#6c5ce7',
+    padding: 8,
+    borderRadius: 10,
   },
 });
