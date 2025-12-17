@@ -5,7 +5,7 @@ import { useTheme } from '@/hooks/useTheme';
 import TopBar from '@/components/TopBar';
 import EventCard from '@/components/EventCard';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Event } from '@/lib/mockData';
+import { trendingProducts, fashionProducts } from '@/lib/mockData';
 
 const { width } = Dimensions.get('window');
 const BANNER_WIDTH = width - 32;
@@ -20,20 +20,6 @@ const categories = [
   { id: '6', name: 'Beauty', image: 'https://images.pexels.com/photos/2587370/pexels-photo-2587370.jpeg?auto=compress&cs=tinysrgb&w=200', color: '#FED7AA' },
   { id: '7', name: 'Sports', image: 'https://images.pexels.com/photos/46798/the-ball-stadion-football-the-pitch-46798.jpeg?auto=compress&cs=tinysrgb&w=200', color: '#CFFAFE' },
   { id: '8', name: 'Toys', image: 'https://images.pexels.com/photos/163036/mario-luigi-yoschi-figures-163036.jpeg?auto=compress&cs=tinysrgb&w=200', color: '#D1FAE5' },
-];
-
-const trendingProducts: Event[] = [
-  { id: 'trend-1', title: 'Fresh Apples', price: 120, mrp: 150, rating: 4.8, reviews: 234, image: 'https://images.pexels.com/photos/1510392/pexels-photo-1510392.jpeg?auto=compress&cs=tinysrgb&w=300', badge: '20% OFF', location: 'Fresh Market', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
-  { id: 'trend-2', title: 'Organic Bananas', price: 60, mrp: 80, rating: 4.9, reviews: 456, image: 'https://images.pexels.com/photos/2872755/pexels-photo-2872755.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Organic', location: 'Farm Fresh', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
-  { id: 'trend-3', title: 'Premium Mangoes', price: 250, mrp: 300, rating: 4.7, reviews: 189, image: 'https://images.pexels.com/photos/918643/pexels-photo-918643.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Premium', location: 'Tropical Store', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
-  { id: 'trend-4', title: 'Fresh Oranges', price: 90, mrp: 110, rating: 4.6, reviews: 321, image: 'https://images.pexels.com/photos/42059/citrus-diet-food-fresh-42059.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Fresh', location: 'City Market', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
-];
-
-const fashionProducts: Event[] = [
-  { id: 'fashion-1', title: 'Summer T-Shirt', price: 599, mrp: 999, rating: 4.5, reviews: 567, image: 'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Trending', location: 'Fashion Hub', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
-  { id: 'fashion-2', title: 'Denim Jeans', price: 1299, mrp: 1999, rating: 4.7, reviews: 892, image: 'https://images.pexels.com/photos/1598507/pexels-photo-1598507.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Bestseller', location: 'Style Store', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
-  { id: 'fashion-3', title: 'Sneakers', price: 2499, mrp: 3999, rating: 4.8, reviews: 1234, image: 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Hot Deal', location: 'Shoe Palace', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
-  { id: 'fashion-4', title: 'Sunglasses', price: 799, mrp: 1499, rating: 4.4, reviews: 445, image: 'https://images.pexels.com/photos/701877/pexels-photo-701877.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'New', location: 'Eye Wear', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
 ];
 
 const banners = [

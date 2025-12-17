@@ -91,7 +91,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         backgroundColor: colors.background,
     },
     header: {
-        paddingHorizontal: 3,
+        paddingHorizontal: 10,
         paddingBottom: 6,
         flexDirection: 'row',
         justifyContent: 'space-between',

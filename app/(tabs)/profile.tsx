@@ -152,13 +152,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   header: {
     paddingHorizontal: 6,
-    paddingBottom: 12,
+    paddingBottom: 6,
     backgroundColor: colors.background,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   title: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '800',
     color: colors.foreground,
   },

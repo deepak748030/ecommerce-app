@@ -1,318 +1,162 @@
-// app/event/[id].tsx
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MapPin, Calendar, Clock, Star, MessageCircle, Edit3 } from 'lucide-react-native';
-import { colors } from '@/lib/colors';
-import { getFavorites, toggleFavorite, Event } from '@/lib/mockData';
+import { MapPin, Star, MessageCircle, ShoppingCart, Heart, Minus, Plus } from 'lucide-react-native';
+import { allProducts, mockReviews, getFavorites, toggleFavorite, Event, Review } from '@/lib/mockData';
 import { ImageCarousel } from '@/components/ImageCarousel';
-import { ReviewModal } from '@/components/ReviewModal';
-import { eventsApi, reviewsApi, ServerEvent, ServerReview, ReviewStats } from '@/lib/api';
+import { useTheme } from '@/hooks/useTheme';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-// Helper to map ServerEvent to Event format
-const mapServerEventToEvent = (serverEvent: ServerEvent): Event => ({
-  id: serverEvent._id,
-  title: serverEvent.title,
-  image: serverEvent.image,
-  images: serverEvent.images,
-  location: serverEvent.location,
-  fullLocation: serverEvent.fullLocation,
-  category: serverEvent.category,
-  price: serverEvent.price,
-  mrp: serverEvent.mrp,
-  rating: serverEvent.rating,
-  reviews: serverEvent.reviews,
-  badge: serverEvent.badge,
-  description: serverEvent.description,
-  date: serverEvent.date,
-  time: serverEvent.time,
-  services: serverEvent.services,
-  vendor: {
-    id: serverEvent.vendor._id,
-    name: serverEvent.vendor.name,
-    avatar: serverEvent.vendor.avatar,
-    phone: serverEvent.vendor.phone || '',
-    email: serverEvent.vendor.email || '',
-    experience: serverEvent.vendor.experience || `${serverEvent.vendor.experienceYears || 0}+ years experience`,
-  },
-});
-
-export default function EventDetailsScreen() {
+export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState('details');
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isBooking, setIsBooking] = useState(false);
-  const [event, setEvent] = useState<Event | null>(null);
-  const [eventLoading, setEventLoading] = useState(true);
-  const [reviews, setReviews] = useState<ServerReview[]>([]);
-  const [reviewStats, setReviewStats] = useState<ReviewStats>({ avgRating: 0, totalReviews: 0 });
-  const [reviewsLoading, setReviewsLoading] = useState(false);
-  const [reviewsLoaded, setReviewsLoaded] = useState(false);
-
-  // Review modal state
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [canReview, setCanReview] = useState(true);
-  const [existingReview, setExistingReview] = useState<{ _id: string; rating: number; comment: string } | null>(null);
-  const [canReviewLoading, setCanReviewLoading] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+  const [product, setProduct] = useState<Event | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
 
   useEffect(() => {
-    const loadEvent = async () => {
-      try {
-        const result = await eventsApi.getById(id as string);
-        const eventData = (result as any).data || (result as any).response;
+    // Find product from all products (mockEvents + trending + fashion)
+    const foundProduct = allProducts.find(e => e.id === id);
+    setProduct(foundProduct || null);
 
-        if (result.success && eventData && eventData._id) {
-          setEvent(mapServerEventToEvent(eventData));
-        }
-      } catch (error) {
-        console.error('Error loading event:', error);
-      } finally {
-        setEventLoading(false);
-      }
-    };
+    // Get reviews for this product
+    const productReviews = mockReviews.filter(r => r.eventId === id);
+    setReviews(productReviews);
 
+    // Load favorites
     const loadFavorites = async () => {
-      try {
-        const favs = await getFavorites();
-        setFavorites(favs);
-      } catch (error) {
-        setFavorites([]);
-      } finally {
-        setLoading(false);
-      }
+      const favs = await getFavorites();
+      setFavorites(favs);
     };
-
-    loadEvent();
     loadFavorites();
   }, [id]);
 
-  // Load reviews only when reviews tab is clicked
-  const loadReviews = async () => {
-    if (reviewsLoaded) return; // Don't reload if already loaded
+  const styles = createStyles(colors);
 
-    setReviewsLoading(true);
-    try {
-      const result = await reviewsApi.getEventReviews(id as string, { limit: 20 });
-      const reviewData = (result as any).data || [];
-      const stats = (result as any).stats || { avgRating: 0, totalReviews: 0 };
-
-      if (result.success) {
-        setReviews(reviewData);
-        setReviewStats(stats);
-        setReviewsLoaded(true);
-      }
-    } catch (error) {
-      console.error('Error loading reviews:', error);
-    } finally {
-      setReviewsLoading(false);
-    }
-  };
-
-  // Check if user can review when reviews tab is clicked
-  const checkCanReview = async () => {
-    setCanReviewLoading(true);
-    try {
-      const result = await reviewsApi.canReview(id as string);
-      console.log('canReview API result:', result);
-      if (result.success) {
-        // Response structure: { success: true, canReview: boolean, existingReview?: {...} }
-        const canReviewValue = (result as any).canReview;
-        const existingReviewData = (result as any).existingReview;
-
-        setCanReview(canReviewValue !== false);
-        if (existingReviewData) {
-          setExistingReview(existingReviewData);
-        }
-      } else {
-        // If API fails (e.g., not logged in), still allow attempting to write review
-        // The create API will handle auth properly
-        setCanReview(true);
-      }
-    } catch (error) {
-      console.error('Error checking can review:', error);
-      // On error, default to allowing review attempts
-      setCanReview(true);
-    } finally {
-      setCanReviewLoading(false);
-    }
-  };
-
-  // Handle tab change - load reviews only when reviews tab is clicked
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
-    if (tab === 'reviews') {
-      loadReviews();
-      checkCanReview();
-    }
-  };
-
-  const formatReviewDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-  };
-
-  if (eventLoading) {
+  if (!product) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
-  if (!event) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Event not found</Text>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </Pressable>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Product not found</Text>
+          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+            <Text style={styles.backBtnText}>Go Back</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
 
   const handleToggleFavorite = async () => {
-    try {
-      await toggleFavorite(event.id);
-      const updatedFavorites = await getFavorites();
-      setFavorites(updatedFavorites);
-    } catch (error) {
-      console.error('Error toggling favorite:', error);
-    }
+    await toggleFavorite(product.id);
+    const updatedFavorites = await getFavorites();
+    setFavorites(updatedFavorites);
   };
 
-  const handleBookNow = () => {
-    setIsBooking(true);
-    setTimeout(() => {
-      router.push(`/booking/${event.id}`);
-      setIsBooking(false);
-    }, 500);
+  const isFavorite = favorites.includes(product.id);
+  const discountPercent = product.mrp > product.price
+    ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
+    : 0;
+
+  const increaseQuantity = () => setQuantity(prev => prev + 1);
+  const decreaseQuantity = () => setQuantity(prev => Math.max(1, prev - 1));
+
+  const handleAddToCart = () => {
+    router.push('/cart');
   };
 
-  const handleChatVendor = () => {
-    router.push({
-      pathname: '/chat/[id]',
-      params: {
-        id: event.vendor.id,
-        vendorName: event.vendor.name,
-        vendorAvatar: event.vendor.avatar
-      }
-    });
+  const handleBuyNow = () => {
+    router.push(`/booking/${product.id}`);
   };
-
-  const handleSubmitReview = async (rating: number, comment: string) => {
-    try {
-      console.log('Submitting review from event details:', { eventId: id, rating, comment });
-
-      const result = await reviewsApi.create({
-        eventId: id as string,
-        rating,
-        comment,
-      });
-
-      console.log('Review API response:', result);
-
-      if (result.success) {
-        // Close modal
-        setShowReviewModal(false);
-        // Mark as already reviewed
-        setCanReview(false);
-        setExistingReview({ _id: '', rating, comment });
-        // Reload reviews to show the new one
-        setReviewsLoaded(false);
-        await loadReviews();
-        // Reload event to get updated rating
-        const eventResult = await eventsApi.getById(id as string);
-        const eventData = (eventResult as any).data || (eventResult as any).response;
-        if (eventResult.success && eventData && eventData._id) {
-          setEvent(mapServerEventToEvent(eventData));
-        }
-      } else {
-        const errorMsg = (result as any).message || 'Failed to submit review';
-        console.error('Review submission failed:', errorMsg);
-        throw new Error(errorMsg);
-      }
-    } catch (error) {
-      console.error('Error submitting review:', error);
-      throw error;
-    }
-  };
-
-  const averageRating = reviewStats.totalReviews > 0 ? reviewStats.avgRating : event.rating;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Scrollable Content */}
-      <ScrollView style={styles.contentContainer} showsVerticalScrollIndicator={false}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Image Carousel */}
         <ImageCarousel
-          images={event.images}
-          badge={event.badge}
+          images={product.images}
+          badge={product.badge}
           showBackButton={true}
           showFavoriteButton={true}
-          isFavorite={favorites.includes(event.id)}
+          isFavorite={isFavorite}
           onBackPress={() => router.back()}
           onFavoritePress={handleToggleFavorite}
-          height={220}
+          height={280}
         />
+
         <View style={styles.content}>
-          <View style={styles.titleRow}>
-            <Text style={styles.title}>{event.title}</Text>
-            {event.mrp && event.mrp > event.price && (
-              <View style={styles.discountBadge}>
-                <Text style={styles.discountBadgeText}>
-                  {Math.round(((event.mrp - event.price) / event.mrp) * 100)}% OFF
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Info Rows */}
-          <View style={styles.infoContainer}>
-            <View style={styles.infoRow}>
-              <MapPin size={20} color={colors.primary} />
-              <View>
-                <Text style={styles.infoLabel}>Location</Text>
-                <Text style={styles.infoValue}>{event.fullLocation}</Text>
-              </View>
+          {/* Category & Rating Row */}
+          <View style={styles.topRow}>
+            <View style={[styles.categoryBadge, { backgroundColor: colors.secondary }]}>
+              <Text style={[styles.categoryText, { color: colors.primary }]}>{product.category}</Text>
             </View>
-
-            <View style={styles.infoRow}>
-              <Calendar size={20} color={colors.primary} />
-              <View>
-                <Text style={styles.infoLabel}>Date</Text>
-                <Text style={styles.infoValue}>{event.date}</Text>
-              </View>
-            </View>
-
-            <View style={styles.infoRow}>
-              <Clock size={20} color={colors.primary} />
-              <View>
-                <Text style={styles.infoLabel}>Time</Text>
-                <Text style={styles.infoValue}>{event.time}</Text>
-              </View>
+            <View style={styles.ratingRow}>
+              <Star size={16} color={colors.warning} fill={colors.warning} />
+              <Text style={[styles.ratingText, { color: colors.foreground }]}>{product.rating}</Text>
+              <Text style={[styles.reviewCount, { color: colors.mutedForeground }]}>({product.reviews})</Text>
             </View>
           </View>
 
-          {/* Vendor Card */}
-          <View style={styles.vendorCard}>
-            <View style={styles.vendorHeader}>
-              <Star size={18} color={colors.warning} fill={colors.warning} />
-              <Text style={styles.vendorTitle}>Vendor Information</Text>
-            </View>
-            <View style={styles.vendorContent}>
-              <View style={styles.vendorInfo}>
-                <Image source={{ uri: event.vendor.avatar }} style={styles.vendorAvatar} />
-                <View style={styles.vendorDetails}>
-                  <Text style={styles.vendorName}>{event.vendor.name}</Text>
-                  <Text style={styles.vendorExperience}>{event.vendor.experience}</Text>
+          {/* Title */}
+          <Text style={[styles.title, { color: colors.foreground }]}>{product.title}</Text>
+
+          {/* Location */}
+          <View style={styles.locationRow}>
+            <MapPin size={16} color={colors.mutedForeground} />
+            <Text style={[styles.locationText, { color: colors.mutedForeground }]}>{product.fullLocation}</Text>
+          </View>
+
+          {/* Price Section */}
+          <View style={styles.priceSection}>
+            <View style={styles.priceRow}>
+              <Text style={[styles.price, { color: colors.foreground }]}>₹{product.price.toLocaleString()}</Text>
+              {product.mrp > product.price && (
+                <Text style={[styles.mrpPrice, { color: colors.mutedForeground }]}>₹{product.mrp.toLocaleString()}</Text>
+              )}
+              {discountPercent > 0 && (
+                <View style={[styles.discountBadge, { backgroundColor: colors.success }]}>
+                  <Text style={styles.discountText}>{discountPercent}% OFF</Text>
                 </View>
+              )}
+            </View>
+          </View>
+
+          {/* Quantity Selector */}
+          <View style={[styles.quantitySection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.quantityLabel, { color: colors.foreground }]}>Quantity</Text>
+            <View style={styles.quantityControls}>
+              <Pressable
+                style={[styles.quantityBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                onPress={decreaseQuantity}
+              >
+                <Minus size={18} color={colors.foreground} />
+              </Pressable>
+              <Text style={[styles.quantityValue, { color: colors.foreground }]}>{quantity}</Text>
+              <Pressable
+                style={[styles.quantityBtn, { backgroundColor: colors.primary }]}
+                onPress={increaseQuantity}
+              >
+                <Plus size={18} color={colors.primaryForeground} />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Seller Info */}
+          <View style={[styles.sellerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.sellerHeader}>
+              <Text style={[styles.sellerTitle, { color: colors.foreground }]}>Seller Information</Text>
+            </View>
+            <View style={styles.sellerContent}>
+              <Image source={{ uri: product.vendor.avatar }} style={styles.sellerAvatar} />
+              <View style={styles.sellerDetails}>
+                <Text style={[styles.sellerName, { color: colors.foreground }]}>{product.vendor.name}</Text>
+                <Text style={[styles.sellerExp, { color: colors.mutedForeground }]}>{product.vendor.experience}</Text>
               </View>
-              <Pressable style={styles.chatButton} onPress={handleChatVendor}>
+              <Pressable style={[styles.chatBtn, { backgroundColor: colors.secondary }]}>
                 <MessageCircle size={20} color={colors.primary} />
               </Pressable>
             </View>
@@ -320,82 +164,59 @@ export default function EventDetailsScreen() {
 
           {/* Tabs */}
           <View style={styles.tabsContainer}>
-            <View style={styles.tabsList}>
+            <View style={[styles.tabsList, { backgroundColor: colors.secondary }]}>
               <Pressable
-                style={[styles.tab, activeTab === 'details' && styles.activeTab]}
-                onPress={() => handleTabChange('details')}
+                style={[styles.tab, activeTab === 'details' && { backgroundColor: colors.card }]}
+                onPress={() => setActiveTab('details')}
               >
-                <Text style={[styles.tabText, activeTab === 'details' && styles.activeTabText]}>
+                <Text style={[styles.tabText, { color: activeTab === 'details' ? colors.foreground : colors.mutedForeground }]}>
                   Details
                 </Text>
               </Pressable>
               <Pressable
-                style={[styles.tab, activeTab === 'reviews' && styles.activeTab]}
-                onPress={() => handleTabChange('reviews')}
+                style={[styles.tab, activeTab === 'reviews' && { backgroundColor: colors.card }]}
+                onPress={() => setActiveTab('reviews')}
               >
-                <Text style={[styles.tabText, activeTab === 'reviews' && styles.activeTabText]}>
+                <Text style={[styles.tabText, { color: activeTab === 'reviews' ? colors.foreground : colors.mutedForeground }]}>
                   Reviews
                 </Text>
               </Pressable>
             </View>
 
-            {/* Tab Content */}
             <View style={styles.tabContent}>
               {activeTab === 'details' ? (
-                <View style={styles.detailsContent}>
-                  <View style={styles.aboutSection}>
-                    <Text style={styles.sectionTitle}>About</Text>
-                    <Text style={styles.description}>{event.description}</Text>
-                  </View>
-                  <View style={styles.servicesSection}>
-                    <Text style={styles.sectionTitle}>Services Included</Text>
-                    {event.services.map((service, index) => (
-                      <Text key={index} style={styles.serviceItem}>✓ {service}</Text>
-                    ))}
-                  </View>
+                <View>
+                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Description</Text>
+                  <Text style={[styles.description, { color: colors.mutedForeground }]}>{product.description}</Text>
+
+                  <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 16 }]}>Features</Text>
+                  {product.services.map((service, index) => (
+                    <View key={index} style={styles.featureRow}>
+                      <View style={[styles.featureDot, { backgroundColor: colors.primary }]} />
+                      <Text style={[styles.featureText, { color: colors.mutedForeground }]}>{service}</Text>
+                    </View>
+                  ))}
                 </View>
               ) : (
-                <View style={styles.reviewsContent}>
+                <View>
                   <View style={styles.reviewsHeader}>
                     <View style={styles.ratingSummary}>
                       <Star size={24} color={colors.warning} fill={colors.warning} />
-                      <Text style={styles.ratingNumber}>{averageRating.toFixed(1)}</Text>
-                      <Text style={styles.reviewsCount}>({reviewStats.totalReviews} reviews)</Text>
+                      <Text style={[styles.ratingBig, { color: colors.foreground }]}>{product.rating}</Text>
+                      <Text style={[styles.totalReviews, { color: colors.mutedForeground }]}>({product.reviews} reviews)</Text>
                     </View>
-
-                    {/* Write Review Button */}
-                    {canReviewLoading ? (
-                      <ActivityIndicator size="small" color={colors.primary} />
-                    ) : canReview ? (
-                      <Pressable
-                        style={styles.writeReviewButton}
-                        onPress={() => setShowReviewModal(true)}
-                      >
-                        <Edit3 size={16} color={colors.primaryForeground} />
-                        <Text style={styles.writeReviewButtonText}>Write Review</Text>
-                      </Pressable>
-                    ) : existingReview ? (
-                      <View style={styles.alreadyReviewedBadge}>
-                        <Text style={styles.alreadyReviewedText}>Already Reviewed</Text>
-                      </View>
-                    ) : null}
                   </View>
 
-                  {reviewsLoading ? (
-                    <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: 20 }} />
-                  ) : reviews.length === 0 ? (
-                    <Text style={styles.noReviewsText}>No reviews yet. Be the first to review!</Text>
+                  {reviews.length === 0 ? (
+                    <Text style={[styles.noReviews, { color: colors.mutedForeground }]}>No reviews yet</Text>
                   ) : (
                     reviews.map((review) => (
-                      <View key={review._id} style={styles.reviewItem}>
+                      <View key={review.id} style={[styles.reviewItem, { borderBottomColor: colors.border }]}>
                         <View style={styles.reviewHeader}>
-                          <Image
-                            source={{ uri: review.user?.avatar || 'https://ui-avatars.com/api/?name=User' }}
-                            style={styles.reviewerAvatar}
-                          />
+                          <Image source={{ uri: review.userAvatar }} style={styles.reviewerAvatar} />
                           <View style={styles.reviewerInfo}>
-                            <Text style={styles.reviewerName}>{review.user?.name || 'Anonymous'}</Text>
-                            <View style={styles.reviewRating}>
+                            <Text style={[styles.reviewerName, { color: colors.foreground }]}>{review.userName}</Text>
+                            <View style={styles.reviewStars}>
                               {[...Array(5)].map((_, i) => (
                                 <Star
                                   key={i}
@@ -405,10 +226,10 @@ export default function EventDetailsScreen() {
                                 />
                               ))}
                             </View>
-                            <Text style={styles.reviewDate}>{formatReviewDate(review.createdAt)}</Text>
                           </View>
+                          <Text style={[styles.reviewDate, { color: colors.mutedForeground }]}>{review.date}</Text>
                         </View>
-                        <Text style={styles.reviewComment}>{review.comment}</Text>
+                        <Text style={[styles.reviewComment, { color: colors.mutedForeground }]}>{review.comment}</Text>
                       </View>
                     ))
                   )}
@@ -419,273 +240,269 @@ export default function EventDetailsScreen() {
         </View>
       </ScrollView>
 
-      {/* Fixed Bottom Bar */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-        <View style={styles.priceSection}>
-          <View style={styles.priceRow}>
-            <Text style={styles.price}>₹{event.price.toLocaleString()}</Text>
-            {event.mrp > event.price && (
-              <Text style={styles.mrpPrice}>₹{event.mrp.toLocaleString()}</Text>
-            )}
-          </View>
-          {event.mrp > event.price && (
-            <Text style={styles.discountText}>
-              {Math.round(((event.mrp - event.price) / event.mrp) * 100)}% off
-            </Text>
-          )}
+      {/* Bottom Action Bar */}
+      <View style={[styles.bottomBar, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }]}>
+        <View style={styles.totalSection}>
+          <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Total Price</Text>
+          <Text style={[styles.totalPrice, { color: colors.foreground }]}>₹{(product.price * quantity).toLocaleString()}</Text>
         </View>
-        <Pressable
-          style={[styles.bookButton, isBooking && styles.bookButtonDisabled]}
-          onPress={handleBookNow}
-          disabled={isBooking}
-        >
-          <View style={styles.bookButtonContent}>
-            {isBooking && (
-              <ActivityIndicator
-                size="small"
-                color={colors.primaryForeground}
-                style={styles.bookButtonSpinner}
-              />
-            )}
-            <Text style={styles.bookButtonText}>
-              {isBooking ? 'Loading...' : 'Prebook Now'}
-            </Text>
-          </View>
-        </Pressable>
+        <View style={styles.actionButtons}>
+          <Pressable style={[styles.cartBtn, { backgroundColor: colors.secondary, borderColor: colors.primary }]} onPress={handleAddToCart}>
+            <ShoppingCart size={20} color={colors.primary} />
+          </Pressable>
+          <Pressable style={[styles.buyBtn, { backgroundColor: colors.primary }]} onPress={handleBuyNow}>
+            <Text style={[styles.buyBtnText, { color: colors.primaryForeground }]}>Buy Now</Text>
+          </Pressable>
+        </View>
       </View>
-
-      {/* Review Modal */}
-      <ReviewModal
-        isVisible={showReviewModal}
-        onClose={() => setShowReviewModal(false)}
-        onSubmit={handleSubmitReview}
-        eventTitle={event.title}
-      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
-  contentContainer: {
+  scrollView: {
     flex: 1,
   },
   content: {
-    padding: 12,
-    paddingBottom: 110,
+    paddingHorizontal: 6,
+    paddingTop: 16,
+    paddingBottom: 120,
   },
-  titleRow: {
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    color: colors.mutedForeground,
+    marginBottom: 16,
+  },
+  backBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  backBtnText: {
+    color: colors.primaryForeground,
+    fontWeight: '600',
+  },
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-    gap: 8,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  categoryBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ratingText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  reviewCount: {
+    fontSize: 12,
   },
   title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.foreground,
-    flex: 1,
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 16,
+  },
+  locationText: {
+    fontSize: 13,
+  },
+  priceSection: {
+    marginBottom: 16,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  price: {
+    fontSize: 26,
+    fontWeight: '800',
+  },
+  mrpPrice: {
+    fontSize: 16,
+    textDecorationLine: 'line-through',
   },
   discountBadge: {
-    backgroundColor: colors.success,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  discountBadgeText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: colors.white,
+  discountText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
-  infoContainer: {
-    gap: 6, // Changed from 12
-    marginBottom: 12, // Changed from 20
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10, // Changed from 12
-  },
-  infoLabel: {
-    fontSize: 13, // Changed from 14
-    fontWeight: '600',
-    color: colors.foreground,
-  },
-  infoValue: {
-    fontSize: 13, // Changed from 14
-    color: colors.mutedForeground,
-  },
-  vendorCard: {
-    backgroundColor: colors.card,
-    borderRadius: 12, // Changed from 8
-    padding: 12, // Changed from 16
-    marginBottom: 12, // Changed from 20
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  vendorHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8, // Changed from 12
-  },
-  vendorTitle: {
-    fontSize: 15, // Changed from 16
-    fontWeight: '600',
-    color: colors.foreground,
-  },
-  vendorContent: {
+  quantitySection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
   },
-  vendorInfo: {
+  quantityLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  quantityControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10, // Changed from 12
-    flex: 1,
+    gap: 16,
   },
-  vendorAvatar: {
+  quantityBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  quantityValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    minWidth: 30,
+    textAlign: 'center',
+  },
+  sellerCard: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  sellerHeader: {
+    marginBottom: 12,
+  },
+  sellerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  sellerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sellerAvatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
   },
-  vendorDetails: {
+  sellerDetails: {
     flex: 1,
+    marginLeft: 12,
   },
-  vendorName: {
-    fontSize: 15, // Changed from 14
-    fontWeight: 'bold', // Changed from '600'
-    color: colors.foreground,
-    marginBottom: 4,
+  sellerName: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
   },
-  vendorExperience: {
-    fontSize: 11, // Changed from 12
-    color: colors.mutedForeground,
+  sellerExp: {
+    fontSize: 12,
   },
-  chatButton: {
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 8,
-    borderRadius: 8,
+  chatBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tabsContainer: {
-    marginBottom: 12, // Changed from 20
+    marginTop: 8,
   },
   tabsList: {
-    backgroundColor: colors.secondary,
-    borderRadius: 8,
     flexDirection: 'row',
+    borderRadius: 10,
     padding: 4,
   },
   tab: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 10,
     alignItems: 'center',
-    borderRadius: 6,
-  },
-  activeTab: {
-    backgroundColor: colors.card,
+    borderRadius: 8,
   },
   tabText: {
     fontSize: 14,
-    color: colors.mutedForeground,
-    fontWeight: '500',
-  },
-  activeTabText: {
-    color: colors.foreground,
     fontWeight: '600',
   },
   tabContent: {
     marginTop: 16,
   },
-  detailsContent: {
-    gap: 16,
-  },
-  aboutSection: {
-    gap: 8,
-  },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: colors.foreground,
+    fontWeight: '700',
+    marginBottom: 8,
   },
   description: {
     fontSize: 14,
-    color: colors.mutedForeground,
-    lineHeight: 20,
+    lineHeight: 22,
   },
-  servicesSection: {
-    gap: 6, // Changed from 8
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
   },
-  serviceItem: {
-    fontSize: 13, // Changed from 14
-    color: colors.mutedForeground,
+  featureDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  reviewsContent: {
-    gap: 12, // Changed from 16
+  featureText: {
+    fontSize: 14,
   },
   reviewsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   ratingSummary: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  writeReviewButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+  ratingBig: {
+    fontSize: 24,
+    fontWeight: '800',
   },
-  writeReviewButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.primaryForeground,
+  totalReviews: {
+    fontSize: 14,
   },
-  alreadyReviewedBadge: {
-    backgroundColor: colors.muted,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  alreadyReviewedText: {
-    fontSize: 12,
-    color: colors.mutedForeground,
-    fontWeight: '500',
-  },
-  ratingNumber: {
-    fontSize: 20, // Changed from 24
-    fontWeight: 'bold',
-    color: colors.foreground,
-  },
-  reviewsCount: {
-    fontSize: 14, // Changed from 16
-    fontWeight: '600',
-    color: colors.foreground,
+  noReviews: {
+    fontSize: 14,
+    textAlign: 'center',
+    paddingVertical: 20,
   },
   reviewItem: {
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingBottom: 12, // Changed from 16
-    marginBottom: 12, // Changed from 16
   },
   reviewHeader: {
     flexDirection: 'row',
-    gap: 10, // Changed from 12
-    marginBottom: 6, // Changed from 8
+    alignItems: 'center',
+    marginBottom: 10,
   },
   reviewerAvatar: {
     width: 40,
@@ -694,25 +511,22 @@ const styles = StyleSheet.create({
   },
   reviewerInfo: {
     flex: 1,
+    marginLeft: 10,
   },
   reviewerName: {
-    fontSize: 13, // Changed from 14
+    fontSize: 14,
     fontWeight: '600',
-    color: colors.foreground,
-    marginBottom: 4, // Changed from 8
+    marginBottom: 4,
   },
-  reviewRating: {
+  reviewStars: {
     flexDirection: 'row',
     gap: 2,
-    marginVertical: 2,
   },
   reviewDate: {
-    fontSize: 12,
-    color: colors.mutedForeground,
+    fontSize: 11,
   },
   reviewComment: {
-    fontSize: 13, // Changed from 14
-    color: colors.mutedForeground,
+    fontSize: 13,
     lineHeight: 20,
   },
   bottomBar: {
@@ -720,88 +534,44 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    padding: 12, // Changed from 16
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 16,
+    justifyContent: 'space-between',
+    paddingHorizontal: 6,
+    paddingTop: 14,
+    borderTopWidth: 1,
   },
-  priceSection: {
+  totalSection: {
     flex: 1,
   },
-  priceRow: {
+  totalLabel: {
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  totalPrice: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  actionButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
-  price: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: colors.foreground,
-  },
-  mrpPrice: {
-    fontSize: 14,
-    color: colors.mutedForeground,
-    textDecorationLine: 'line-through',
-  },
-  discountText: {
-    fontSize: 11,
-    color: colors.success,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  bookButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  bookButtonDisabled: {
-    opacity: 0.7,
-  },
-  bookButtonContent: {
-    flexDirection: 'row',
+  cartBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1.5,
   },
-  bookButtonSpinner: {
-    marginRight: 8,
+  buyBtn: {
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
   },
-  bookButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.primaryForeground,
-  },
-  loadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorText: {
+  buyBtnText: {
     fontSize: 16,
-    color: colors.mutedForeground,
-    textAlign: 'center',
-    marginTop: 100,
-  },
-  backButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignSelf: 'center',
-    marginTop: 20,
-  },
-  backButtonText: {
-    color: colors.primaryForeground,
-    fontWeight: '600',
-  },
-  noReviewsText: {
-    fontSize: 14,
-    color: colors.mutedForeground,
-    textAlign: 'center',
-    marginTop: 20,
-    fontStyle: 'italic',
+    fontWeight: '700',
   },
 });

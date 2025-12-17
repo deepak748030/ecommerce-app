@@ -285,6 +285,169 @@ export const mockEvents: Event[] = [
   }
 ];
 
+// Trending Products (Fruits)
+export const trendingProducts: Event[] = [
+  {
+    id: 'trend-1',
+    title: 'Fresh Apples',
+    price: 120,
+    mrp: 150,
+    rating: 4.8,
+    reviews: 234,
+    image: 'https://images.pexels.com/photos/1510392/pexels-photo-1510392.jpeg?auto=compress&cs=tinysrgb&w=300',
+    images: ['https://images.pexels.com/photos/1510392/pexels-photo-1510392.jpeg?auto=compress&cs=tinysrgb&w=400'],
+    badge: '20% OFF',
+    location: 'Fresh Market',
+    fullLocation: 'Fresh Market, Mumbai',
+    category: 'Fruits',
+    description: 'Premium quality fresh apples sourced directly from Kashmir orchards. Rich in fiber and vitamins.',
+    date: 'Available Daily',
+    time: '8:00 AM - 10:00 PM',
+    services: ['Fresh Quality', 'Same Day Delivery', 'Easy Returns', '100% Organic'],
+    vendor: mockVendors[0]
+  },
+  {
+    id: 'trend-2',
+    title: 'Organic Bananas',
+    price: 60,
+    mrp: 80,
+    rating: 4.9,
+    reviews: 456,
+    image: 'https://images.pexels.com/photos/2872755/pexels-photo-2872755.jpeg?auto=compress&cs=tinysrgb&w=300',
+    images: ['https://images.pexels.com/photos/2872755/pexels-photo-2872755.jpeg?auto=compress&cs=tinysrgb&w=400'],
+    badge: 'Organic',
+    location: 'Farm Fresh',
+    fullLocation: 'Farm Fresh Store, Delhi',
+    category: 'Fruits',
+    description: 'Certified organic bananas grown without pesticides. Perfect for smoothies and healthy snacks.',
+    date: 'Available Daily',
+    time: '8:00 AM - 10:00 PM',
+    services: ['Certified Organic', 'Farm Fresh', 'No Pesticides', 'Rich in Potassium'],
+    vendor: mockVendors[1]
+  },
+  {
+    id: 'trend-3',
+    title: 'Premium Mangoes',
+    price: 250,
+    mrp: 300,
+    rating: 4.7,
+    reviews: 189,
+    image: 'https://images.pexels.com/photos/918643/pexels-photo-918643.jpeg?auto=compress&cs=tinysrgb&w=300',
+    images: ['https://images.pexels.com/photos/918643/pexels-photo-918643.jpeg?auto=compress&cs=tinysrgb&w=400'],
+    badge: 'Premium',
+    location: 'Tropical Store',
+    fullLocation: 'Tropical Store, Bangalore',
+    category: 'Fruits',
+    description: 'Alphonso mangoes - the king of fruits. Sweet, juicy, and aromatic.',
+    date: 'Seasonal',
+    time: '9:00 AM - 9:00 PM',
+    services: ['Alphonso Quality', 'Hand Picked', 'Ripened Naturally', 'Export Quality'],
+    vendor: mockVendors[2]
+  },
+  {
+    id: 'trend-4',
+    title: 'Fresh Oranges',
+    price: 90,
+    mrp: 110,
+    rating: 4.6,
+    reviews: 321,
+    image: 'https://images.pexels.com/photos/42059/citrus-diet-food-fresh-42059.jpeg?auto=compress&cs=tinysrgb&w=300',
+    images: ['https://images.pexels.com/photos/42059/citrus-diet-food-fresh-42059.jpeg?auto=compress&cs=tinysrgb&w=400'],
+    badge: 'Fresh',
+    location: 'City Market',
+    fullLocation: 'City Market, Pune',
+    category: 'Fruits',
+    description: 'Juicy Nagpur oranges packed with Vitamin C. Perfect for fresh juice.',
+    date: 'Available Daily',
+    time: '8:00 AM - 10:00 PM',
+    services: ['Rich in Vitamin C', 'Nagpur Special', 'Fresh Stock', 'Bulk Available'],
+    vendor: mockVendors[0]
+  },
+];
+
+// Fashion Products
+export const fashionProducts: Event[] = [
+  {
+    id: 'fashion-1',
+    title: 'Summer T-Shirt',
+    price: 599,
+    mrp: 999,
+    rating: 4.5,
+    reviews: 567,
+    image: 'https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg?auto=compress&cs=tinysrgb&w=300',
+    images: ['https://images.pexels.com/photos/996329/pexels-photo-996329.jpeg?auto=compress&cs=tinysrgb&w=400'],
+    badge: 'Trending',
+    location: 'Fashion Hub',
+    fullLocation: 'Fashion Hub, Mumbai',
+    category: 'Fashion',
+    description: 'Comfortable cotton t-shirt perfect for summer. Available in multiple colors and sizes.',
+    date: 'In Stock',
+    time: 'Ships in 2-3 days',
+    services: ['100% Cotton', 'Multiple Colors', 'All Sizes', 'Easy Returns'],
+    vendor: mockVendors[1]
+  },
+  {
+    id: 'fashion-2',
+    title: 'Denim Jeans',
+    price: 1299,
+    mrp: 1999,
+    rating: 4.7,
+    reviews: 892,
+    image: 'https://images.pexels.com/photos/1598507/pexels-photo-1598507.jpeg?auto=compress&cs=tinysrgb&w=300',
+    images: ['https://images.pexels.com/photos/1598507/pexels-photo-1598507.jpeg?auto=compress&cs=tinysrgb&w=400'],
+    badge: 'Bestseller',
+    location: 'Style Store',
+    fullLocation: 'Style Store, Delhi',
+    category: 'Fashion',
+    description: 'Classic fit denim jeans with premium quality fabric. Comfortable and durable.',
+    date: 'In Stock',
+    time: 'Ships in 2-3 days',
+    services: ['Premium Denim', 'Classic Fit', 'Durable', 'All Waist Sizes'],
+    vendor: mockVendors[2]
+  },
+  {
+    id: 'fashion-3',
+    title: 'Sneakers',
+    price: 2499,
+    mrp: 3999,
+    rating: 4.8,
+    reviews: 1234,
+    image: 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=300',
+    images: ['https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=400'],
+    badge: 'Hot Deal',
+    location: 'Shoe Palace',
+    fullLocation: 'Shoe Palace, Bangalore',
+    category: 'Fashion',
+    description: 'Trendy sneakers with cushioned sole for maximum comfort. Perfect for daily wear.',
+    date: 'In Stock',
+    time: 'Ships in 1-2 days',
+    services: ['Cushioned Sole', 'Breathable', 'All Sizes', 'Lightweight'],
+    vendor: mockVendors[0]
+  },
+  {
+    id: 'fashion-4',
+    title: 'Sunglasses',
+    price: 799,
+    mrp: 1499,
+    rating: 4.4,
+    reviews: 445,
+    image: 'https://images.pexels.com/photos/701877/pexels-photo-701877.jpeg?auto=compress&cs=tinysrgb&w=300',
+    images: ['https://images.pexels.com/photos/701877/pexels-photo-701877.jpeg?auto=compress&cs=tinysrgb&w=400'],
+    badge: 'New',
+    location: 'Eye Wear',
+    fullLocation: 'Eye Wear Store, Goa',
+    category: 'Fashion',
+    description: 'Stylish UV protection sunglasses. Lightweight frame with polarized lenses.',
+    date: 'In Stock',
+    time: 'Ships in 2-3 days',
+    services: ['UV Protection', 'Polarized Lens', 'Lightweight', 'Unisex'],
+    vendor: mockVendors[1]
+  },
+];
+
+// All Products Combined
+export const allProducts: Event[] = [...mockEvents, ...trendingProducts, ...fashionProducts];
+
 // Mock Banners
 export const mockBanners: Banner[] = [
   {

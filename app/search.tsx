@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, RefreshControl, NativeSyntheticEvent, NativeScrollEvent, Dimensions } from 'react-native';
-import { Search, ListFilter, X, ArrowUpDown, TrendingUp, TrendingDown } from 'lucide-react-native';
+import { Search, ListFilter, X, ArrowUpDown, TrendingUp, TrendingDown, ArrowLeft } from 'lucide-react-native';
 import { getFavorites, toggleFavorite, Event } from '@/lib/mockData';
-import TopBar from '@/components/TopBar';
 import EventCard from '@/components/EventCard';
 import { categoriesApi, eventsApi, Category, MinimalServerEvent } from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 40) / 2;
+const CARD_WIDTH = (width - 20) / 2;
 const ITEMS_PER_PAGE = 12;
 
 // Helper to map MinimalServerEvent to Event format for listing screens
@@ -44,6 +44,7 @@ const mapMinimalEventToEvent = (serverEvent: MinimalServerEvent): Event => ({
 export default function SearchScreen() {
   const params = useLocalSearchParams<{ category?: string }>();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -280,7 +281,31 @@ export default function SearchScreen() {
 
   return (
     <View style={styles.container}>
-      <TopBar hideSearch />
+      {/* Header with Search */}
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <View style={styles.searchRow}>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <ArrowLeft size={24} color={colors.foreground} />
+          </Pressable>
+          <View style={styles.searchContainer}>
+            <Search size={20} color={colors.mutedForeground} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search events, vendors..."
+              placeholderTextColor={colors.mutedForeground}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus
+            />
+            {searchQuery !== debouncedSearchQuery && (
+              <ActivityIndicator size="small" color={colors.primary} style={styles.searchLoading} />
+            )}
+          </View>
+          <Pressable style={styles.filterButton} onPress={() => setShowFilters(true)}>
+            <ListFilter size={20} color={colors.foreground} strokeWidth={2} />
+          </Pressable>
+        </View>
+      </View>
 
       <ScrollView
         style={styles.scrollView}
@@ -297,26 +322,6 @@ export default function SearchScreen() {
         }
       >
         <View style={styles.content}>
-          {/* Search Row */}
-          <View style={styles.searchRow}>
-            <View style={styles.searchContainer}>
-              <Search size={22} color={colors.mutedForeground} style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search events, vendors..."
-                placeholderTextColor={colors.mutedForeground}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoFocus
-              />
-              {searchQuery !== debouncedSearchQuery && (
-                <ActivityIndicator size="small" color={colors.primary} style={styles.searchLoading} />
-              )}
-            </View>
-            <Pressable style={styles.filterButton} onPress={() => setShowFilters(true)}>
-              <ListFilter size={20} color={colors.foreground} strokeWidth={2} />
-            </Pressable>
-          </View>
 
           {/* Results Count */}
           <Text style={styles.resultsCount}>
@@ -578,31 +583,46 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  header: {
+    backgroundColor: colors.background,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   scrollView: {
     flex: 1,
   },
   content: {
-    paddingVertical: 6,
-    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 6,
     paddingBottom: 90,
   },
   searchRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
+    alignItems: 'center',
+    gap: 10,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   searchContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.card,
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    borderRadius: 12,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: colors.border,
-  },
-  searchIcon: {
-    marginRight: 8,
+    gap: 10,
   },
   searchInput: {
     flex: 1,
