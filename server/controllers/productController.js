@@ -1,5 +1,7 @@
 const Product = require('../models/Product');
 const Category = require('../models/Category');
+const User = require('../models/User');
+const { sendProductDealNotification } = require('../services/notificationService');
 
 // @desc    Get all products
 // @route   GET /api/products
@@ -177,6 +179,27 @@ const createProduct = async (req, res) => {
 
         // Populate category before returning
         await product.populate('category', 'name color');
+
+        // Send push notification for discounted products
+        const discountPercent = product.mrp > product.price
+            ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
+            : 0;
+
+        if (discountPercent >= 10) {
+            // Get all users with push tokens who have promotions enabled
+            const usersWithTokens = await User.find({
+                expoPushToken: { $ne: '', $exists: true }
+            }).select('expoPushToken');
+
+            const tokens = usersWithTokens.map(u => u.expoPushToken).filter(Boolean);
+
+            if (tokens.length > 0) {
+                // Send notification asynchronously (don't wait)
+                sendProductDealNotification(tokens, product).catch(err => {
+                    console.error('Failed to send deal notification:', err);
+                });
+            }
+        }
 
         res.status(201).json({
             success: true,

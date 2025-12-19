@@ -31,6 +31,21 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: '',
     },
+    // Notification preferences
+    notificationSettings: {
+        pushEnabled: {
+            type: Boolean,
+            default: true,
+        },
+        orderUpdates: {
+            type: Boolean,
+            default: true,
+        },
+        promotions: {
+            type: Boolean,
+            default: false,
+        },
+    },
     memberSince: {
         type: Date,
         default: Date.now,

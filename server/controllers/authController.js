@@ -285,6 +285,66 @@ const updatePushToken = async (req, res) => {
     }
 };
 
+// @desc    Get notification settings
+// @route   GET /api/auth/notification-settings
+// @access  Private
+const getNotificationSettings = async (req, res) => {
+    try {
+        const user = req.user;
+
+        res.json({
+            success: true,
+            response: {
+                pushEnabled: user.notificationSettings?.pushEnabled ?? true,
+                orderUpdates: user.notificationSettings?.orderUpdates ?? true,
+                promotions: user.notificationSettings?.promotions ?? false,
+            },
+        });
+    } catch (error) {
+        console.error('Get notification settings error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Update notification settings
+// @route   PUT /api/auth/notification-settings
+// @access  Private
+const updateNotificationSettings = async (req, res) => {
+    try {
+        const user = req.user;
+        const { pushEnabled, orderUpdates, promotions } = req.body;
+
+        if (!user.notificationSettings) {
+            user.notificationSettings = {};
+        }
+
+        if (typeof pushEnabled === 'boolean') {
+            user.notificationSettings.pushEnabled = pushEnabled;
+        }
+        if (typeof orderUpdates === 'boolean') {
+            user.notificationSettings.orderUpdates = orderUpdates;
+        }
+        if (typeof promotions === 'boolean') {
+            user.notificationSettings.promotions = promotions;
+        }
+
+        await user.save();
+
+        res.json({
+            success: true,
+            message: 'Notification settings updated',
+            response: {
+                pushEnabled: user.notificationSettings.pushEnabled,
+                orderUpdates: user.notificationSettings.orderUpdates,
+                promotions: user.notificationSettings.promotions,
+            },
+        });
+    } catch (error) {
+        console.error('Update notification settings error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 // @desc    Logout user
 // @route   POST /api/auth/logout
 // @access  Private
@@ -314,5 +374,7 @@ module.exports = {
     getMe,
     updateProfile,
     updatePushToken,
+    getNotificationSettings,
+    updateNotificationSettings,
     logout,
 };
