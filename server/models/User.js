@@ -39,7 +39,7 @@ const userSchema = new mongoose.Schema({
         },
         orderUpdates: {
             type: Boolean,
-            default: true,
+            default: false,
         },
         promotions: {
             type: Boolean,
