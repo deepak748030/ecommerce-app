@@ -1,6 +1,55 @@
 const User = require('../models/User');
 const Category = require('../models/Category');
 const Product = require('../models/Product');
+const Coupon = require('../models/Coupon');
+
+// Sample Coupons
+const sampleCoupons = [
+    {
+        code: 'WELCOME10',
+        discountType: 'percentage',
+        discountValue: 10,
+        minOrderValue: 100,
+        maxDiscount: 500,
+        usageLimit: 1000,
+        validFrom: new Date(),
+        validUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+        description: 'Get 10% off on your first order',
+    },
+    {
+        code: 'SAVE50',
+        discountType: 'fixed',
+        discountValue: 50,
+        minOrderValue: 300,
+        maxDiscount: null,
+        usageLimit: 500,
+        validFrom: new Date(),
+        validUntil: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days
+        description: 'Flat ₹50 off on orders above ₹300',
+    },
+    {
+        code: 'FLAT100',
+        discountType: 'fixed',
+        discountValue: 100,
+        minOrderValue: 500,
+        maxDiscount: null,
+        usageLimit: 200,
+        validFrom: new Date(),
+        validUntil: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // 60 days
+        description: 'Flat ₹100 off on orders above ₹500',
+    },
+    {
+        code: 'SUPER20',
+        discountType: 'percentage',
+        discountValue: 20,
+        minOrderValue: 1000,
+        maxDiscount: 1000,
+        usageLimit: 100,
+        validFrom: new Date(),
+        validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+        description: 'Get 20% off up to ₹1000 on orders above ₹1000',
+    },
+];
 
 // Sample Categories
 const sampleCategories = [
@@ -479,6 +528,17 @@ const seedAll = async (req, res) => {
             await Category.findByIdAndUpdate(categoryMap[catName], { itemsCount: count });
         }
 
+        // Seed coupons
+        let couponsCount = 0;
+        for (const couponData of sampleCoupons) {
+            await Coupon.findOneAndUpdate(
+                { code: couponData.code },
+                couponData,
+                { upsert: true, new: true }
+            );
+            couponsCount++;
+        }
+
         res.json({
             success: true,
             message: 'All data seeded successfully',
@@ -486,6 +546,7 @@ const seedAll = async (req, res) => {
                 users: 1,
                 categories: sampleCategories.length,
                 products: productsCount,
+                coupons: couponsCount,
             },
         });
     } catch (error) {
@@ -494,9 +555,40 @@ const seedAll = async (req, res) => {
     }
 };
 
+// @desc    Seed coupons
+// @route   GET /api/seed/coupons
+// @access  Public
+const seedCoupons = async (req, res) => {
+    try {
+        const createdCoupons = [];
+
+        for (const couponData of sampleCoupons) {
+            const coupon = await Coupon.findOneAndUpdate(
+                { code: couponData.code },
+                couponData,
+                { upsert: true, new: true }
+            );
+            createdCoupons.push(coupon);
+        }
+
+        res.json({
+            success: true,
+            message: 'Coupons seeded successfully',
+            response: {
+                count: createdCoupons.length,
+                data: createdCoupons,
+            },
+        });
+    } catch (error) {
+        console.error('Seed coupons error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 module.exports = {
     seedUsers,
     seedCategories,
     seedProducts,
+    seedCoupons,
     seedAll,
 };
