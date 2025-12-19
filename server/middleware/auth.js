@@ -34,4 +34,4 @@ const verifyToken = async (req, res, next) => {
     }
 };
 
-module.exports = { generateToken, verifyToken };
+module.exports = { generateToken, verifyToken, protect: verifyToken };
