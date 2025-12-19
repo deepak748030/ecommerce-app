@@ -171,14 +171,19 @@ export default function ProductDetailsScreen() {
   const handleBuyNow = async () => {
     if (!product) return;
 
-    // Add to cart first then go to checkout
-    try {
-      await addToCart(product.id, quantity);
-      router.push('/checkout');
-    } catch (error) {
-      console.error('Error:', error);
-      Alert.alert('Error', 'Failed to proceed. Please try again.');
-    }
+    // Navigate to checkout with direct purchase (not from cart)
+    router.push({
+      pathname: '/checkout',
+      params: {
+        buyNow: 'true',
+        productId: product.id,
+        quantity: quantity.toString(),
+        productName: product.title,
+        productPrice: product.price.toString(),
+        productMrp: product.mrp.toString(),
+        productImage: product.image,
+      }
+    });
   };
 
   // Calculate rating distribution (mock data for now)

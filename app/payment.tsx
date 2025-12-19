@@ -2,18 +2,55 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { ArrowLeft, Smartphone, Wallet, CreditCard, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, Smartphone, Wallet, CreditCard, CheckCircle, Banknote } from 'lucide-react-native';
 import { SuccessModal } from '@/components/SuccessModal';
 import { useTheme } from '@/hooks/useTheme';
 import { useCart } from '@/hooks/useCart';
 import { useAddress } from '@/hooks/useAddress';
 import { ordersApi, getToken } from '@/lib/api';
 
+interface BuyNowItem {
+  productId: string;
+  name: string;
+  price: number;
+  mrp: number;
+  quantity: number;
+  image: string;
+}
+
 export default function PaymentScreen() {
-  const { paymentMethod: initialPaymentMethod, promoCode } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const { paymentMethod: initialPaymentMethod, promoCode } = params;
   const { colors } = useTheme();
-  const { cartItems, total, getCartForOrder, clearCart, loading: cartLoading } = useCart();
+  const { cartItems, total: cartTotal, getCartForOrder, clearCart, loading: cartLoading } = useCart();
   const { selectedAddress, loading: addressLoading } = useAddress();
+
+  // Check if this is a direct "Buy Now" purchase
+  const isBuyNow = params.buyNow === 'true';
+  const buyNowItem: BuyNowItem | null = isBuyNow ? {
+    productId: params.productId as string,
+    name: params.productName as string,
+    price: parseFloat(params.productPrice as string),
+    mrp: parseFloat(params.productMrp as string),
+    quantity: parseInt(params.quantity as string, 10),
+    image: params.productImage as string,
+  } : null;
+
+  // Calculate total for Buy Now
+  const buyNowSubtotal = buyNowItem ? buyNowItem.price * buyNowItem.quantity : 0;
+  const buyNowDiscount = Math.round(buyNowSubtotal * 0.1);
+  const buyNowDelivery = buyNowSubtotal > 500 ? 0 : 40;
+  const buyNowTax = Math.round(buyNowSubtotal * 0.05);
+  const buyNowTotal = buyNowSubtotal - buyNowDiscount + buyNowDelivery + buyNowTax;
+
+  const displayTotal = isBuyNow ? buyNowTotal : cartTotal;
+  const displayItems = isBuyNow && buyNowItem ? [{
+    productId: buyNowItem.productId,
+    name: buyNowItem.name,
+    price: buyNowItem.price,
+    quantity: buyNowItem.quantity,
+    image: buyNowItem.image,
+  }] : cartItems;
 
   const [paymentMethod, setPaymentMethod] = useState(initialPaymentMethod as string || 'upi');
   const [upiId, setUpiId] = useState('');
@@ -34,7 +71,9 @@ export default function PaymentScreen() {
     checkAuth();
   }, []);
 
-  if (cartLoading || addressLoading) {
+  const loading = isBuyNow ? addressLoading : (cartLoading || addressLoading);
+
+  if (loading) {
     return (
       <SafeAreaView style={[styles.container, styles.loadingContainer]} edges={['top']}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -42,7 +81,7 @@ export default function PaymentScreen() {
     );
   }
 
-  if (cartItems.length === 0) {
+  if (!isBuyNow && cartItems.length === 0) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.errorContainer}>
@@ -69,27 +108,41 @@ export default function PaymentScreen() {
   }
 
   const handlePayment = async () => {
+    // UPI requires UPI ID (but not for COD)
     if (paymentMethod === 'upi' && !upiId) {
       Alert.alert('UPI ID Required', 'Please enter your UPI ID to continue');
       return;
     }
 
+    // COD doesn't require any additional input
+
     setIsProcessing(true);
 
     try {
-      const cartForOrder = await getCartForOrder();
+      let orderItems: { productId: string; quantity: number }[];
 
-      if (cartForOrder.length === 0) {
-        Alert.alert('Error', 'Your cart is empty');
-        setIsProcessing(false);
-        return;
+      if (isBuyNow && buyNowItem) {
+        // Direct purchase - use the buyNow item
+        orderItems = [{
+          productId: buyNowItem.productId,
+          quantity: buyNowItem.quantity,
+        }];
+      } else {
+        // Cart purchase
+        const cartForOrder = await getCartForOrder();
+        if (cartForOrder.length === 0) {
+          Alert.alert('Error', 'Your cart is empty');
+          setIsProcessing(false);
+          return;
+        }
+        orderItems = cartForOrder.map(item => ({
+          productId: item.productId,
+          quantity: item.quantity,
+        }));
       }
 
       const orderData = {
-        items: cartForOrder.map(item => ({
-          productId: item.productId,
-          quantity: item.quantity,
-        })),
+        items: orderItems,
         shippingAddress: {
           name: selectedAddress.name,
           phone: selectedAddress.phone,
@@ -106,7 +159,12 @@ export default function PaymentScreen() {
 
       if (result.success && result.response) {
         setOrderId(result.response.order._id);
-        await clearCart();
+
+        // Only clear cart if it was a cart purchase
+        if (!isBuyNow) {
+          await clearCart();
+        }
+
         setShowSuccess(true);
       } else {
         Alert.alert('Order Failed', result.message || 'Failed to place order. Please try again.');
@@ -129,6 +187,7 @@ export default function PaymentScreen() {
   };
 
   const paymentMethods = [
+    { id: 'cod', title: 'Cash on Delivery', subtitle: 'Pay when you receive', icon: Banknote },
     { id: 'upi', title: 'UPI', subtitle: 'GPay, PhonePe, Paytm', icon: Smartphone },
     { id: 'wallet', title: 'Wallet', subtitle: 'Digital wallets', icon: Wallet },
     { id: 'card', title: 'Card', subtitle: 'Credit/Debit card', icon: CreditCard },
@@ -150,23 +209,23 @@ export default function PaymentScreen() {
           <View style={[styles.productCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.orderSummaryHeader}>
               <Text style={[styles.orderSummaryTitle, { color: colors.foreground }]}>Order Summary</Text>
-              <Text style={[styles.orderSummaryCount, { color: colors.mutedForeground }]}>{cartItems.length} items</Text>
+              <Text style={[styles.orderSummaryCount, { color: colors.mutedForeground }]}>{displayItems.length} {displayItems.length === 1 ? 'item' : 'items'}</Text>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.itemsPreview}>
-              {cartItems.slice(0, 4).map((item, index) => (
+              {displayItems.slice(0, 4).map((item, index) => (
                 <Image
                   key={item.productId}
                   source={{ uri: item.image }}
                   style={[styles.previewImage, index > 0 && styles.previewImageOverlap]}
                 />
               ))}
-              {cartItems.length > 4 && (
+              {displayItems.length > 4 && (
                 <View style={[styles.moreItems, { backgroundColor: colors.secondary }]}>
-                  <Text style={[styles.moreItemsText, { color: colors.foreground }]}>+{cartItems.length - 4}</Text>
+                  <Text style={[styles.moreItemsText, { color: colors.foreground }]}>+{displayItems.length - 4}</Text>
                 </View>
               )}
             </ScrollView>
-            <Text style={[styles.productPrice, { color: colors.primary }]}>₹{total.toLocaleString()}</Text>
+            <Text style={[styles.productPrice, { color: colors.primary }]}>₹{displayTotal.toLocaleString()}</Text>
           </View>
 
           {/* Payment Methods */}
@@ -216,6 +275,16 @@ export default function PaymentScreen() {
             </View>
           )}
 
+          {/* COD Info */}
+          {paymentMethod === 'cod' && (
+            <View style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.inputLabel, { color: colors.foreground }]}>Cash on Delivery</Text>
+              <Text style={[styles.codInfo, { color: colors.mutedForeground }]}>
+                Pay with cash when your order is delivered to your doorstep. Please keep exact change ready.
+              </Text>
+            </View>
+          )}
+
           {/* Delivery Address */}
           <View style={[styles.addressCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.addressLabel, { color: colors.mutedForeground }]}>Delivering to</Text>
@@ -229,7 +298,7 @@ export default function PaymentScreen() {
           <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Amount to Pay</Text>
-              <Text style={[styles.totalValue, { color: colors.foreground }]}>₹{total.toLocaleString()}</Text>
+              <Text style={[styles.totalValue, { color: colors.foreground }]}>₹{displayTotal.toLocaleString()}</Text>
             </View>
           </View>
         </View>
@@ -240,7 +309,7 @@ export default function PaymentScreen() {
         <View style={styles.bottomContent}>
           <View style={styles.bottomPrice}>
             <Text style={[styles.bottomLabel, { color: colors.mutedForeground }]}>Total</Text>
-            <Text style={[styles.bottomTotal, { color: colors.foreground }]}>₹{total.toLocaleString()}</Text>
+            <Text style={[styles.bottomTotal, { color: colors.foreground }]}>₹{displayTotal.toLocaleString()}</Text>
           </View>
           <Pressable
             style={[
@@ -254,7 +323,9 @@ export default function PaymentScreen() {
             {isProcessing ? (
               <ActivityIndicator size="small" color={colors.primaryForeground} />
             ) : (
-              <Text style={[styles.payButtonText, { color: colors.primaryForeground }]}>Pay Now</Text>
+              <Text style={[styles.payButtonText, { color: colors.primaryForeground }]}>
+                {paymentMethod === 'cod' ? 'Place Order' : 'Pay Now'}
+              </Text>
             )}
           </Pressable>
         </View>
@@ -430,6 +501,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 13,
+  },
+  codInfo: {
+    fontSize: 12,
+    lineHeight: 18,
   },
   addressCard: {
     borderRadius: 10,

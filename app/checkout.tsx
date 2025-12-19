@@ -1,27 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, MapPin, CreditCard, Wallet, Smartphone, ChevronRight, ShieldCheck, Plus } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useCart } from '@/hooks/useCart';
 import { useAddress, Address } from '@/hooks/useAddress';
 import { getToken } from '@/lib/api';
+import { Banknote } from 'lucide-react-native';
 
 const paymentMethods = [
+    { id: 'cod', name: 'Cash on Delivery', icon: Banknote, description: 'Pay when you receive' },
     { id: 'upi', name: 'UPI', icon: Smartphone, description: 'Pay using UPI apps' },
     { id: 'card', name: 'Credit/Debit Card', icon: CreditCard, description: 'Visa, Mastercard, RuPay' },
     { id: 'wallet', name: 'Wallet', icon: Wallet, description: 'Paytm, PhonePe, etc.' },
 ];
 
+interface BuyNowItem {
+    productId: string;
+    name: string;
+    price: number;
+    mrp: number;
+    quantity: number;
+    image: string;
+}
+
 export default function CheckoutScreen() {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const { cartItems, subtotal, discount, delivery, tax, total, itemCount, loading: cartLoading } = useCart();
+    const params = useLocalSearchParams();
+
+    // Check if this is a direct "Buy Now" purchase
+    const isBuyNow = params.buyNow === 'true';
+    const buyNowItem: BuyNowItem | null = isBuyNow ? {
+        productId: params.productId as string,
+        name: params.productName as string,
+        price: parseFloat(params.productPrice as string),
+        mrp: parseFloat(params.productMrp as string),
+        quantity: parseInt(params.quantity as string, 10),
+        image: params.productImage as string,
+    } : null;
+
+    const { cartItems, subtotal: cartSubtotal, discount: cartDiscount, delivery: cartDelivery, tax: cartTax, total: cartTotal, itemCount: cartItemCount, loading: cartLoading } = useCart();
     const { selectedAddress, addresses, loading: addressLoading } = useAddress();
-    const [selectedPayment, setSelectedPayment] = useState('upi');
+    const [selectedPayment, setSelectedPayment] = useState('cod');
     const [promoCode, setPromoCode] = useState('');
     const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+    // Calculate totals based on whether it's Buy Now or Cart checkout
+    const subtotal = isBuyNow && buyNowItem ? buyNowItem.price * buyNowItem.quantity : cartSubtotal;
+    const mrpTotal = isBuyNow && buyNowItem ? buyNowItem.mrp * buyNowItem.quantity : subtotal;
+    const discount = Math.round(subtotal * 0.1);
+    const delivery = subtotal > 500 ? 0 : 40;
+    const tax = Math.round(subtotal * 0.05);
+    const total = subtotal - discount + delivery + tax;
+    const itemCount = isBuyNow && buyNowItem ? buyNowItem.quantity : cartItemCount;
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -49,21 +82,41 @@ export default function CheckoutScreen() {
             return;
         }
 
-        if (cartItems.length === 0) {
+        if (!isBuyNow && cartItems.length === 0) {
             Alert.alert('Empty Cart', 'Your cart is empty');
             return;
         }
 
-        router.push({
-            pathname: '/payment',
-            params: {
-                paymentMethod: selectedPayment,
-                promoCode: promoCode || ''
-            }
-        });
+        // Pass buy now params to payment screen
+        if (isBuyNow && buyNowItem) {
+            router.push({
+                pathname: '/payment',
+                params: {
+                    paymentMethod: selectedPayment,
+                    promoCode: promoCode || '',
+                    buyNow: 'true',
+                    productId: buyNowItem.productId,
+                    quantity: buyNowItem.quantity.toString(),
+                    productName: buyNowItem.name,
+                    productPrice: buyNowItem.price.toString(),
+                    productMrp: buyNowItem.mrp.toString(),
+                    productImage: buyNowItem.image,
+                }
+            });
+        } else {
+            router.push({
+                pathname: '/payment',
+                params: {
+                    paymentMethod: selectedPayment,
+                    promoCode: promoCode || ''
+                }
+            });
+        }
     };
 
-    if (cartLoading || addressLoading || isAuthenticated === null) {
+    const loading = isBuyNow ? addressLoading : (cartLoading || addressLoading);
+
+    if (loading || isAuthenticated === null) {
         return (
             <View style={[styles.container, styles.loadingContainer]}>
                 <ActivityIndicator size="large" color={colors.primary} />
@@ -168,7 +221,7 @@ export default function CheckoutScreen() {
                     <Text style={styles.sectionTitle}>Order Summary</Text>
                     <View style={styles.summaryCard}>
                         <View style={styles.summaryRow}>
-                            <Text style={styles.summaryLabel}>Subtotal ({itemCount} items)</Text>
+                            <Text style={styles.summaryLabel}>Subtotal ({itemCount} {itemCount === 1 ? 'item' : 'items'})</Text>
                             <Text style={styles.summaryValue}>₹{subtotal}</Text>
                         </View>
                         <View style={styles.summaryRow}>
