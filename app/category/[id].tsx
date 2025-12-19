@@ -1,87 +1,104 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useLocalSearchParams, router } from 'expo-router';
 import { ArrowLeft, Star, Heart, SlidersHorizontal, Search } from 'lucide-react-native';
-import { allProducts, trendingProducts, fashionProducts, mockEvents } from '@/lib/mockData';
+import { productsApi, categoriesApi, Product, Category, getImageUrl } from '@/lib/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 25) / 2;
-
-// Category mapping to match products
-const categoryProductMapping: Record<string, string[]> = {
-    '1': ['Fruits'], // Fruits & Vegetables
-    '2': ['Fashion'], // Fashion & Apparel
-    '3': ['Electronics'], // Electronics
-    '4': ['Home & Living'], // Home & Living
-    '5': ['Beauty & Health'], // Beauty & Health
-    '6': ['Sports & Fitness'], // Sports & Fitness
-    '7': ['Toys & Games'], // Toys & Games
-    '8': ['Books & Stationery'], // Books & Stationery
-    '9': ['Jewelry & Watches'], // Jewelry & Watches
-    '10': ['Baby & Kids'], // Baby & Kids
-    '11': ['Groceries'], // Groceries
-    '12': ['Pet Supplies'], // Pet Supplies
-};
-
-const categoryNames: Record<string, string> = {
-    '1': 'Fruits & Vegetables',
-    '2': 'Fashion & Apparel',
-    '3': 'Electronics',
-    '4': 'Home & Living',
-    '5': 'Beauty & Health',
-    '6': 'Sports & Fitness',
-    '7': 'Toys & Games',
-    '8': 'Books & Stationery',
-    '9': 'Jewelry & Watches',
-    '10': 'Baby & Kids',
-    '11': 'Groceries',
-    '12': 'Pet Supplies',
-};
+const FAVORITES_KEY = 'favorites';
 
 export default function CategoryProductsScreen() {
     const insets = useSafeAreaInsets();
     const { colors, isDark } = useTheme();
     const { id } = useLocalSearchParams<{ id: string }>();
 
-    const categoryName = categoryNames[id || '1'] || 'Products';
-    const categoryFilters = categoryProductMapping[id || '1'] || [];
+    const [products, setProducts] = useState<Product[]>([]);
+    const [category, setCategory] = useState<Category | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [favorites, setFavorites] = useState<string[]>([]);
 
-    // Filter products based on category
-    const filteredProducts = useMemo(() => {
-        if (!id) return allProducts;
+    const fetchData = useCallback(async () => {
+        if (!id) return;
 
-        // For Fruits & Vegetables (id: 1), show trending products (fruits)
-        if (id === '1') {
-            return trendingProducts;
+        try {
+            const [productsRes, categoryRes] = await Promise.all([
+                productsApi.getByCategory(id),
+                categoriesApi.getById(id),
+            ]);
+
+            if (productsRes.success && productsRes.response?.data) {
+                setProducts(productsRes.response.data);
+            }
+
+            if (categoryRes.success && categoryRes.response) {
+                setCategory(categoryRes.response);
+            }
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
         }
+    }, [id]);
 
-        // For Fashion & Apparel (id: 2), show fashion products
-        if (id === '2') {
-            return fashionProducts;
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    // Load favorites
+    useEffect(() => {
+        const loadFavorites = async () => {
+            try {
+                const stored = await AsyncStorage.getItem(FAVORITES_KEY);
+                if (stored) {
+                    setFavorites(JSON.parse(stored));
+                }
+            } catch (error) {
+                setFavorites([]);
+            }
+        };
+        loadFavorites();
+    }, []);
+
+    const onRefresh = useCallback(() => {
+        setRefreshing(true);
+        fetchData();
+    }, [fetchData]);
+
+    const handleToggleFavorite = async (productId: string) => {
+        try {
+            let updatedFavorites: string[];
+            if (favorites.includes(productId)) {
+                updatedFavorites = favorites.filter(fid => fid !== productId);
+            } else {
+                updatedFavorites = [...favorites, productId];
+            }
+            setFavorites(updatedFavorites);
+            await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(updatedFavorites));
+        } catch (error) {
+            console.error('Error toggling favorite:', error);
         }
-
-        // For other categories, filter from all products or show mock events
-        const filtered = allProducts.filter(product =>
-            categoryFilters.some(filter =>
-                product.category.toLowerCase().includes(filter.toLowerCase())
-            )
-        );
-
-        // If no products found for this category, return some sample products
-        if (filtered.length === 0) {
-            return mockEvents.slice(0, 4);
-        }
-
-        return filtered;
-    }, [id, categoryFilters]);
+    };
 
     const styles = createStyles(colors, isDark);
 
     const handleProductPress = (productId: string) => {
         router.push(`/event/${productId}`);
     };
+
+    if (loading) {
+        return (
+            <View style={[styles.container, styles.loadingContainer]}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.loadingText}>Loading products...</Text>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -92,8 +109,8 @@ export default function CategoryProductsScreen() {
                         <ArrowLeft size={22} color={colors.foreground} strokeWidth={2.5} />
                     </Pressable>
                     <View>
-                        <Text style={styles.title}>{categoryName}</Text>
-                        <Text style={styles.subtitle}>{filteredProducts.length} products found</Text>
+                        <Text style={styles.title}>{category?.name || 'Products'}</Text>
+                        <Text style={styles.subtitle}>{products.length} products found</Text>
                     </View>
                 </View>
                 <View style={styles.headerButtons}>
@@ -111,8 +128,16 @@ export default function CategoryProductsScreen() {
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={colors.primary}
+                        colors={[colors.primary]}
+                    />
+                }
             >
-                {filteredProducts.length === 0 ? (
+                {products.length === 0 ? (
                     <View style={styles.emptyState}>
                         <Text style={styles.emptyText}>No products found in this category</Text>
                         <Pressable style={styles.browseButton} onPress={() => router.back()}>
@@ -121,21 +146,28 @@ export default function CategoryProductsScreen() {
                     </View>
                 ) : (
                     <View style={styles.productsGrid}>
-                        {filteredProducts.map((product) => (
+                        {products.map((product) => (
                             <Pressable
-                                key={product.id}
+                                key={product._id}
                                 style={styles.productCard}
-                                onPress={() => handleProductPress(product.id)}
+                                onPress={() => handleProductPress(product._id)}
                             >
                                 <View style={styles.imageContainer}>
-                                    <Image source={{ uri: product.image }} style={styles.productImage} />
+                                    <Image source={{ uri: getImageUrl(product.image) }} style={styles.productImage} />
                                     {product.badge && (
                                         <View style={styles.badge}>
                                             <Text style={styles.badgeText}>{product.badge}</Text>
                                         </View>
                                     )}
-                                    <Pressable style={styles.heartButton}>
-                                        <Heart size={18} color={colors.mutedForeground} />
+                                    <Pressable
+                                        style={styles.heartButton}
+                                        onPress={() => handleToggleFavorite(product._id)}
+                                    >
+                                        <Heart
+                                            size={18}
+                                            color={favorites.includes(product._id) ? '#ff4757' : colors.mutedForeground}
+                                            fill={favorites.includes(product._id) ? '#ff4757' : 'transparent'}
+                                        />
                                     </Pressable>
                                 </View>
                                 <View style={styles.productInfo}>
@@ -165,6 +197,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
+    },
+    loadingContainer: {
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: colors.mutedForeground,
     },
     header: {
         paddingHorizontal: 10,

@@ -1,12 +1,12 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, Pressable } from 'react-native';
 import { Heart, Star, ShoppingBag } from 'lucide-react-native';
-import { Event } from '@/lib/mockData';
+import { Product, getImageUrl } from '@/lib/api';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 
 interface EventCardProps {
-  event: Event;
+  event: Product;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
 }
@@ -15,10 +15,10 @@ export default function EventCard({ event, isFavorite = false, onToggleFavorite 
   const { colors } = useTheme();
 
   const handlePress = () => {
-    router.push(`/event/${event.id}`);
+    router.push(`/event/${event._id}`);
   };
 
-  const imageUri = event.image;
+  const imageUri = getImageUrl(event.image);
 
   const styles = createStyles(colors);
 

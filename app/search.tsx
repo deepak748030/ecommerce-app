@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, RefreshControl, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, RefreshControl, Dimensions, ActivityIndicator } from 'react-native';
 import { Search, ListFilter, X, TrendingUp, TrendingDown, ArrowLeft } from 'lucide-react-native';
-import { getFavorites, toggleFavorite, Event, allProducts, mockCategories } from '@/lib/mockData';
 import EventCard from '@/components/EventCard';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { productsApi, categoriesApi, Product, Category } from '@/lib/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 20) / 2;
+const FAVORITES_KEY = 'favorites';
 
 export default function SearchScreen() {
   const params = useLocalSearchParams<{ category?: string }>();
@@ -24,6 +26,11 @@ export default function SearchScreen() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
+  // API data states
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   const ratings = [
@@ -32,6 +39,33 @@ export default function SearchScreen() {
     { value: '4.5', label: '4.5+ Stars' },
     { value: '4.8', label: '4.8+ Stars' },
   ];
+
+  // Fetch data from API
+  const fetchData = useCallback(async () => {
+    try {
+      const [productsRes, categoriesRes] = await Promise.all([
+        productsApi.getAll({ limit: 50 }),
+        categoriesApi.getAll(),
+      ]);
+
+      if (productsRes.success && productsRes.response?.data) {
+        setProducts(productsRes.response.data);
+      }
+
+      if (categoriesRes.success && categoriesRes.response?.data) {
+        setCategories(categoriesRes.response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Set initial category from params
   useEffect(() => {
@@ -44,8 +78,10 @@ export default function SearchScreen() {
   useEffect(() => {
     const loadFavorites = async () => {
       try {
-        const favs = await getFavorites();
-        setFavorites(favs);
+        const stored = await AsyncStorage.getItem(FAVORITES_KEY);
+        if (stored) {
+          setFavorites(JSON.parse(stored));
+        }
       } catch (error) {
         setFavorites([]);
       }
@@ -53,38 +89,38 @@ export default function SearchScreen() {
     loadFavorites();
   }, []);
 
-  // Filter and sort events using mock data
-  const filteredEvents = useMemo(() => {
-    let results = [...allProducts];
+  // Filter and sort products
+  const filteredProducts = useMemo(() => {
+    let results = [...products];
 
     // Search filter
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.toLowerCase();
-      results = results.filter(event =>
-        event.title.toLowerCase().includes(query) ||
-        event.description.toLowerCase().includes(query) ||
-        event.category.toLowerCase().includes(query) ||
-        event.location.toLowerCase().includes(query)
+      results = results.filter(product =>
+        product.title.toLowerCase().includes(query) ||
+        product.description.toLowerCase().includes(query) ||
+        product.location.toLowerCase().includes(query)
       );
     }
 
     // Category filter
     if (selectedCategory !== 'all') {
-      results = results.filter(event =>
-        event.category.toLowerCase() === selectedCategory.toLowerCase() ||
-        event.category.toLowerCase().includes(selectedCategory.toLowerCase())
-      );
+      results = results.filter(product => {
+        const categoryName = typeof product.category === 'object' ? product.category.name : product.category;
+        return categoryName?.toLowerCase() === selectedCategory.toLowerCase() ||
+          categoryName?.toLowerCase().includes(selectedCategory.toLowerCase());
+      });
     }
 
     // Price filter
-    results = results.filter(event =>
-      event.price >= priceRange[0] && event.price <= priceRange[1]
+    results = results.filter(product =>
+      product.price >= priceRange[0] && product.price <= priceRange[1]
     );
 
     // Rating filter
     if (minRating !== 'all') {
       const minRatingValue = parseFloat(minRating);
-      results = results.filter(event => event.rating >= minRatingValue);
+      results = results.filter(product => product.rating >= minRatingValue);
     }
 
     // Price sort
@@ -95,20 +131,23 @@ export default function SearchScreen() {
     }
 
     return results;
-  }, [debouncedSearchQuery, selectedCategory, priceRange, minRating, priceSort]);
+  }, [debouncedSearchQuery, selectedCategory, priceRange, minRating, priceSort, products]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    const favs = await getFavorites();
-    setFavorites(favs);
-    setRefreshing(false);
-  }, []);
+    await fetchData();
+  }, [fetchData]);
 
-  const handleToggleFavorite = async (eventId: string) => {
+  const handleToggleFavorite = async (productId: string) => {
     try {
-      await toggleFavorite(eventId);
-      const updatedFavorites = await getFavorites();
+      let updatedFavorites: string[];
+      if (favorites.includes(productId)) {
+        updatedFavorites = favorites.filter(id => id !== productId);
+      } else {
+        updatedFavorites = [...favorites, productId];
+      }
       setFavorites(updatedFavorites);
+      await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(updatedFavorites));
     } catch (error) {
       console.error('Error toggling favorite:', error);
     }
@@ -122,6 +161,15 @@ export default function SearchScreen() {
   };
 
   const styles = createStyles(colors);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Loading products...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -168,11 +216,11 @@ export default function SearchScreen() {
         <View style={styles.content}>
           {/* Results Count */}
           <Text style={styles.resultsCount}>
-            {filteredEvents.length} results found
+            {filteredProducts.length} results found
           </Text>
 
           {/* Results Grid */}
-          {filteredEvents.length === 0 ? (
+          {filteredProducts.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No products found matching your filters</Text>
               <Pressable onPress={clearFilters}>
@@ -181,12 +229,12 @@ export default function SearchScreen() {
             </View>
           ) : (
             <View style={styles.eventsGrid}>
-              {filteredEvents.map((event) => (
-                <View key={event.id} style={styles.eventCardContainer}>
+              {filteredProducts.map((product) => (
+                <View key={product._id} style={styles.eventCardContainer}>
                   <EventCard
-                    event={event}
-                    isFavorite={favorites.includes(event.id)}
-                    onToggleFavorite={() => handleToggleFavorite(event.id)}
+                    event={product}
+                    isFavorite={favorites.includes(product._id)}
+                    onToggleFavorite={() => handleToggleFavorite(product._id)}
                   />
                 </View>
               ))}
@@ -221,18 +269,32 @@ export default function SearchScreen() {
               <View style={styles.filterSection}>
                 <Text style={styles.filterSectionTitle}>Category</Text>
                 <View style={styles.filterOptions}>
-                  {mockCategories.map((category) => (
+                  <Pressable
+                    style={[
+                      styles.filterOption,
+                      selectedCategory === 'all' && styles.selectedFilterOption
+                    ]}
+                    onPress={() => setSelectedCategory('all')}
+                  >
+                    <Text style={[
+                      styles.filterOptionText,
+                      selectedCategory === 'all' && styles.selectedFilterOptionText
+                    ]}>
+                      All Products
+                    </Text>
+                  </Pressable>
+                  {categories.map((category) => (
                     <Pressable
-                      key={category.id}
+                      key={category._id}
                       style={[
                         styles.filterOption,
-                        selectedCategory === category.id && styles.selectedFilterOption
+                        selectedCategory === category.name && styles.selectedFilterOption
                       ]}
-                      onPress={() => setSelectedCategory(category.id)}
+                      onPress={() => setSelectedCategory(category.name)}
                     >
                       <Text style={[
                         styles.filterOptionText,
-                        selectedCategory === category.id && styles.selectedFilterOptionText
+                        selectedCategory === category.name && styles.selectedFilterOptionText
                       ]}>
                         {category.name}
                       </Text>
@@ -345,6 +407,15 @@ const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: colors.mutedForeground,
   },
   header: {
     backgroundColor: colors.background,
@@ -501,10 +572,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   filterOptionText: {
     fontSize: 13,
     color: colors.foreground,
+    fontWeight: '500',
   },
   selectedFilterOptionText: {
     color: colors.white,
-    fontWeight: '600',
   },
   priceInputs: {
     flexDirection: 'row',
@@ -523,25 +594,23 @@ const createStyles = (colors: any) => StyleSheet.create({
     borderColor: colors.border,
   },
   priceSeparator: {
-    fontSize: 13,
+    fontSize: 14,
     color: colors.mutedForeground,
   },
   filterActions: {
     flexDirection: 'row',
-    gap: 10,
-    padding: 16,
-    paddingBottom: 28,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   clearButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 10,
     backgroundColor: colors.secondary,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   clearButtonText: {
     fontSize: 14,
@@ -550,7 +619,7 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   applyButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 10,
     backgroundColor: colors.primary,
     alignItems: 'center',

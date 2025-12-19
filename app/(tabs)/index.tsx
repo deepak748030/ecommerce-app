@@ -1,28 +1,17 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Image, Animated, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Image, Animated, NativeSyntheticEvent, NativeScrollEvent, ActivityIndicator, RefreshControl } from 'react-native';
 import { ArrowRight, Sparkles, Flame, Zap } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import TopBar from '@/components/TopBar';
 import EventCard from '@/components/EventCard';
 import { LinearGradient } from 'expo-linear-gradient';
-import { trendingProducts, fashionProducts } from '@/lib/mockData';
+import { categoriesApi, productsApi, Product, Category, getImageUrl } from '@/lib/api';
 import { router } from 'expo-router';
 
 const { width } = Dimensions.get('window');
 const BANNER_WIDTH = width - 32;
 const CARD_WIDTH = (width - 20) / 2;
 const SCROLL_THRESHOLD = 50;
-
-const categories = [
-  { id: '1', name: 'Fruits', image: 'https://images.pexels.com/photos/1132047/pexels-photo-1132047.jpeg?auto=compress&cs=tinysrgb&w=200', color: '#FEE2E2' },
-  { id: '2', name: 'Vegetables', image: 'https://images.pexels.com/photos/2255935/pexels-photo-2255935.jpeg?auto=compress&cs=tinysrgb&w=200', color: '#DCFCE7' },
-  { id: '3', name: 'Fashion', image: 'https://images.pexels.com/photos/934070/pexels-photo-934070.jpeg?auto=compress&cs=tinysrgb&w=200', color: '#E0E7FF' },
-  { id: '4', name: 'Electronics', image: 'https://images.pexels.com/photos/356056/pexels-photo-356056.jpeg?auto=compress&cs=tinysrgb&w=200', color: '#FEF3C7' },
-  { id: '5', name: 'Home', image: 'https://images.pexels.com/photos/1350789/pexels-photo-1350789.jpeg?auto=compress&cs=tinysrgb&w=200', color: '#FCE7F3' },
-  { id: '6', name: 'Beauty', image: 'https://images.pexels.com/photos/2587370/pexels-photo-2587370.jpeg?auto=compress&cs=tinysrgb&w=200', color: '#FED7AA' },
-  { id: '7', name: 'Sports', image: 'https://images.pexels.com/photos/46798/the-ball-stadion-football-the-pitch-46798.jpeg?auto=compress&cs=tinysrgb&w=200', color: '#CFFAFE' },
-  { id: '8', name: 'Toys', image: 'https://images.pexels.com/photos/163036/mario-luigi-yoschi-figures-163036.jpeg?auto=compress&cs=tinysrgb&w=200', color: '#D1FAE5' },
-];
 
 const banners = [
   {
@@ -60,10 +49,60 @@ export default function HomeScreen() {
   const [wishlist, setWishlist] = useState<string[]>([]);
   const bannerScrollRef = useRef<ScrollView>(null);
 
+  // API data states
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [trendingProducts, setTrendingProducts] = useState<Product[]>([]);
+  const [fashionProducts, setFashionProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
   // Animation for search bar visibility
   const searchBarAnimation = useRef(new Animated.Value(1)).current;
   const lastScrollY = useRef(0);
   const isSearchBarVisible = useRef(true);
+
+  const fetchData = useCallback(async () => {
+    try {
+      // Fetch categories and products in parallel
+      const [categoriesRes, productsRes] = await Promise.all([
+        categoriesApi.getAll(),
+        productsApi.getAll({ limit: 20 }),
+      ]);
+
+      if (categoriesRes.success && categoriesRes.response?.data) {
+        setCategories(categoriesRes.response.data);
+      }
+
+      if (productsRes.success && productsRes.response?.data) {
+        const allProducts = productsRes.response.data;
+
+        // Filter trending products (first 4 or products with high rating)
+        const trending = allProducts.filter(p => p.rating >= 4.5).slice(0, 4);
+        setTrendingProducts(trending.length > 0 ? trending : allProducts.slice(0, 4));
+
+        // Filter fashion products or get remaining products
+        const fashion = allProducts.filter(p => {
+          const categoryName = typeof p.category === 'object' ? p.category.name : p.category;
+          return categoryName?.toLowerCase().includes('fashion');
+        }).slice(0, 4);
+        setFashionProducts(fashion.length > 0 ? fashion : allProducts.slice(4, 8));
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchData();
+  }, [fetchData]);
 
   const handleBannerScroll = (event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
@@ -79,8 +118,8 @@ export default function HomeScreen() {
     router.push({ pathname: '/search', params: { category: searchType } });
   };
 
-  const handleCategoryPress = (categoryName: string) => {
-    router.push({ pathname: '/search', params: { category: categoryName } });
+  const handleCategoryPress = (category: Category) => {
+    router.push({ pathname: '/category/[id]', params: { id: category._id } });
   };
 
   const handleMainScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -111,6 +150,15 @@ export default function HomeScreen() {
 
   const styles = createStyles(colors, isDark);
 
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <TopBar showSearchBar={true} searchBarAnimation={searchBarAnimation} />
@@ -121,6 +169,14 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         onScroll={handleMainScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         {/* Banner Carousel */}
         <ScrollView
@@ -193,9 +249,9 @@ export default function HomeScreen() {
           contentContainerStyle={styles.categoriesContainer}
         >
           {categories.map((category) => (
-            <Pressable key={category.id} style={styles.categoryCard} onPress={() => handleCategoryPress(category.name)}>
-              <View style={[styles.categoryIconContainer, { backgroundColor: category.color }]}>
-                <Image source={{ uri: category.image }} style={styles.categoryImage} />
+            <Pressable key={category._id} style={styles.categoryCard} onPress={() => handleCategoryPress(category)}>
+              <View style={[styles.categoryIconContainer, { backgroundColor: category.color || '#E0E7FF' }]}>
+                <Image source={{ uri: getImageUrl(category.image) }} style={styles.categoryImage} />
               </View>
               <Text style={styles.categoryName}>{category.name}</Text>
             </Pressable>
@@ -203,56 +259,64 @@ export default function HomeScreen() {
         </ScrollView>
 
         {/* Trending Products */}
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-            <Flame size={18} color="#EF4444" />
-            <Text style={styles.sectionTitle}>Trending Now</Text>
-          </View>
-          <Pressable style={styles.viewAllButton} onPress={() => router.push('/search')}>
-            <Text style={styles.viewAllText}>View All</Text>
-            <ArrowRight size={14} color={colors.primary} />
-          </Pressable>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.productsContainer}
-        >
-          {trendingProducts.map((product) => (
-            <View key={product.id} style={styles.productCardContainer}>
-              <EventCard
-                event={product}
-                isFavorite={wishlist.includes(product.id)}
-                onToggleFavorite={() => toggleWishlist(product.id)}
-              />
+        {trendingProducts.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <Flame size={18} color="#EF4444" />
+                <Text style={styles.sectionTitle}>Trending Now</Text>
+              </View>
+              <Pressable style={styles.viewAllButton} onPress={() => router.push('/search')}>
+                <Text style={styles.viewAllText}>View All</Text>
+                <ArrowRight size={14} color={colors.primary} />
+              </Pressable>
             </View>
-          ))}
-        </ScrollView>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.productsContainer}
+            >
+              {trendingProducts.map((product) => (
+                <View key={product._id} style={styles.productCardContainer}>
+                  <EventCard
+                    event={product}
+                    isFavorite={wishlist.includes(product._id)}
+                    onToggleFavorite={() => toggleWishlist(product._id)}
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          </>
+        )}
 
         {/* Fashion Products */}
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-            <Zap size={18} color="#8B5CF6" />
-            <Text style={styles.sectionTitle}>Fashion Picks</Text>
-          </View>
-          <Pressable style={styles.viewAllButton} onPress={() => router.push({ pathname: '/search', params: { category: 'Fashion' } })}>
-            <Text style={styles.viewAllText}>View All</Text>
-            <ArrowRight size={14} color={colors.primary} />
-          </Pressable>
-        </View>
-
-        <View style={styles.gridContainer}>
-          {fashionProducts.map((product) => (
-            <View key={product.id} style={styles.gridProductCard}>
-              <EventCard
-                event={product}
-                isFavorite={wishlist.includes(product.id)}
-                onToggleFavorite={() => toggleWishlist(product.id)}
-              />
+        {fashionProducts.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <Zap size={18} color="#8B5CF6" />
+                <Text style={styles.sectionTitle}>Fashion Picks</Text>
+              </View>
+              <Pressable style={styles.viewAllButton} onPress={() => router.push({ pathname: '/search', params: { category: 'Fashion' } })}>
+                <Text style={styles.viewAllText}>View All</Text>
+                <ArrowRight size={14} color={colors.primary} />
+              </Pressable>
             </View>
-          ))}
-        </View>
+
+            <View style={styles.gridContainer}>
+              {fashionProducts.map((product) => (
+                <View key={product._id} style={styles.gridProductCard}>
+                  <EventCard
+                    event={product}
+                    isFavorite={wishlist.includes(product._id)}
+                    onToggleFavorite={() => toggleWishlist(product._id)}
+                  />
+                </View>
+              ))}
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -262,6 +326,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: colors.mutedForeground,
   },
   scrollView: {
     flex: 1,

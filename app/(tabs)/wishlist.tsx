@@ -1,33 +1,81 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { Heart, ShoppingBag } from 'lucide-react-native';
 import EventCard from '@/components/EventCard';
-import { Event } from '@/lib/mockData';
+import { Product, productsApi } from '@/lib/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 20) / 2;
-
-const mockWishlistItems: Event[] = [
-    { id: '1', title: 'Premium Mangoes', price: 250, mrp: 300, rating: 4.7, reviews: 189, image: 'https://images.pexels.com/photos/918643/pexels-photo-918643.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Premium', location: 'Tropical Store', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
-    { id: '2', title: 'Denim Jeans', price: 1299, mrp: 1999, rating: 4.7, reviews: 892, image: 'https://images.pexels.com/photos/1598507/pexels-photo-1598507.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Bestseller', location: 'Style Store', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
-    { id: '3', title: 'Wireless Earbuds', price: 1999, mrp: 3499, rating: 4.8, reviews: 1234, image: 'https://images.pexels.com/photos/3780681/pexels-photo-3780681.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Hot Deal', location: 'Tech Hub', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
-    { id: '4', title: 'Running Shoes', price: 2999, mrp: 4999, rating: 4.9, reviews: 567, image: 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Top Rated', location: 'Sports World', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
-    { id: '5', title: 'Smart Watch', price: 3499, mrp: 5999, rating: 4.6, reviews: 445, image: 'https://images.pexels.com/photos/437037/pexels-photo-437037.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'New', location: 'Gadget Zone', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
-    { id: '6', title: 'Fresh Strawberries', price: 180, mrp: 220, rating: 4.5, reviews: 234, image: 'https://images.pexels.com/photos/46174/strawberries-berries-fruit-freshness-46174.jpeg?auto=compress&cs=tinysrgb&w=300', badge: 'Organic', location: 'Farm Fresh', images: [], fullLocation: '', category: '', description: '', date: '', time: '', services: [], vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' } },
-];
+const FAVORITES_KEY = 'favorites';
 
 export default function WishlistScreen() {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const [wishlistItems, setWishlistItems] = useState(mockWishlistItems);
+    const [wishlistItems, setWishlistItems] = useState<Product[]>([]);
+    const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    const removeItem = (id: string) => {
-        setWishlistItems(prev => prev.filter(item => item.id !== id));
+    const fetchWishlistProducts = useCallback(async () => {
+        try {
+            const stored = await AsyncStorage.getItem(FAVORITES_KEY);
+            const ids = stored ? JSON.parse(stored) : [];
+            setFavoriteIds(ids);
+
+            if (ids.length === 0) {
+                setWishlistItems([]);
+                setLoading(false);
+                setRefreshing(false);
+                return;
+            }
+
+            // Fetch all products and filter by favorite IDs
+            const response = await productsApi.getAll({ limit: 100 });
+            if (response.success && response.response?.data) {
+                const favorites = response.response.data.filter(p => ids.includes(p._id));
+                setWishlistItems(favorites);
+            }
+        } catch (error) {
+            console.error('Error fetching wishlist:', error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchWishlistProducts();
+    }, [fetchWishlistProducts]);
+
+    const onRefresh = useCallback(() => {
+        setRefreshing(true);
+        fetchWishlistProducts();
+    }, [fetchWishlistProducts]);
+
+    const removeItem = async (id: string) => {
+        try {
+            const updatedIds = favoriteIds.filter(fid => fid !== id);
+            setFavoriteIds(updatedIds);
+            setWishlistItems(prev => prev.filter(item => item._id !== id));
+            await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(updatedIds));
+        } catch (error) {
+            console.error('Error removing from wishlist:', error);
+        }
     };
 
     const styles = createStyles(colors);
+
+    if (loading) {
+        return (
+            <View style={[styles.container, styles.loadingContainer]}>
+                <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -44,19 +92,30 @@ export default function WishlistScreen() {
                     <Heart size={80} color={colors.mutedForeground} strokeWidth={1} />
                     <Text style={styles.emptyTitle}>Your wishlist is empty</Text>
                     <Text style={styles.emptySubtitle}>Save items you love to buy later</Text>
-                    <Pressable style={styles.exploreButton}>
+                    <Pressable style={styles.exploreButton} onPress={() => router.push('/search')}>
                         <Text style={styles.exploreButtonText}>Explore Products</Text>
                     </Pressable>
                 </View>
             ) : (
-                <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            tintColor={colors.primary}
+                            colors={[colors.primary]}
+                        />
+                    }
+                >
                     <View style={styles.gridContainer}>
                         {wishlistItems.map((item) => (
-                            <View key={item.id} style={styles.cardWrapper}>
+                            <View key={item._id} style={styles.cardWrapper}>
                                 <EventCard
                                     event={item}
                                     isFavorite={true}
-                                    onToggleFavorite={() => removeItem(item.id)}
+                                    onToggleFavorite={() => removeItem(item._id)}
                                 />
                             </View>
                         ))}
@@ -77,6 +136,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
+    },
+    loadingContainer: {
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     header: {
         paddingHorizontal: 16,
@@ -126,7 +189,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     },
     exploreButton: {
         backgroundColor: colors.primary,
-        // paddingHorizontal: 24,
+        paddingHorizontal: 24,
         paddingVertical: 14,
         borderRadius: 12,
         marginTop: 24,

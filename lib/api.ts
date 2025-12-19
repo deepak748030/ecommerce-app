@@ -109,7 +109,25 @@ const apiRequest = async <T>(
             headers,
         });
 
-        const data = await response.json();
+        // Get the response text first to handle non-JSON responses
+        const responseText = await response.text();
+
+        // Try to parse as JSON
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (parseError) {
+            // Response is not JSON (likely HTML error page from Vercel)
+            console.error('Response is not valid JSON:', responseText.substring(0, 200));
+            return {
+                success: false,
+                message: response.status === 500
+                    ? 'Server error. Please try again later.'
+                    : `Server returned an error (${response.status})`,
+                response: null as any,
+            };
+        }
+
         console.log(`API Response: ${response.status} - ${data.success ? 'Success' : data.message}`);
 
         if (!response.ok) {

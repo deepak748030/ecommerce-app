@@ -1,31 +1,57 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { Search, ChevronRight, Sparkles } from 'lucide-react-native';
 import { router } from 'expo-router';
-
-// Categories that match mock data products
-const allCategories = [
-    { id: '1', name: 'Fruits', searchKey: 'Fruits', image: 'https://images.pexels.com/photos/1132047/pexels-photo-1132047.jpeg?auto=compress&cs=tinysrgb&w=200', items: 4, color: '#DCFCE7' },
-    { id: '2', name: 'Fashion', searchKey: 'Fashion', image: 'https://images.pexels.com/photos/934070/pexels-photo-934070.jpeg?auto=compress&cs=tinysrgb&w=200', items: 4, color: '#E0E7FF' },
-    { id: '3', name: 'Weddings', searchKey: 'Weddings', image: 'https://images.pexels.com/photos/1983046/pexels-photo-1983046.jpeg?auto=compress&cs=tinysrgb&w=200', items: 2, color: '#FCE7F3' },
-    { id: '4', name: 'Birthday Parties', searchKey: 'Birthday Parties', image: 'https://images.pexels.com/photos/1857157/pexels-photo-1857157.jpeg?auto=compress&cs=tinysrgb&w=200', items: 2, color: '#FEF3C7' },
-    { id: '5', name: 'Corporate Events', searchKey: 'Corporate Events', image: 'https://images.pexels.com/photos/1181396/pexels-photo-1181396.jpeg?auto=compress&cs=tinysrgb&w=200', items: 1, color: '#CFFAFE' },
-    { id: '6', name: 'Concerts & Music', searchKey: 'Concerts & Music', image: 'https://images.pexels.com/photos/1190298/pexels-photo-1190298.jpeg?auto=compress&cs=tinysrgb&w=200', items: 1, color: '#F3E8FF' },
-];
+import { categoriesApi, Category, getImageUrl } from '@/lib/api';
 
 export default function CategoriesScreen() {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    const handleCategoryPress = (category: typeof allCategories[0]) => {
-        setSelectedCategory(category.id);
-        router.push({ pathname: '/search', params: { category: category.searchKey } });
+    const fetchCategories = useCallback(async () => {
+        try {
+            const response = await categoriesApi.getAll();
+            if (response.success && response.response?.data) {
+                setCategories(response.response.data);
+            }
+        } catch (error) {
+            console.error('Error fetching categories:', error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchCategories();
+    }, [fetchCategories]);
+
+    const onRefresh = useCallback(() => {
+        setRefreshing(true);
+        fetchCategories();
+    }, [fetchCategories]);
+
+    const handleCategoryPress = (category: Category) => {
+        setSelectedCategory(category._id);
+        router.push({ pathname: '/category/[id]', params: { id: category._id } });
     };
 
     const styles = createStyles(colors);
+
+    if (loading) {
+        return (
+            <View style={[styles.container, styles.loadingContainer]}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.loadingText}>Loading categories...</Text>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -38,7 +64,18 @@ export default function CategoriesScreen() {
                 </View>
             </View>
 
-            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={colors.primary}
+                        colors={[colors.primary]}
+                    />
+                }
+            >
                 {/* Featured Banner */}
                 <Pressable style={styles.featuredBanner} onPress={() => router.push('/search')}>
                     <View style={styles.featuredContent}>
@@ -54,26 +91,32 @@ export default function CategoriesScreen() {
 
                 {/* Categories Grid */}
                 <View style={styles.categoriesGrid}>
-                    {allCategories.map((category) => (
+                    {categories.map((category) => (
                         <Pressable
-                            key={category.id}
+                            key={category._id}
                             style={[
                                 styles.categoryCard,
-                                selectedCategory === category.id && styles.selectedCategoryCard
+                                selectedCategory === category._id && styles.selectedCategoryCard
                             ]}
                             onPress={() => handleCategoryPress(category)}
                         >
-                            <View style={[styles.categoryIconBg, { backgroundColor: category.color }]}>
-                                <Image source={{ uri: category.image }} style={styles.categoryImage} />
+                            <View style={[styles.categoryIconBg, { backgroundColor: category.color || '#E0E7FF' }]}>
+                                <Image source={{ uri: getImageUrl(category.image) }} style={styles.categoryImage} />
                             </View>
                             <View style={styles.categoryInfo}>
                                 <Text style={styles.categoryName} numberOfLines={1}>{category.name}</Text>
-                                <Text style={styles.categoryItems}>{category.items} items</Text>
+                                <Text style={styles.categoryItems}>{category.itemsCount || 0} items</Text>
                             </View>
                             <ChevronRight size={18} color={colors.mutedForeground} />
                         </Pressable>
                     ))}
                 </View>
+
+                {categories.length === 0 && (
+                    <View style={styles.emptyState}>
+                        <Text style={styles.emptyText}>No categories found</Text>
+                    </View>
+                )}
             </ScrollView>
         </View>
     );
@@ -83,6 +126,15 @@ const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
+    },
+    loadingContainer: {
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: colors.mutedForeground,
     },
     header: {
         paddingHorizontal: 16,
@@ -206,6 +258,16 @@ const createStyles = (colors: any) => StyleSheet.create({
     },
     categoryItems: {
         fontSize: 12,
+        color: colors.mutedForeground,
+    },
+    emptyState: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingTop: 60,
+    },
+    emptyText: {
+        fontSize: 14,
         color: colors.mutedForeground,
     },
 });
