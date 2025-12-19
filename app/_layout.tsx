@@ -38,12 +38,12 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="event/[id]" />
           <Stack.Screen name="booking/[id]" />
-          <Stack.Screen name="chat/[id]" />
           <Stack.Screen name="order/[id]" />
+          <Stack.Screen name="category/[id]" />
           <Stack.Screen name="search" />
+          <Stack.Screen name="checkout" />
           <Stack.Screen name="notifications" />
           <Stack.Screen name="transactions" />
-          <Stack.Screen name="payment" />
           <Stack.Screen name="help-support" />
           <Stack.Screen name="privacy-policy" />
           <Stack.Screen name="my-orders" />

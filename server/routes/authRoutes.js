@@ -8,6 +8,8 @@ const {
     getMe,
     updateProfile,
     updatePushToken,
+    getNotificationSettings,
+    updateNotificationSettings,
     logout,
 } = require('../controllers/authController');
 const { verifyToken } = require('../middleware/auth');
@@ -22,6 +24,8 @@ router.post('/register', register);
 router.get('/me', verifyToken, getMe);
 router.put('/profile', verifyToken, updateProfile);
 router.put('/push-token', verifyToken, updatePushToken);
+router.get('/notification-settings', verifyToken, getNotificationSettings);
+router.put('/notification-settings', verifyToken, updateNotificationSettings);
 router.post('/logout', verifyToken, logout);
 
 module.exports = router;
