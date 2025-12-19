@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Image, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, MapPin, CreditCard, Wallet, Smartphone, ChevronRight, ShieldCheck, Plus, Package, Tag, X, Check } from 'lucide-react-native';
@@ -9,6 +9,7 @@ import { useAddress, Address } from '@/hooks/useAddress';
 import { ordersApi, couponsApi, getToken, Coupon } from '@/lib/api';
 import { Banknote } from 'lucide-react-native';
 import { SuccessModal } from '@/components/SuccessModal';
+import { ActionModal } from '@/components/ActionModal';
 
 const paymentMethods = [
     { id: 'cod', name: 'Cash on Delivery', icon: Banknote, description: 'Pay when you receive' },
@@ -48,6 +49,11 @@ export default function CheckoutScreen() {
     const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
+
+    // Modal states
+    const [showLoginModal, setShowLoginModal] = useState(false);
+    const [showErrorModal, setShowErrorModal] = useState(false);
+    const [errorModalData, setErrorModalData] = useState({ title: '', message: '' });
     const [orderId, setOrderId] = useState<string | null>(null);
 
     // Coupon state
@@ -84,14 +90,7 @@ export default function CheckoutScreen() {
             const token = await getToken();
             setIsAuthenticated(!!token);
             if (!token) {
-                Alert.alert(
-                    'Login Required',
-                    'Please login to continue with checkout',
-                    [
-                        { text: 'Cancel', onPress: () => router.back() },
-                        { text: 'Login', onPress: () => router.push('/auth/phone') }
-                    ]
-                );
+                setShowLoginModal(true);
             }
         };
         checkAuth();
@@ -133,12 +132,14 @@ export default function CheckoutScreen() {
 
     const handlePlaceOrder = async () => {
         if (!selectedAddress) {
-            Alert.alert('Address Required', 'Please add a delivery address to continue');
+            setErrorModalData({ title: 'Address Required', message: 'Please add a delivery address to continue' });
+            setShowErrorModal(true);
             return;
         }
 
         if (!isBuyNow && cartItems.length === 0) {
-            Alert.alert('Empty Cart', 'Your cart is empty');
+            setErrorModalData({ title: 'Empty Cart', message: 'Your cart is empty' });
+            setShowErrorModal(true);
             return;
         }
 
@@ -155,7 +156,8 @@ export default function CheckoutScreen() {
             } else {
                 const cartForOrder = await getCartForOrder();
                 if (cartForOrder.length === 0) {
-                    Alert.alert('Error', 'Your cart is empty');
+                    setErrorModalData({ title: 'Error', message: 'Your cart is empty' });
+                    setShowErrorModal(true);
                     setIsProcessing(false);
                     return;
                 }
@@ -190,11 +192,13 @@ export default function CheckoutScreen() {
 
                 setShowSuccess(true);
             } else {
-                Alert.alert('Order Failed', result.message || 'Failed to place order. Please try again.');
+                setErrorModalData({ title: 'Order Failed', message: result.message || 'Failed to place order. Please try again.' });
+                setShowErrorModal(true);
             }
         } catch (error) {
             console.error('Order creation error:', error);
-            Alert.alert('Error', 'Something went wrong. Please try again.');
+            setErrorModalData({ title: 'Error', message: 'Something went wrong. Please try again.' });
+            setShowErrorModal(true);
         } finally {
             setIsProcessing(false);
         }
@@ -431,6 +435,32 @@ export default function CheckoutScreen() {
                 onClose={handleSuccessClose}
                 title="Order Placed!"
                 message="Your order has been placed successfully. You will receive a confirmation shortly."
+            />
+
+            {/* Login Required Modal */}
+            <ActionModal
+                isVisible={showLoginModal}
+                onClose={() => {
+                    setShowLoginModal(false);
+                    router.back();
+                }}
+                type="info"
+                title="Login Required"
+                message="Please login to continue with checkout"
+                buttons={[
+                    { text: 'Cancel', onPress: () => router.back(), primary: false },
+                    { text: 'Login', onPress: () => router.push('/auth/phone'), primary: true },
+                ]}
+            />
+
+            {/* Error Modal */}
+            <ActionModal
+                isVisible={showErrorModal}
+                onClose={() => setShowErrorModal(false)}
+                type="error"
+                title={errorModalData.title}
+                message={errorModalData.message}
+                buttons={[{ text: 'OK', onPress: () => { }, primary: true }]}
             />
         </View>
     );

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Switch, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Switch, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, Bell, Globe, Trash2, Info, RefreshCw } from 'lucide-react-native';
+import { ArrowLeft, Bell, Globe, RefreshCw, Info } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { authApi, getToken } from '@/lib/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { ActionModal } from '@/components/ActionModal';
 
 const CACHE_KEY = 'app_cache_data';
 
@@ -21,6 +23,11 @@ export default function AppSettingsScreen() {
     const [orderUpdates, setOrderUpdates] = useState(true);
     const [promotions, setPromotions] = useState(false);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+    // Modal states
+    const [showClearCacheModal, setShowClearCacheModal] = useState(false);
+    const [showInfoModal, setShowInfoModal] = useState(false);
+    const [infoModalData, setInfoModalData] = useState({ title: '', message: '', type: 'info' as 'info' | 'success' | 'error' });
 
     const styles = createStyles(colors);
 
@@ -59,7 +66,8 @@ export default function AppSettingsScreen() {
         if (setting === 'promotions') setPromotions(value);
 
         if (!isLoggedIn) {
-            Alert.alert('Login Required', 'Please login to save notification preferences.');
+            setInfoModalData({ title: 'Login Required', message: 'Please login to save notification preferences.', type: 'info' });
+            setShowInfoModal(true);
             return;
         }
 
@@ -74,7 +82,8 @@ export default function AppSettingsScreen() {
                 if (setting === 'pushEnabled') setNotifications(!value);
                 if (setting === 'orderUpdates') setOrderUpdates(!value);
                 if (setting === 'promotions') setPromotions(!value);
-                Alert.alert('Error', result.message || 'Failed to update settings');
+                setInfoModalData({ title: 'Error', message: result.message || 'Failed to update settings', type: 'error' });
+                setShowInfoModal(true);
             }
         } catch (error) {
             console.error('Error updating settings:', error);
@@ -87,42 +96,15 @@ export default function AppSettingsScreen() {
         }
     };
 
-    const clearCache = async () => {
-        Alert.alert(
-            'Clear Cache',
-            'This will clear cached data. Are you sure?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Clear',
-                    onPress: async () => {
-                        try {
-                            await AsyncStorage.removeItem(CACHE_KEY);
-                            Alert.alert('Success', 'Cache cleared successfully');
-                        } catch (error) {
-                            Alert.alert('Error', 'Failed to clear cache');
-                        }
-                    },
-                },
-            ]
-        );
-    };
-
-    const deleteAccount = () => {
-        Alert.alert(
-            'Delete Account',
-            'Are you sure you want to delete your account? This action cannot be undone.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: () => {
-                        Alert.alert('Contact Support', 'Please contact support to delete your account.');
-                    },
-                },
-            ]
-        );
+    const handleClearCache = async () => {
+        try {
+            await AsyncStorage.removeItem(CACHE_KEY);
+            setInfoModalData({ title: 'Success', message: 'Cache cleared successfully', type: 'success' });
+            setShowInfoModal(true);
+        } catch (error) {
+            setInfoModalData({ title: 'Error', message: 'Failed to clear cache', type: 'error' });
+            setShowInfoModal(true);
+        }
     };
 
     const settingSections = [
@@ -189,17 +171,8 @@ export default function AppSettingsScreen() {
                     label: 'Clear Cache',
                     subtitle: 'Free up storage space',
                     type: 'button',
-                    onPress: clearCache,
+                    onPress: () => setShowClearCacheModal(true),
                     destructive: false,
-                },
-                {
-                    id: 'delete',
-                    icon: Trash2,
-                    label: 'Delete Account',
-                    subtitle: 'Permanently delete your account',
-                    type: 'button',
-                    onPress: deleteAccount,
-                    destructive: true,
                 },
             ],
         },
@@ -310,6 +283,31 @@ export default function AppSettingsScreen() {
                     </View>
                 ))}
             </ScrollView>
+
+            {/* Clear Cache Confirmation Modal */}
+            <ConfirmationModal
+                isVisible={showClearCacheModal}
+                onClose={() => setShowClearCacheModal(false)}
+                onConfirm={() => {
+                    setShowClearCacheModal(false);
+                    handleClearCache();
+                }}
+                title="Clear Cache"
+                message="This will clear cached data. Are you sure?"
+                confirmText="Clear"
+                cancelText="Cancel"
+                confirmDestructive={false}
+            />
+
+            {/* Info/Success/Error Modal */}
+            <ActionModal
+                isVisible={showInfoModal}
+                onClose={() => setShowInfoModal(false)}
+                type={infoModalData.type}
+                title={infoModalData.title}
+                message={infoModalData.message}
+                buttons={[{ text: 'OK', onPress: () => { }, primary: true }]}
+            />
         </View>
     );
 }

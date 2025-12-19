@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { ArrowLeft, MapPin, Check, Package, Truck } from 'lucide-react-native';
@@ -7,6 +7,7 @@ import { productsApi, Product, getImageUrl, getToken } from '@/lib/api';
 import { useTheme } from '@/hooks/useTheme';
 import { useCart } from '@/hooks/useCart';
 import { useAddress } from '@/hooks/useAddress';
+import { ActionModal } from '@/components/ActionModal';
 
 interface ProductDisplay {
   id: string;
@@ -29,6 +30,12 @@ export default function BookingFlowScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [quantity] = useState(1);
   const [error, setError] = useState<string | null>(null);
+
+  // Modal states
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -99,36 +106,19 @@ export default function BookingFlowScreen() {
     : 0;
 
   const handleProceedToPayment = async () => {
-    // Check authentication
     const token = await getToken();
     if (!token) {
-      Alert.alert(
-        'Login Required',
-        'Please login to continue with your order',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Login', onPress: () => router.push('/auth/phone') }
-        ]
-      );
+      setShowLoginModal(true);
       return;
     }
 
-    // Check if address is selected
     if (!selectedAddress) {
-      Alert.alert(
-        'Address Required',
-        'Please add a delivery address to continue',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Add Address', onPress: () => router.push('/saved-addresses') }
-        ]
-      );
+      setShowAddressModal(true);
       return;
     }
 
     setIsProcessing(true);
     try {
-      // Add item to cart and proceed to checkout
       await addToCart({
         productId: product.id,
         name: product.title,
@@ -139,7 +129,8 @@ export default function BookingFlowScreen() {
       router.push('/checkout');
     } catch (error) {
       console.error('Error:', error);
-      Alert.alert('Error', 'Failed to proceed. Please try again.');
+      setErrorMessage('Failed to proceed. Please try again.');
+      setShowErrorModal(true);
     } finally {
       setIsProcessing(false);
     }

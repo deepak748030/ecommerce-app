@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Star, ShoppingCart, Minus, Plus, ChevronRight } from 'lucide-react-native';
@@ -8,6 +8,7 @@ import { productsApi, reviewsApi, Product, Review, getImageUrl } from '@/lib/api
 import { ImageCarousel } from '@/components/ImageCarousel';
 import { useTheme } from '@/hooks/useTheme';
 import { useCart } from '@/hooks/useCart';
+import { ActionModal } from '@/components/ActionModal';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -45,6 +46,11 @@ export default function ProductDetailsScreen() {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addingToCart, setAddingToCart] = useState(false);
+
+  // Modal states
+  const [showCartModal, setShowCartModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -181,13 +187,11 @@ export default function ProductDetailsScreen() {
         mrp: product.mrp,
         image: product.image,
       }, quantity);
-      Alert.alert('Added to Cart', `${product.title} (x${quantity}) added to your cart!`, [
-        { text: 'Continue Shopping', style: 'cancel' },
-        { text: 'View Cart', onPress: () => router.push('/cart') }
-      ]);
+      setShowCartModal(true);
     } catch (error) {
       console.error('Error adding to cart:', error);
-      Alert.alert('Error', 'Failed to add item to cart');
+      setErrorMessage('Failed to add item to cart');
+      setShowErrorModal(true);
     } finally {
       setAddingToCart(false);
     }
@@ -433,6 +437,29 @@ export default function ProductDetailsScreen() {
           </View>
         </View>
       </SafeAreaView>
+
+      {/* Add to Cart Success Modal */}
+      <ActionModal
+        isVisible={showCartModal}
+        onClose={() => setShowCartModal(false)}
+        type="cart"
+        title="Added to Cart"
+        message={product ? `${product.title} (x${quantity}) added to your cart!` : 'Item added to cart'}
+        buttons={[
+          { text: 'Continue Shopping', onPress: () => { }, primary: false },
+          { text: 'View Cart', onPress: () => router.push('/cart'), primary: true },
+        ]}
+      />
+
+      {/* Error Modal */}
+      <ActionModal
+        isVisible={showErrorModal}
+        onClose={() => setShowErrorModal(false)}
+        type="error"
+        title="Error"
+        message={errorMessage}
+        buttons={[{ text: 'OK', onPress: () => { }, primary: true }]}
+      />
     </SafeAreaView>
   );
 }

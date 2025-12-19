@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { router, useFocusEffect } from 'expo-router';
@@ -7,6 +7,7 @@ import { Package, MapPin, Bell, HelpCircle, Settings, LogOut, ChevronRight, Sun,
 import * as ImagePicker from 'expo-image-picker';
 import { EditProfileModal } from '@/components/EditProfileModal';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { ActionModal } from '@/components/ActionModal';
 import { authApi, getStoredUser, getToken, AuthUser } from '@/lib/api';
 import { useRequireAuth } from '@/hooks/useAuth';
 
@@ -19,6 +20,10 @@ export default function ProfileScreen() {
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Modal states
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [infoModalData, setInfoModalData] = useState({ title: '', message: '', type: 'info' as 'info' | 'success' | 'error' });
 
   const styles = createStyles(colors, isDark);
 
@@ -67,7 +72,8 @@ export default function ProfileScreen() {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Sorry, we need camera roll permissions to change your profile picture!');
+      setInfoModalData({ title: 'Permission Denied', message: 'Sorry, we need camera roll permissions to change your profile picture!', type: 'error' });
+      setShowInfoModal(true);
       return;
     }
 
@@ -86,12 +92,15 @@ export default function ProfileScreen() {
         const updateResult = await authApi.updateProfile({ avatar: base64Image });
         if (updateResult.success && updateResult.response) {
           setUser(updateResult.response);
-          Alert.alert('Success', 'Profile picture updated!');
+          setInfoModalData({ title: 'Success', message: 'Profile picture updated!', type: 'success' });
+          setShowInfoModal(true);
         } else {
-          Alert.alert('Error', updateResult.message || 'Failed to update profile picture');
+          setInfoModalData({ title: 'Error', message: updateResult.message || 'Failed to update profile picture', type: 'error' });
+          setShowInfoModal(true);
         }
       } catch (error) {
-        Alert.alert('Error', 'Failed to update profile picture');
+        setInfoModalData({ title: 'Error', message: 'Failed to update profile picture', type: 'error' });
+        setShowInfoModal(true);
       }
     }
   };
@@ -115,8 +124,8 @@ export default function ProfileScreen() {
     {
       title: 'Orders & Addresses',
       items: [
-        { id: '1', icon: Package, label: 'My Orders', badge: '3 Active', route: '/my-orders' },
-        { id: '2', icon: MapPin, label: 'Saved Addresses', badge: '2', route: '/saved-addresses' },
+        { id: '1', icon: Package, label: 'My Orders', badge: '', route: '/my-orders' },
+        { id: '2', icon: MapPin, label: 'Saved Addresses', badge: '', route: '/saved-addresses' },
         { id: '3', icon: Receipt, label: 'Transactions', badge: '', route: '/transactions' },
       ],
     },
@@ -259,6 +268,16 @@ export default function ProfileScreen() {
         confirmText="Yes, Logout"
         cancelText="Cancel"
         confirmDestructive={true}
+      />
+
+      {/* Info Modal */}
+      <ActionModal
+        isVisible={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        type={infoModalData.type}
+        title={infoModalData.title}
+        message={infoModalData.message}
+        buttons={[{ text: 'OK', onPress: () => { }, primary: true }]}
       />
     </View>
   );

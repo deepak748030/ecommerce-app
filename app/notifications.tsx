@@ -7,13 +7,13 @@ import {
   Pressable,
   ActivityIndicator,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import { Bell, Package, Tag, Info, Check, CheckCheck, Trash2 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { notificationsApi, AppNotification, getToken } from '@/lib/api';
 import TopBar from '@/components/TopBar';
 import { router } from 'expo-router';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
 
 export default function NotificationsScreen() {
   const { colors } = useTheme();
@@ -24,6 +24,7 @@ export default function NotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -98,29 +99,17 @@ export default function NotificationsScreen() {
     }
   };
 
-  const handleDeleteAll = () => {
-    Alert.alert(
-      'Clear All Notifications',
-      'Are you sure you want to delete all notifications?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete All',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const result = await notificationsApi.deleteAll();
-              if (result.success) {
-                setNotifications([]);
-                setUnreadCount(0);
-              }
-            } catch (error) {
-              console.error('Error deleting all notifications:', error);
-            }
-          },
-        },
-      ]
-    );
+  const handleDeleteAll = async () => {
+    setShowDeleteAllModal(false);
+    try {
+      const result = await notificationsApi.deleteAll();
+      if (result.success) {
+        setNotifications([]);
+        setUnreadCount(0);
+      }
+    } catch (error) {
+      console.error('Error deleting all notifications:', error);
+    }
   };
 
   const handleNotificationPress = (notification: AppNotification) => {
@@ -254,7 +243,7 @@ export default function NotificationsScreen() {
                 <Text style={styles.actionButtonText}>Mark all read</Text>
               </Pressable>
             )}
-            <Pressable style={styles.actionButton} onPress={handleDeleteAll}>
+            <Pressable style={styles.actionButton} onPress={() => setShowDeleteAllModal(true)}>
               <Trash2 size={16} color={colors.destructive} />
               <Text style={[styles.actionButtonText, { color: colors.destructive }]}>
                 Clear all
@@ -289,6 +278,18 @@ export default function NotificationsScreen() {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       )}
+
+      {/* Delete All Confirmation Modal */}
+      <ConfirmationModal
+        isVisible={showDeleteAllModal}
+        onClose={() => setShowDeleteAllModal(false)}
+        onConfirm={handleDeleteAll}
+        title="Clear All Notifications"
+        message="Are you sure you want to delete all notifications?"
+        confirmText="Delete All"
+        cancelText="Cancel"
+        confirmDestructive={true}
+      />
     </View>
   );
 }

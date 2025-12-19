@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Package, MapPin, CreditCard, Clock, CheckCircle, Truck, Box, Star } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { ordersApi, reviewsApi, Order, ReviewableProduct, getImageUrl } from '@/lib/api';
 import { ReviewModal } from '@/components/ReviewModal';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { ActionModal } from '@/components/ActionModal';
 
 export default function OrderDetailScreen() {
     const insets = useSafeAreaInsets();
@@ -19,6 +21,11 @@ export default function OrderDetailScreen() {
     const [reviewModalVisible, setReviewModalVisible] = useState(false);
     const [reviewableProducts, setReviewableProducts] = useState<ReviewableProduct[]>([]);
     const [canReview, setCanReview] = useState(false);
+
+    // Modal states
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [showResultModal, setShowResultModal] = useState(false);
+    const [resultModalData, setResultModalData] = useState({ title: '', message: '', type: 'info' as 'info' | 'success' | 'error' });
 
     const fetchOrder = useCallback(async () => {
         if (!id) return;
@@ -84,35 +91,26 @@ export default function OrderDetailScreen() {
         }
     };
 
-    const handleCancelOrder = () => {
-        Alert.alert(
-            'Cancel Order',
-            'Are you sure you want to cancel this order?',
-            [
-                { text: 'No', style: 'cancel' },
-                {
-                    text: 'Yes, Cancel',
-                    style: 'destructive',
-                    onPress: async () => {
-                        if (!order) return;
-                        setCancelling(true);
-                        try {
-                            const result = await ordersApi.cancel(order._id);
-                            if (result.success && result.response) {
-                                setOrder(result.response.order);
-                                Alert.alert('Success', 'Order cancelled and refund initiated');
-                            } else {
-                                Alert.alert('Error', result.message || 'Failed to cancel order');
-                            }
-                        } catch (err) {
-                            Alert.alert('Error', 'Network error. Please try again.');
-                        } finally {
-                            setCancelling(false);
-                        }
-                    }
-                },
-            ]
-        );
+    const handleCancelOrder = async () => {
+        if (!order) return;
+        setCancelling(true);
+        setShowCancelModal(false);
+        try {
+            const result = await ordersApi.cancel(order._id);
+            if (result.success && result.response) {
+                setOrder(result.response.order);
+                setResultModalData({ title: 'Success', message: 'Order cancelled and refund initiated', type: 'success' });
+                setShowResultModal(true);
+            } else {
+                setResultModalData({ title: 'Error', message: result.message || 'Failed to cancel order', type: 'error' });
+                setShowResultModal(true);
+            }
+        } catch (err) {
+            setResultModalData({ title: 'Error', message: 'Network error. Please try again.', type: 'error' });
+            setShowResultModal(true);
+        } finally {
+            setCancelling(false);
+        }
     };
 
     const styles = createStyles(colors);
@@ -332,7 +330,7 @@ export default function OrderDetailScreen() {
                     {['pending', 'confirmed', 'processing'].includes(order.status) && (
                         <Pressable
                             style={styles.cancelButton}
-                            onPress={handleCancelOrder}
+                            onPress={() => setShowCancelModal(true)}
                             disabled={cancelling}
                         >
                             {cancelling ? (
@@ -370,6 +368,28 @@ export default function OrderDetailScreen() {
                 orderId={order._id}
                 products={reviewableProducts}
                 onReviewSubmitted={handleReviewSubmitted}
+            />
+
+            {/* Cancel Order Confirmation Modal */}
+            <ConfirmationModal
+                isVisible={showCancelModal}
+                onClose={() => setShowCancelModal(false)}
+                onConfirm={handleCancelOrder}
+                title="Cancel Order"
+                message="Are you sure you want to cancel this order?"
+                confirmText="Yes, Cancel"
+                cancelText="No"
+                confirmDestructive={true}
+            />
+
+            {/* Result Modal */}
+            <ActionModal
+                isVisible={showResultModal}
+                onClose={() => setShowResultModal(false)}
+                type={resultModalData.type}
+                title={resultModalData.title}
+                message={resultModalData.message}
+                buttons={[{ text: 'OK', onPress: () => { }, primary: true }]}
             />
         </View>
     );
