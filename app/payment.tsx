@@ -19,9 +19,31 @@ export default function PaymentScreen() {
   const bookingPrice = parseInt(price as string) || 0;
 
   useEffect(() => {
-    const foundProduct = allProducts.find(e => e.id === eventId);
-    setProduct(foundProduct || null);
-  }, [eventId]);
+    // For cart checkout, we don't need a specific product
+    if (eventId === 'cart') {
+      setProduct({
+        id: 'cart',
+        title: 'Cart Items',
+        image: 'https://images.pexels.com/photos/5632388/pexels-photo-5632388.jpeg?auto=compress&cs=tinysrgb&w=300',
+        images: [],
+        location: '',
+        fullLocation: '',
+        category: 'Multiple Items',
+        price: bookingPrice,
+        mrp: bookingPrice,
+        rating: 0,
+        reviews: 0,
+        description: '',
+        date: '',
+        time: '',
+        services: [],
+        vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' }
+      });
+    } else {
+      const foundProduct = allProducts.find(e => e.id === eventId);
+      setProduct(foundProduct || null);
+    }
+  }, [eventId, bookingPrice]);
 
   const styles = createStyles(colors);
 

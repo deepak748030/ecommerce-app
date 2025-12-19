@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { LogOut, AlertTriangle } from 'lucide-react-native';
 
 interface ConfirmationModalProps {
   isVisible: boolean;
@@ -30,15 +31,31 @@ export function ConfirmationModal({
     <Modal
       visible={isVisible}
       transparent
-      animationType="fade"
+      animationType="slide"
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
+        <Pressable style={styles.backdrop} onPress={onClose} />
         <View style={styles.modal}>
+          {/* Handle bar */}
+          <View style={styles.handleBar} />
+
+          {/* Icon */}
+          <View style={[styles.iconContainer, confirmDestructive && styles.iconContainerDestructive]}>
+            {confirmDestructive ? (
+              <LogOut size={28} color={colors.destructive} />
+            ) : (
+              <AlertTriangle size={28} color={colors.primary} />
+            )}
+          </View>
+
+          {/* Content */}
           <View style={styles.modalBody}>
             <Text style={styles.title}>{title}</Text>
             <Text style={styles.message}>{message}</Text>
           </View>
+
+          {/* Buttons */}
           <View style={styles.buttonContainer}>
             <Pressable style={styles.cancelButton} onPress={onClose}>
               <Text style={styles.cancelButtonText}>{cancelText}</Text>
@@ -56,35 +73,53 @@ export function ConfirmationModal({
 const createStyles = (colors: any, isDark: boolean, confirmDestructive: boolean) => StyleSheet.create({
   overlay: {
     flex: 1,
+    justifyContent: 'flex-end',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
   },
   modal: {
     backgroundColor: colors.card,
-    borderRadius: 20,
-    width: '100%',
-    maxWidth: 340,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 32,
     borderWidth: 1,
+    borderBottomWidth: 0,
     borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  iconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  iconContainerDestructive: {
+    backgroundColor: colors.destructive + '15',
   },
   modalBody: {
     paddingHorizontal: 24,
-    paddingTop: 28,
-    paddingBottom: 20,
     alignItems: 'center',
+    marginBottom: 24,
   },
   title: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.foreground,
-    marginBottom: 10,
+    marginBottom: 8,
     textAlign: 'center',
   },
   message: {
@@ -96,7 +131,6 @@ const createStyles = (colors: any, isDark: boolean, confirmDestructive: boolean)
   buttonContainer: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingBottom: 20,
     gap: 12,
   },
   cancelButton: {

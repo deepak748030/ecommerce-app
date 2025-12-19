@@ -1,23 +1,23 @@
 {
   "expo": {
-    "name": "Milkey",
-    "slug": "milkey",
+    "name": "The Art Of भ ओ जन",
+    "slug": "the-art-of-bhojan",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/milkey-logo.png",
-    "scheme": "milkey",
+    "icon": "./assets/images/app-logo.png",
+    "scheme": "artofbhojan",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/milkey-logo.png",
+      "image": "./assets/images/app-logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0D4A6B"
+      "backgroundColor": "#FDF8F3"
     },
     "android": {
-      "package": "com.milkey.app",
+      "package": "com.artofbhojan.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/milkey-logo.png",
-        "backgroundColor": "#0D4A6B"
+        "foregroundImage": "./assets/images/app-logo.png",
+        "backgroundColor": "#FDF8F3"
       }
     },
     "ios": {
@@ -26,7 +26,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/images/milkey-logo.png"
+      "favicon": "./assets/images/app-logo.png"
     },
     "plugins": [
       "expo-router",

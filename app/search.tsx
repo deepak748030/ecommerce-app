@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, RefreshControl, NativeSyntheticEvent, NativeScrollEvent, Dimensions } from 'react-native';
-import { Search, ListFilter, X, ArrowUpDown, TrendingUp, TrendingDown, ArrowLeft } from 'lucide-react-native';
-import { getFavorites, toggleFavorite, Event } from '@/lib/mockData';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, RefreshControl, Dimensions } from 'react-native';
+import { Search, ListFilter, X, TrendingUp, TrendingDown, ArrowLeft } from 'lucide-react-native';
+import { getFavorites, toggleFavorite, Event, allProducts, mockCategories } from '@/lib/mockData';
 import EventCard from '@/components/EventCard';
-import { categoriesApi, eventsApi, Category, MinimalServerEvent } from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
@@ -11,35 +10,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 20) / 2;
-const ITEMS_PER_PAGE = 12;
-
-// Helper to map MinimalServerEvent to Event format for listing screens
-const mapMinimalEventToEvent = (serverEvent: MinimalServerEvent): Event => ({
-  id: serverEvent._id,
-  title: serverEvent.title,
-  image: serverEvent.image,
-  images: [serverEvent.image],
-  location: serverEvent.location,
-  fullLocation: serverEvent.location,
-  category: '',
-  price: serverEvent.price,
-  mrp: serverEvent.price,
-  rating: serverEvent.rating,
-  reviews: serverEvent.reviews,
-  badge: serverEvent.badge,
-  description: '',
-  date: '',
-  time: '',
-  services: [],
-  vendor: {
-    id: '',
-    name: '',
-    avatar: '',
-    phone: '',
-    email: '',
-    experience: '',
-  },
-});
 
 export default function SearchScreen() {
   const params = useLocalSearchParams<{ category?: string }>();
@@ -53,26 +23,11 @@ export default function SearchScreen() {
   const [minRating, setMinRating] = useState('all');
   const [priceSort, setPriceSort] = useState<'none' | 'low_to_high' | 'high_to_low'>('none');
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [eventsLoading, setEventsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [initialCategorySet, setInitialCategorySet] = useState(false);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [totalResults, setTotalResults] = useState(0);
-  const isLoadingMore = useRef(false);
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  // Debounce search query to prevent excessive API calls
-  const debouncedSearchQuery = useDebounce(searchQuery, 500);
-  const isInitialMount = useRef(true);
-  const prevFiltersRef = useRef({ selectedCategory, selectedLocation, priceRange, debouncedSearchQuery, minRating });
-
-  const locations = ['all', 'Mumbai', 'Bangalore', 'Delhi NCR', 'Goa', 'Pune'];
+  const locations = ['all', 'Mumbai', 'Bangalore', 'Delhi', 'Goa', 'Pune'];
   const ratings = [
     { value: 'all', label: 'All Ratings' },
     { value: '4', label: '4+ Stars' },
@@ -80,128 +35,14 @@ export default function SearchScreen() {
     { value: '4.8', label: '4.8+ Stars' },
   ];
 
-  const loadEvents = useCallback(async (page: number = 1, append: boolean = false) => {
-    if (page === 1) {
-      setEventsLoading(true);
-    } else {
-      setLoadingMore(true);
-      isLoadingMore.current = true;
+  // Set initial category from params
+  useEffect(() => {
+    if (params.category) {
+      setSelectedCategory(params.category);
     }
+  }, [params.category]);
 
-    try {
-      const params: {
-        category?: string;
-        city?: string;
-        minPrice?: number;
-        maxPrice?: number;
-        search?: string;
-        minRating?: number;
-        sortBy?: 'price_asc' | 'price_desc' | 'rating_desc' | 'newest';
-        fields?: 'minimal' | 'full';
-        page?: number;
-        limit?: number;
-      } = {
-        fields: 'minimal',
-        page,
-        limit: ITEMS_PER_PAGE
-      };
-
-      // Category filter
-      if (selectedCategory !== 'all') {
-        const categoryName = categories.find(c => c.slug === selectedCategory)?.name || selectedCategory;
-        params.category = categoryName;
-      }
-
-      // Location filter
-      if (selectedLocation !== 'all') {
-        params.city = selectedLocation;
-      }
-
-      // Price filter
-      if (priceRange[0] > 0) {
-        params.minPrice = priceRange[0];
-      }
-      if (priceRange[1] < 100000) {
-        params.maxPrice = priceRange[1];
-      }
-
-      // Search query - use debounced value
-      if (debouncedSearchQuery.trim()) {
-        params.search = debouncedSearchQuery.trim();
-      }
-
-      // Rating filter - server-side
-      if (minRating !== 'all') {
-        params.minRating = parseFloat(minRating);
-      }
-
-      // Price sort - server-side
-      if (priceSort === 'low_to_high') {
-        params.sortBy = 'price_asc';
-      } else if (priceSort === 'high_to_low') {
-        params.sortBy = 'price_desc';
-      }
-
-      const result = await eventsApi.getAll(params);
-      const eventsData = (result as any).data || (result as any).response || [];
-      const pagination = (result as any).pagination;
-
-      if (result.success && Array.isArray(eventsData)) {
-        const mappedEvents = eventsData.map(mapMinimalEventToEvent);
-
-        if (append) {
-          setEvents(prev => [...prev, ...mappedEvents]);
-        } else {
-          setEvents(mappedEvents);
-        }
-
-        // Update pagination state
-        if (pagination) {
-          setTotalResults(pagination.total || 0);
-          setHasMore(pagination.page < pagination.pages);
-        } else {
-          setTotalResults(append ? events.length + mappedEvents.length : mappedEvents.length);
-          setHasMore(eventsData.length === ITEMS_PER_PAGE);
-        }
-      } else {
-        if (!append) {
-          setEvents([]);
-          setTotalResults(0);
-        }
-        setHasMore(false);
-      }
-    } catch (error) {
-      console.error('Error loading events:', error);
-      if (!append) {
-        setEvents([]);
-        setTotalResults(0);
-      }
-      setHasMore(false);
-    } finally {
-      setEventsLoading(false);
-      setLoadingMore(false);
-      isLoadingMore.current = false;
-    }
-  }, [selectedCategory, selectedLocation, priceRange, debouncedSearchQuery, minRating, priceSort, categories]);
-
-  const loadMoreEvents = useCallback(() => {
-    if (isLoadingMore.current || !hasMore || eventsLoading) return;
-
-    const nextPage = currentPage + 1;
-    setCurrentPage(nextPage);
-    loadEvents(nextPage, true);
-  }, [currentPage, hasMore, eventsLoading, loadEvents]);
-
-  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-    const paddingToBottom = 100;
-    const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
-
-    if (isCloseToBottom && hasMore && !isLoadingMore.current && !eventsLoading) {
-      loadMoreEvents();
-    }
-  }, [loadMoreEvents, hasMore, eventsLoading]);
-
+  // Load favorites
   useEffect(() => {
     const loadFavorites = async () => {
       try {
@@ -211,53 +52,66 @@ export default function SearchScreen() {
         setFavorites([]);
       }
     };
-
-    const loadCategories = async () => {
-      try {
-        const result = await categoriesApi.getAll();
-        const categoriesData = (result as any).data || result.response;
-        if (result.success && categoriesData) {
-          setCategories(categoriesData);
-
-          // Set initial category from URL params after categories are loaded
-          if (params.category && !initialCategorySet) {
-            setSelectedCategory(params.category);
-            setInitialCategorySet(true);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading categories:', error);
-      } finally {
-        setCategoriesLoading(false);
-      }
-    };
-
     loadFavorites();
-    loadCategories();
-  }, [params.category, initialCategorySet]);
+  }, []);
 
-  // Load events when filters or debounced search query changes
-  useEffect(() => {
-    if (!categoriesLoading) {
-      // Reset pagination when filters change
-      setCurrentPage(1);
-      setHasMore(true);
+  // Filter and sort events using mock data
+  const filteredEvents = useMemo(() => {
+    let results = [...allProducts];
 
-      if (isInitialMount.current) {
-        isInitialMount.current = false;
-      }
-
-      loadEvents(1, false);
+    // Search filter
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.toLowerCase();
+      results = results.filter(event =>
+        event.title.toLowerCase().includes(query) ||
+        event.description.toLowerCase().includes(query) ||
+        event.category.toLowerCase().includes(query) ||
+        event.location.toLowerCase().includes(query)
+      );
     }
-  }, [selectedCategory, selectedLocation, priceRange, debouncedSearchQuery, minRating, priceSort, categoriesLoading, categories]);
+
+    // Category filter
+    if (selectedCategory !== 'all') {
+      results = results.filter(event =>
+        event.category.toLowerCase() === selectedCategory.toLowerCase() ||
+        event.category.toLowerCase().includes(selectedCategory.toLowerCase())
+      );
+    }
+
+    // Location filter
+    if (selectedLocation !== 'all') {
+      results = results.filter(event =>
+        event.location.toLowerCase().includes(selectedLocation.toLowerCase())
+      );
+    }
+
+    // Price filter
+    results = results.filter(event =>
+      event.price >= priceRange[0] && event.price <= priceRange[1]
+    );
+
+    // Rating filter
+    if (minRating !== 'all') {
+      const minRatingValue = parseFloat(minRating);
+      results = results.filter(event => event.rating >= minRatingValue);
+    }
+
+    // Price sort
+    if (priceSort === 'low_to_high') {
+      results.sort((a, b) => a.price - b.price);
+    } else if (priceSort === 'high_to_low') {
+      results.sort((a, b) => b.price - a.price);
+    }
+
+    return results;
+  }, [debouncedSearchQuery, selectedCategory, selectedLocation, priceRange, minRating, priceSort]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setCurrentPage(1);
-    setHasMore(true);
-    await loadEvents(1, false);
+    const favs = await getFavorites();
+    setFavorites(favs);
     setRefreshing(false);
-  }, [loadEvents]);
+  }, []);
 
   const handleToggleFavorite = async (eventId: string) => {
     try {
@@ -282,27 +136,29 @@ export default function SearchScreen() {
   return (
     <View style={styles.container}>
       {/* Header with Search */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.searchRow}>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <ArrowLeft size={24} color={colors.foreground} />
+            <ArrowLeft size={22} color={colors.foreground} />
           </Pressable>
           <View style={styles.searchContainer}>
-            <Search size={20} color={colors.mutedForeground} />
+            <Search size={18} color={colors.mutedForeground} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search events, vendors..."
+              placeholder="Search products..."
               placeholderTextColor={colors.mutedForeground}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoFocus
             />
-            {searchQuery !== debouncedSearchQuery && (
-              <ActivityIndicator size="small" color={colors.primary} style={styles.searchLoading} />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery('')}>
+                <X size={18} color={colors.mutedForeground} />
+              </Pressable>
             )}
           </View>
           <Pressable style={styles.filterButton} onPress={() => setShowFilters(true)}>
-            <ListFilter size={20} color={colors.foreground} strokeWidth={2} />
+            <ListFilter size={18} color={colors.foreground} strokeWidth={2} />
           </Pressable>
         </View>
       </View>
@@ -310,8 +166,6 @@ export default function SearchScreen() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={400}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -322,52 +176,31 @@ export default function SearchScreen() {
         }
       >
         <View style={styles.content}>
-
           {/* Results Count */}
           <Text style={styles.resultsCount}>
-            {eventsLoading ? 'Searching...' : `${totalResults > 0 ? totalResults : events.length} results found`}
+            {filteredEvents.length} results found
           </Text>
 
           {/* Results Grid */}
-          {eventsLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={colors.primary} />
-            </View>
-          ) : events.length === 0 ? (
+          {filteredEvents.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No events found matching your filters</Text>
+              <Text style={styles.emptyText}>No products found matching your filters</Text>
               <Pressable onPress={clearFilters}>
                 <Text style={styles.clearFiltersLink}>Clear all filters</Text>
               </Pressable>
             </View>
           ) : (
-            <>
-              <View style={styles.eventsGrid}>
-                {events.map((event) => (
-                  <View key={event.id} style={styles.eventCardContainer}>
-                    <EventCard
-                      event={event}
-                      isFavorite={favorites.includes(event.id)}
-                      onToggleFavorite={() => handleToggleFavorite(event.id)}
-                    />
-                  </View>
-                ))}
-              </View>
-
-              {/* Load More Indicator */}
-              {loadingMore && (
-                <View style={styles.loadMoreContainer}>
-                  <ActivityIndicator size="small" color={colors.primary} />
-                  <Text style={styles.loadMoreText}>Loading more...</Text>
+            <View style={styles.eventsGrid}>
+              {filteredEvents.map((event) => (
+                <View key={event.id} style={styles.eventCardContainer}>
+                  <EventCard
+                    event={event}
+                    isFavorite={favorites.includes(event.id)}
+                    onToggleFavorite={() => handleToggleFavorite(event.id)}
+                  />
                 </View>
-              )}
-
-              {!hasMore && events.length > 0 && (
-                <View style={styles.endContainer}>
-                  <Text style={styles.endText}>No more events</Text>
-                </View>
-              )}
-            </>
+              ))}
+            </View>
           )}
         </View>
       </ScrollView>
@@ -380,12 +213,16 @@ export default function SearchScreen() {
         onRequestClose={() => setShowFilters(false)}
       >
         <View style={styles.filterOverlay}>
+          <Pressable style={styles.filterBackdrop} onPress={() => setShowFilters(false)} />
           <View style={styles.filterModal}>
+            {/* Handle bar */}
+            <View style={styles.handleBar} />
+
             {/* Header */}
             <View style={styles.filterHeader}>
               <Text style={styles.filterTitle}>Filters</Text>
               <Pressable onPress={() => setShowFilters(false)}>
-                <X size={24} color={colors.foreground} />
+                <X size={22} color={colors.foreground} />
               </Pressable>
             </View>
 
@@ -394,45 +231,23 @@ export default function SearchScreen() {
               <View style={styles.filterSection}>
                 <Text style={styles.filterSectionTitle}>Category</Text>
                 <View style={styles.filterOptions}>
-                  {categoriesLoading ? (
-                    <ActivityIndicator size="small" color={colors.primary} />
-                  ) : (
-                    <>
-                      {/* All Category - Default */}
-                      <Pressable
-                        style={[
-                          styles.filterOption,
-                          selectedCategory === 'all' && styles.selectedFilterOption
-                        ]}
-                        onPress={() => setSelectedCategory('all')}
-                      >
-                        <Text style={[
-                          styles.filterOptionText,
-                          selectedCategory === 'all' && styles.selectedFilterOptionText
-                        ]}>
-                          All
-                        </Text>
-                      </Pressable>
-                      {/* Server Categories */}
-                      {categories.map((category) => (
-                        <Pressable
-                          key={category._id}
-                          style={[
-                            styles.filterOption,
-                            selectedCategory === category.slug && styles.selectedFilterOption
-                          ]}
-                          onPress={() => setSelectedCategory(category.slug)}
-                        >
-                          <Text style={[
-                            styles.filterOptionText,
-                            selectedCategory === category.slug && styles.selectedFilterOptionText
-                          ]}>
-                            {category.name}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </>
-                  )}
+                  {mockCategories.map((category) => (
+                    <Pressable
+                      key={category.id}
+                      style={[
+                        styles.filterOption,
+                        selectedCategory === category.id && styles.selectedFilterOption
+                      ]}
+                      onPress={() => setSelectedCategory(category.id)}
+                    >
+                      <Text style={[
+                        styles.filterOptionText,
+                        selectedCategory === category.id && styles.selectedFilterOptionText
+                      ]}>
+                        {category.name}
+                      </Text>
+                    </Pressable>
+                  ))}
                 </View>
               </View>
 
@@ -510,67 +325,49 @@ export default function SearchScreen() {
                 </View>
               </View>
 
-              {/* Sort by Price */}
+              {/* Price Sort */}
               <View style={styles.filterSection}>
                 <Text style={styles.filterSectionTitle}>Sort by Price</Text>
                 <View style={styles.filterOptions}>
                   <Pressable
-                    style={[
-                      styles.filterOption,
-                      styles.sortOption,
-                      priceSort === 'none' && styles.selectedFilterOption
-                    ]}
+                    style={[styles.filterOption, priceSort === 'none' && styles.selectedFilterOption]}
                     onPress={() => setPriceSort('none')}
                   >
-                    <ArrowUpDown size={14} color={priceSort === 'none' ? colors.primaryForeground : colors.foreground} />
-                    <Text style={[
-                      styles.filterOptionText,
-                      priceSort === 'none' && styles.selectedFilterOptionText
-                    ]}>
+                    <Text style={[styles.filterOptionText, priceSort === 'none' && styles.selectedFilterOptionText]}>
                       Default
                     </Text>
                   </Pressable>
                   <Pressable
-                    style={[
-                      styles.filterOption,
-                      styles.sortOption,
-                      priceSort === 'low_to_high' && styles.selectedFilterOption
-                    ]}
+                    style={[styles.filterOption, priceSort === 'low_to_high' && styles.selectedFilterOption]}
                     onPress={() => setPriceSort('low_to_high')}
                   >
-                    <TrendingUp size={14} color={priceSort === 'low_to_high' ? colors.primaryForeground : colors.foreground} />
-                    <Text style={[
-                      styles.filterOptionText,
-                      priceSort === 'low_to_high' && styles.selectedFilterOptionText
-                    ]}>
+                    <TrendingUp size={14} color={priceSort === 'low_to_high' ? colors.white : colors.foreground} />
+                    <Text style={[styles.filterOptionText, priceSort === 'low_to_high' && styles.selectedFilterOptionText]}>
                       Low to High
                     </Text>
                   </Pressable>
                   <Pressable
-                    style={[
-                      styles.filterOption,
-                      styles.sortOption,
-                      priceSort === 'high_to_low' && styles.selectedFilterOption
-                    ]}
+                    style={[styles.filterOption, priceSort === 'high_to_low' && styles.selectedFilterOption]}
                     onPress={() => setPriceSort('high_to_low')}
                   >
-                    <TrendingDown size={14} color={priceSort === 'high_to_low' ? colors.primaryForeground : colors.foreground} />
-                    <Text style={[
-                      styles.filterOptionText,
-                      priceSort === 'high_to_low' && styles.selectedFilterOptionText
-                    ]}>
+                    <TrendingDown size={14} color={priceSort === 'high_to_low' ? colors.white : colors.foreground} />
+                    <Text style={[styles.filterOptionText, priceSort === 'high_to_low' && styles.selectedFilterOptionText]}>
                       High to Low
                     </Text>
                   </Pressable>
                 </View>
               </View>
-
-              {/* Clear Filters */}
-              <Pressable style={styles.clearFiltersButton} onPress={clearFilters}>
-                <X size={16} color={colors.foreground} />
-                <Text style={styles.clearFiltersText}>Clear Filters</Text>
-              </Pressable>
             </ScrollView>
+
+            {/* Filter Actions */}
+            <View style={styles.filterActions}>
+              <Pressable style={styles.clearButton} onPress={clearFilters}>
+                <Text style={styles.clearButtonText}>Clear All</Text>
+              </Pressable>
+              <Pressable style={styles.applyButton} onPress={() => setShowFilters(false)}>
+                <Text style={styles.applyButtonText}>Apply Filters</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -585,18 +382,10 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   header: {
     backgroundColor: colors.background,
-    paddingHorizontal: 8,
-    paddingBottom: 6,
+    paddingHorizontal: 12,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    paddingVertical: 16,
-    paddingHorizontal: 6,
-    paddingBottom: 90,
   },
   searchRow: {
     flexDirection: 'row',
@@ -604,131 +393,124 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 10,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   searchContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.card,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 10,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 42,
+    gap: 8,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 10,
     fontSize: 14,
     color: colors.foreground,
   },
-  searchLoading: {
-    marginLeft: 8,
-  },
   filterButton: {
-    backgroundColor: colors.primary + '15',
-    borderWidth: 1,
-    borderColor: colors.primary + '30',
-    padding: 12,
-    borderRadius: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 4,
+    paddingTop: 12,
+    paddingBottom: 100,
+  },
   resultsCount: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.mutedForeground,
-    marginBottom: 16,
+    marginBottom: 12,
+    marginLeft: 4,
   },
   eventsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 4,
+    gap: 8,
   },
   eventCardContainer: {
     width: CARD_WIDTH,
   },
-  loadingContainer: {
-    paddingVertical: 40,
-    alignItems: 'center',
-  },
   emptyState: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 48,
+    paddingVertical: 60,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.mutedForeground,
-    marginBottom: 8,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   clearFiltersLink: {
     fontSize: 14,
     color: colors.primary,
     fontWeight: '600',
   },
-  loadMoreContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
-    gap: 8,
-  },
-  loadMoreText: {
-    fontSize: 14,
-    color: colors.mutedForeground,
-  },
-  endContainer: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  endText: {
-    fontSize: 14,
-    color: colors.mutedForeground,
-  },
   filterOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+  },
+  filterBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   filterModal: {
     backgroundColor: colors.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '85%',
+    maxHeight: '80%',
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 12,
   },
   filterHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   filterTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '700',
     color: colors.foreground,
   },
   filterContent: {
-    padding: 20,
+    paddingHorizontal: 16,
   },
   filterSection: {
-    marginBottom: 24,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   filterSectionTitle: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.foreground,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   filterOptions: {
     flexDirection: 'row',
@@ -736,65 +518,80 @@ const createStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   filterOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  sortOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.secondary,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   selectedFilterOption: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
   filterOptionText: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.foreground,
   },
   selectedFilterOptionText: {
-    color: colors.primaryForeground,
+    color: colors.white,
     fontWeight: '600',
   },
   priceInputs: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   priceInput: {
     flex: 1,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: colors.secondary,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
     color: colors.foreground,
-  },
-  priceSeparator: {
-    fontSize: 14,
-    color: colors.mutedForeground,
-  },
-  clearFiltersButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    marginTop: 8,
-    marginBottom: 24,
-    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  clearFiltersText: {
+  priceSeparator: {
+    fontSize: 13,
+    color: colors.mutedForeground,
+  },
+  filterActions: {
+    flexDirection: 'row',
+    gap: 10,
+    padding: 16,
+    paddingBottom: 28,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  clearButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: colors.secondary,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  clearButtonText: {
     fontSize: 14,
     fontWeight: '600',
     color: colors.foreground,
+  },
+  applyButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+  },
+  applyButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.white,
   },
 });

@@ -31,11 +31,11 @@ export default function WishlistScreen() {
 
     return (
         <View style={styles.container}>
-            <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+            <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
                 <Text style={styles.title}>Wishlist</Text>
-                <View style={styles.itemCount}>
-                    <Heart size={14} color={colors.white} fill={colors.white} />
-                    <Text style={styles.itemCountText}>{wishlistItems.length}</Text>
+                <View style={styles.badge}>
+                    <Heart size={12} color={colors.white} fill={colors.white} />
+                    <Text style={styles.badgeText}>{wishlistItems.length}</Text>
                 </View>
             </View>
 
@@ -80,7 +80,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     },
     header: {
         paddingHorizontal: 16,
-        paddingBottom: 8,
+        paddingBottom: 10,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -89,22 +89,22 @@ const createStyles = (colors: any) => StyleSheet.create({
         borderBottomColor: colors.border,
     },
     title: {
-        fontSize: 18,
-        fontWeight: '800',
+        fontSize: 17,
+        fontWeight: '700',
         color: colors.foreground,
     },
-    itemCount: {
+    badge: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#EF4444',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 12,
-        gap: 6,
+        paddingHorizontal: 10,
+        height: 26,
+        borderRadius: 13,
+        gap: 4,
     },
-    itemCountText: {
+    badgeText: {
         color: colors.white,
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: '700',
     },
     emptyContainer: {

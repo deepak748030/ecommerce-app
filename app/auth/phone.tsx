@@ -108,19 +108,20 @@ export default function PhoneAuthScreen() {
                 >
                     {/* Header Image */}
                     <View style={styles.imageContainer}>
-                        <View style={[styles.imagePlaceholder, { backgroundColor: colors.primary + '20' }]}>
-                            <Text style={styles.imageEmoji}>🥛</Text>
+                        <View style={[styles.imagePlaceholder, { backgroundColor: '#D97706' + '20' }]}>
+                            <Text style={styles.imageEmoji}>🍽️</Text>
                         </View>
-                        <View style={[styles.decorCircle1, { backgroundColor: colors.primary + '15' }]} />
-                        <View style={[styles.decorCircle2, { backgroundColor: colors.success + '15' }]} />
+                        <View style={[styles.decorCircle1, { backgroundColor: '#D97706' + '15' }]} />
+                        <View style={[styles.decorCircle2, { backgroundColor: '#22C55E' + '15' }]} />
                     </View>
 
                     {/* Welcome Text */}
                     <View style={styles.headerContainer}>
                         <Text style={[styles.welcomeText, { color: colors.mutedForeground }]}>Welcome to</Text>
-                        <Text style={[styles.brandName, { color: colors.foreground }]}>Milkey</Text>
+                        <Text style={[styles.brandNameEnglish, { color: colors.mutedForeground }]}>The Art Of</Text>
+                        <Text style={[styles.brandName, { color: '#92400E' }]}>भ ओ जन</Text>
                         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-                            Fresh dairy delivered to your doorstep
+                            Celebrate the joy of food
                         </Text>
                     </View>
 
@@ -240,153 +241,159 @@ const createStyles = (colors: any, isDark: boolean) =>
         },
         scrollContent: {
             flexGrow: 1,
-            paddingHorizontal: 24,
+            paddingHorizontal: 16,
         },
         imageContainer: {
             alignItems: 'center',
-            marginTop: 40,
-            marginBottom: 24,
+            marginTop: 24,
+            marginBottom: 16,
             position: 'relative',
         },
         imagePlaceholder: {
-            width: 160,
-            height: 160,
-            borderRadius: 80,
+            width: 120,
+            height: 120,
+            borderRadius: 60,
             alignItems: 'center',
             justifyContent: 'center',
         },
         imageEmoji: {
-            fontSize: 80,
+            fontSize: 56,
         },
         decorCircle1: {
-            position: 'absolute',
-            width: 60,
-            height: 60,
-            borderRadius: 30,
-            top: 10,
-            left: width / 2 - 120,
-        },
-        decorCircle2: {
             position: 'absolute',
             width: 40,
             height: 40,
             borderRadius: 20,
-            bottom: 20,
-            right: width / 2 - 110,
+            top: 8,
+            left: width / 2 - 100,
+        },
+        decorCircle2: {
+            position: 'absolute',
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            bottom: 12,
+            right: width / 2 - 90,
         },
         headerContainer: {
             alignItems: 'center',
-            marginBottom: 40,
+            marginBottom: 28,
         },
         welcomeText: {
-            fontSize: 16,
+            fontSize: 14,
             fontWeight: '500',
-            marginBottom: 4,
+            marginBottom: 2,
+        },
+        brandNameEnglish: {
+            fontSize: 14,
+            fontWeight: '600',
+            letterSpacing: 1,
+            marginBottom: 2,
         },
         brandName: {
-            fontSize: 36,
+            fontSize: 32,
             fontWeight: '800',
-            letterSpacing: 1,
-            marginBottom: 8,
+            letterSpacing: 2,
+            marginBottom: 6,
         },
         subtitle: {
-            fontSize: 14,
+            fontSize: 13,
             textAlign: 'center',
         },
         formContainer: {
-            marginBottom: 32,
+            marginBottom: 24,
         },
         inputLabel: {
-            fontSize: 16,
+            fontSize: 14,
             fontWeight: '600',
-            marginBottom: 12,
+            marginBottom: 10,
         },
         inputWrapper: {
             flexDirection: 'row',
             alignItems: 'center',
-            borderRadius: 16,
-            borderWidth: 2,
+            borderRadius: 12,
+            borderWidth: 1.5,
             overflow: 'hidden',
-            height: 60,
+            height: 50,
         },
         countryCodeContainer: {
             flexDirection: 'row',
             alignItems: 'center',
-            paddingHorizontal: 16,
+            paddingHorizontal: 12,
             height: '100%',
             borderRightWidth: 1,
-            gap: 6,
+            gap: 4,
         },
         flag: {
-            fontSize: 20,
+            fontSize: 16,
         },
         countryCode: {
-            fontSize: 16,
+            fontSize: 14,
             fontWeight: '600',
         },
         phoneInput: {
             flex: 1,
-            fontSize: 18,
+            fontSize: 15,
             fontWeight: '600',
-            paddingHorizontal: 16,
-            letterSpacing: 2,
+            paddingHorizontal: 12,
+            letterSpacing: 1.5,
         },
         validIcon: {
-            width: 28,
-            height: 28,
-            borderRadius: 14,
+            width: 24,
+            height: 24,
+            borderRadius: 12,
             alignItems: 'center',
             justifyContent: 'center',
-            marginRight: 16,
+            marginRight: 12,
         },
         checkmark: {
             color: 'white',
-            fontSize: 14,
+            fontSize: 12,
             fontWeight: '700',
         },
         errorText: {
-            fontSize: 13,
-            marginTop: 8,
+            fontSize: 12,
+            marginTop: 6,
             marginLeft: 4,
         },
         helperContainer: {
             flexDirection: 'row',
             alignItems: 'center',
-            marginTop: 12,
+            marginTop: 10,
             gap: 6,
         },
         helperText: {
-            fontSize: 13,
+            fontSize: 12,
         },
         continueButton: {
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
-            height: 56,
-            borderRadius: 16,
-            marginTop: 24,
-            gap: 8,
+            height: 48,
+            borderRadius: 12,
+            marginTop: 20,
+            gap: 6,
         },
         continueText: {
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: '700',
         },
         loadingDots: {
             flexDirection: 'row',
-            gap: 6,
+            gap: 5,
         },
         dot: {
-            width: 8,
-            height: 8,
-            borderRadius: 4,
+            width: 6,
+            height: 6,
+            borderRadius: 3,
         },
         termsContainer: {
-            paddingBottom: 24,
+            paddingBottom: 20,
         },
         termsText: {
-            fontSize: 12,
+            fontSize: 11,
             textAlign: 'center',
-            lineHeight: 18,
+            lineHeight: 16,
         },
         termsLink: {
             fontWeight: '600',

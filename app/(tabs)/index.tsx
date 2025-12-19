@@ -6,6 +6,7 @@ import TopBar from '@/components/TopBar';
 import EventCard from '@/components/EventCard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { trendingProducts, fashionProducts } from '@/lib/mockData';
+import { router } from 'expo-router';
 
 const { width } = Dimensions.get('window');
 const BANNER_WIDTH = width - 32;
@@ -31,6 +32,7 @@ const banners = [
     badge: '🔥 HOT',
     image: '🛍️',
     gradient: ['#FF6B6B', '#EE5A5A'],
+    searchType: 'sale',
   },
   {
     id: '2',
@@ -39,6 +41,7 @@ const banners = [
     badge: '🌿 NEW',
     image: '🥬',
     gradient: ['#22C55E', '#16A34A'],
+    searchType: 'Fruits',
   },
   {
     id: '3',
@@ -47,6 +50,7 @@ const banners = [
     badge: '✨ STYLE',
     image: '👗',
     gradient: ['#8B5CF6', '#7C3AED'],
+    searchType: 'Fashion',
   },
 ];
 
@@ -69,6 +73,14 @@ export default function HomeScreen() {
 
   const toggleWishlist = (id: string) => {
     setWishlist(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const handleBannerPress = (searchType: string) => {
+    router.push({ pathname: '/search', params: { category: searchType } });
+  };
+
+  const handleCategoryPress = (categoryName: string) => {
+    router.push({ pathname: '/search', params: { category: categoryName } });
   };
 
   const handleMainScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -123,30 +135,31 @@ export default function HomeScreen() {
           decelerationRate="fast"
         >
           {banners.map((banner, index) => (
-            <LinearGradient
-              key={banner.id}
-              colors={isDark ? ['#1E3A2F', banner.gradient[1]] as const : [banner.gradient[0], banner.gradient[1]] as const}
-              style={[styles.banner, index === banners.length - 1 && { marginRight: 0 }]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <View style={styles.bannerBadge}>
-                <Text style={styles.bannerBadgeText}>{banner.badge}</Text>
-              </View>
-              <View style={styles.bannerRow}>
-                <View style={styles.bannerContent}>
-                  <Text style={styles.bannerTitle}>{banner.title}</Text>
-                  <Text style={styles.bannerSubtitle}>{banner.subtitle}</Text>
-                  <Pressable style={styles.shopNowButton}>
-                    <Text style={styles.shopNowText}>Shop Now</Text>
-                    <ArrowRight size={14} color={colors.primary} />
-                  </Pressable>
+            <Pressable key={banner.id} onPress={() => handleBannerPress(banner.searchType)}>
+              <LinearGradient
+                colors={isDark ? ['#1E3A2F', banner.gradient[1]] as const : [banner.gradient[0], banner.gradient[1]] as const}
+                style={[styles.banner, index === banners.length - 1 && { marginRight: 0 }]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.bannerBadge}>
+                  <Text style={styles.bannerBadgeText}>{banner.badge}</Text>
                 </View>
-                <View style={styles.bannerImageContainer}>
-                  <Text style={styles.bannerImage}>{banner.image}</Text>
+                <View style={styles.bannerRow}>
+                  <View style={styles.bannerContent}>
+                    <Text style={styles.bannerTitle}>{banner.title}</Text>
+                    <Text style={styles.bannerSubtitle}>{banner.subtitle}</Text>
+                    <View style={styles.shopNowButton}>
+                      <Text style={styles.shopNowText}>Shop Now</Text>
+                      <ArrowRight size={14} color={colors.primary} />
+                    </View>
+                  </View>
+                  <View style={styles.bannerImageContainer}>
+                    <Text style={styles.bannerImage}>{banner.image}</Text>
+                  </View>
                 </View>
-              </View>
-            </LinearGradient>
+              </LinearGradient>
+            </Pressable>
           ))}
         </ScrollView>
 
@@ -168,7 +181,7 @@ export default function HomeScreen() {
             <Sparkles size={18} color={colors.primary} />
             <Text style={styles.sectionTitle}>Shop by Category</Text>
           </View>
-          <Pressable style={styles.viewAllButton}>
+          <Pressable style={styles.viewAllButton} onPress={() => router.push('/(tabs)/categories')}>
             <Text style={styles.viewAllText}>See All</Text>
             <ArrowRight size={14} color={colors.primary} />
           </Pressable>
@@ -180,7 +193,7 @@ export default function HomeScreen() {
           contentContainerStyle={styles.categoriesContainer}
         >
           {categories.map((category) => (
-            <Pressable key={category.id} style={styles.categoryCard}>
+            <Pressable key={category.id} style={styles.categoryCard} onPress={() => handleCategoryPress(category.name)}>
               <View style={[styles.categoryIconContainer, { backgroundColor: category.color }]}>
                 <Image source={{ uri: category.image }} style={styles.categoryImage} />
               </View>
@@ -195,7 +208,7 @@ export default function HomeScreen() {
             <Flame size={18} color="#EF4444" />
             <Text style={styles.sectionTitle}>Trending Now</Text>
           </View>
-          <Pressable style={styles.viewAllButton}>
+          <Pressable style={styles.viewAllButton} onPress={() => router.push('/search')}>
             <Text style={styles.viewAllText}>View All</Text>
             <ArrowRight size={14} color={colors.primary} />
           </Pressable>
@@ -223,7 +236,7 @@ export default function HomeScreen() {
             <Zap size={18} color="#8B5CF6" />
             <Text style={styles.sectionTitle}>Fashion Picks</Text>
           </View>
-          <Pressable style={styles.viewAllButton}>
+          <Pressable style={styles.viewAllButton} onPress={() => router.push({ pathname: '/search', params: { category: 'Fashion' } })}>
             <Text style={styles.viewAllText}>View All</Text>
             <ArrowRight size={14} color={colors.primary} />
           </Pressable>

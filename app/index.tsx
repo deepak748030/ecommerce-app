@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Dimensions, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
-import { Droplets, Leaf, Heart, Star, Sparkles } from 'lucide-react-native';
+import { Utensils, Leaf, Heart, Star, Sparkles } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
@@ -121,58 +121,61 @@ export default function SplashScreen() {
   );
 
   return (
-    <Animated.View style={[styles.container, { backgroundColor: colors.background, opacity: fadeOut }]}>
+    <Animated.View style={[styles.container, { backgroundColor: '#FDF8F3', opacity: fadeOut }]}>
       <LinearGradient
-        colors={[colors.background, colors.card, colors.background]}
+        colors={['#FDF8F3', '#FEF3E2', '#FDF8F3']}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       />
 
-      <View style={[styles.bgCircle, styles.bgCircle1, { backgroundColor: colors.primary + '15' }]} />
-      <View style={[styles.bgCircle, styles.bgCircle2, { backgroundColor: colors.primary + '10' }]} />
+      <View style={[styles.bgCircle, styles.bgCircle1, { backgroundColor: '#D97706' + '15' }]} />
+      <View style={[styles.bgCircle, styles.bgCircle2, { backgroundColor: '#EA580C' + '10' }]} />
 
-      <FloatingIcon icon={Droplets} animValue={icon1} style={styles.icon1} color={colors.primary} size={22} />
-      <FloatingIcon icon={Leaf} animValue={icon2} style={styles.icon2} color={colors.success} size={20} />
+      <FloatingIcon icon={Utensils} animValue={icon1} style={styles.icon1} color="#D97706" size={22} />
+      <FloatingIcon icon={Leaf} animValue={icon2} style={styles.icon2} color="#22C55E" size={20} />
       <FloatingIcon icon={Heart} animValue={icon3} style={styles.icon3} color="#FF6B6B" size={18} />
-      <FloatingIcon icon={Star} animValue={icon4} style={styles.icon4} color={colors.warning} size={20} />
+      <FloatingIcon icon={Star} animValue={icon4} style={styles.icon4} color="#F59E0B" size={20} />
 
       <View style={styles.content}>
         <Animated.View style={[styles.logoContainer, { transform: [{ scale: logoScale }] }]}>
-          <View style={[styles.logo, { backgroundColor: colors.primary }]}>
-            <Text style={styles.logoEmoji}>🥛</Text>
-          </View>
+          <Image
+            source={require('../assets/images/app-logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </Animated.View>
 
-        <Animated.Text
+        <Animated.View
           style={[
-            styles.appName,
-            { color: colors.foreground, opacity: titleOpacity, transform: [{ translateY: titleTranslate }] },
+            styles.titleContainer,
+            { opacity: titleOpacity, transform: [{ translateY: titleTranslate }] },
           ]}
         >
-          Milkey
-        </Animated.Text>
+          <Text style={styles.appNameEnglish}>The Art Of</Text>
+          <Text style={styles.appNameHindi}>भ ओ जन</Text>
+        </Animated.View>
 
-        <Animated.Text style={[styles.subtitle, { color: colors.mutedForeground, opacity: subtitleOpacity }]}>
-          Your Complete Dairy Solution
+        <Animated.Text style={[styles.subtitle, { color: '#78716C', opacity: subtitleOpacity }]}>
+          Celebrate The Joy Of Food
         </Animated.Text>
 
         <Animated.View
           style={[styles.taglineContainer, { opacity: taglineOpacity, transform: [{ scale: taglineScale }] }]}
         >
-          <View style={[styles.taglineBackground, { backgroundColor: colors.primary + '20', borderColor: colors.primary + '40' }]}>
-            <Sparkles size={14} color={colors.primary} style={styles.sparkleLeft} />
-            <Text style={[styles.tagline, { color: colors.primary }]}>Fresh Milk, Fresh Start</Text>
-            <Sparkles size={14} color={colors.primary} style={styles.sparkleRight} />
+          <View style={[styles.taglineBackground, { backgroundColor: '#D97706' + '20', borderColor: '#D97706' + '40' }]}>
+            <Sparkles size={14} color="#D97706" style={styles.sparkleLeft} />
+            <Text style={[styles.tagline, { color: '#D97706' }]}>स्वाद का कला</Text>
+            <Sparkles size={14} color="#D97706" style={styles.sparkleRight} />
           </View>
         </Animated.View>
       </View>
 
       <Animated.View style={[styles.loadingContainer, { opacity: subtitleOpacity }]}>
         <View style={styles.loadingDots}>
-          <View style={[styles.dot, styles.dot1, { backgroundColor: colors.primary }]} />
-          <View style={[styles.dot, styles.dot2, { backgroundColor: colors.primary }]} />
-          <View style={[styles.dot, styles.dot3, { backgroundColor: colors.primary }]} />
+          <View style={[styles.dot, styles.dot1, { backgroundColor: '#D97706' }]} />
+          <View style={[styles.dot, styles.dot2, { backgroundColor: '#D97706' }]} />
+          <View style={[styles.dot, styles.dot3, { backgroundColor: '#D97706' }]} />
         </View>
       </Animated.View>
     </Animated.View>
@@ -213,26 +216,32 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   logoContainer: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
-  logo: {
-    width: 120,
-    height: 120,
+  logoImage: {
+    width: 140,
+    height: 140,
     borderRadius: 28,
+  },
+  titleContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoEmoji: {
-    fontSize: 60,
-  },
-  appName: {
-    fontSize: 42,
-    fontWeight: '800',
-    letterSpacing: 2,
     marginBottom: 8,
   },
+  appNameEnglish: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#78716C',
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
+  appNameHindi: {
+    fontSize: 38,
+    fontWeight: '800',
+    color: '#92400E',
+    letterSpacing: 4,
+  },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     letterSpacing: 1,
     fontWeight: '500',
     marginBottom: 20,

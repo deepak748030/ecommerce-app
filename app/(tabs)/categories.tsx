@@ -32,14 +32,11 @@ export default function CategoriesScreen() {
 
     return (
         <View style={styles.container}>
-            <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+            <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
                 <Text style={styles.title}>Categories</Text>
                 <View style={styles.headerButtons}>
-                    <Pressable style={styles.searchButton} onPress={() => router.push('/search')}>
-                        <Search size={22} color={colors.foreground} strokeWidth={2.5} />
-                    </Pressable>
-                    <Pressable style={styles.filterButton} onPress={() => router.push('/search')}>
-                        <SlidersHorizontal size={20} color={colors.foreground} />
+                    <Pressable style={styles.iconButton} onPress={() => router.push('/search')}>
+                        <Search size={20} color={colors.foreground} strokeWidth={2} />
                     </Pressable>
                 </View>
             </View>
@@ -91,8 +88,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         backgroundColor: colors.background,
     },
     header: {
-        paddingHorizontal: 10,
-        paddingBottom: 6,
+        paddingHorizontal: 16,
+        paddingBottom: 10,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -101,8 +98,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         borderBottomColor: colors.border,
     },
     title: {
-        fontSize: 22,
-        fontWeight: '800',
+        fontSize: 17,
+        fontWeight: '700',
         color: colors.foreground,
     },
     headerButtons: {
@@ -110,18 +107,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         alignItems: 'center',
         gap: 8,
     },
-    searchButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        backgroundColor: colors.secondary,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    filterButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
+    iconButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
         backgroundColor: colors.card,
         borderWidth: 1,
         borderColor: colors.border,

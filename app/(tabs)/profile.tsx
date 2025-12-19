@@ -57,8 +57,8 @@ export default function ProfileScreen() {
 
   const handleLogout = () => {
     setIsLogoutModalVisible(false);
-    // Navigate to login screen (splash/index which will redirect)
-    router.replace('/');
+    // Navigate to login screen
+    router.replace('/auth/phone');
   };
 
   const menuSections = [
@@ -88,7 +88,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
         <Text style={styles.title}>Profile</Text>
       </View>
 
@@ -206,15 +206,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    paddingHorizontal: 6,
-    paddingBottom: 6,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
     backgroundColor: colors.background,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 17,
+    fontWeight: '700',
     color: colors.foreground,
   },
   scrollView: {

@@ -34,7 +34,7 @@ export default function CheckoutScreen() {
     const styles = createStyles(colors);
 
     const handlePlaceOrder = () => {
-        router.push('/payment');
+        router.push({ pathname: '/payment', params: { eventId: 'cart', price: total.toString() } });
     };
 
     return (

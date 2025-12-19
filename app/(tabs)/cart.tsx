@@ -42,10 +42,10 @@ export default function CartScreen() {
 
     return (
         <View style={styles.container}>
-            <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+            <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
                 <Text style={styles.title}>My Cart</Text>
-                <View style={styles.itemCount}>
-                    <Text style={styles.itemCountText}>{cartItems.length} items</Text>
+                <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{cartItems.length}</Text>
                 </View>
             </View>
 
@@ -156,8 +156,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         backgroundColor: colors.background,
     },
     header: {
-        paddingHorizontal: 6,
-        paddingBottom: 12,
+        paddingHorizontal: 16,
+        paddingBottom: 10,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -166,17 +166,20 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         borderBottomColor: colors.border,
     },
     title: {
-        fontSize: 18,
-        fontWeight: '800',
+        fontSize: 17,
+        fontWeight: '700',
         color: colors.foreground,
     },
-    itemCount: {
+    badge: {
         backgroundColor: colors.primary,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
+        minWidth: 24,
+        height: 24,
         borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 8,
     },
-    itemCountText: {
+    badgeText: {
         color: colors.white,
         fontSize: 12,
         fontWeight: '700',
