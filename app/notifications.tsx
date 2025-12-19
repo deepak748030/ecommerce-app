@@ -121,7 +121,7 @@ export default function NotificationsScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <TopBar />
+        <TopBar showSearchBar={false} showBackButton={true} title="Notifications" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -131,7 +131,7 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.container}>
-      <TopBar />
+      <TopBar showSearchBar={false} showBackButton={true} title="Notifications" />
 
       <ScrollView
         style={styles.scrollView}
@@ -219,7 +219,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingVertical: 0,
+    paddingVertical: 12,
     paddingHorizontal: 6,
     paddingBottom: 90,
   },

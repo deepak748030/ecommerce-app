@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { Package, MapPin, Bell, HelpCircle, Settings, LogOut, ChevronRight, Sun, Moon, Shield, Receipt, Pencil, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { EditProfileModal } from '@/components/EditProfileModal';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
 
 const mockUser = {
   name: 'John Doe',
@@ -18,6 +19,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark, toggleTheme } = useTheme();
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
   const [userAvatar, setUserAvatar] = useState<string | null>(mockUser.avatar);
   const [userName, setUserName] = useState(mockUser.name);
   const [userEmail, setUserEmail] = useState(mockUser.email);
@@ -51,6 +53,12 @@ export default function ProfileScreen() {
   const handleProfileSave = () => {
     // Refresh user data after save
     setIsEditModalVisible(false);
+  };
+
+  const handleLogout = () => {
+    setIsLogoutModalVisible(false);
+    // Navigate to login screen (splash/index which will redirect)
+    router.replace('/');
   };
 
   const menuSections = [
@@ -161,7 +169,7 @@ export default function ProfileScreen() {
         ))}
 
         {/* Logout Button */}
-        <Pressable style={styles.logoutButton}>
+        <Pressable style={styles.logoutButton} onPress={() => setIsLogoutModalVisible(true)}>
           <LogOut size={20} color={colors.destructive} strokeWidth={2} />
           <Text style={styles.logoutText}>Logout</Text>
         </Pressable>
@@ -175,6 +183,18 @@ export default function ProfileScreen() {
         isVisible={isEditModalVisible}
         onClose={() => setIsEditModalVisible(false)}
         onSave={handleProfileSave}
+      />
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmationModal
+        isVisible={isLogoutModalVisible}
+        onClose={() => setIsLogoutModalVisible(false)}
+        onConfirm={handleLogout}
+        title="Logout"
+        message="Are you sure you want to logout? You will need to login again to access your account."
+        confirmText="Yes, Logout"
+        cancelText="Cancel"
+        confirmDestructive={true}
       />
     </View>
   );

@@ -1,11 +1,23 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Bell, MapPin, SlidersHorizontal } from 'lucide-react-native';
+import { Search, Bell, SlidersHorizontal, ChevronLeft } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { router } from 'expo-router';
 
-export default function TopBar() {
+interface TopBarProps {
+  showSearchBar?: boolean;
+  searchBarAnimation?: Animated.Value;
+  showBackButton?: boolean;
+  title?: string;
+}
+
+export default function TopBar({
+  showSearchBar = true,
+  searchBarAnimation,
+  showBackButton = false,
+  title
+}: TopBarProps) {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
 
@@ -13,11 +25,42 @@ export default function TopBar() {
     router.push('/search');
   };
 
+  const handleBack = () => {
+    router.back();
+  };
+
+  // Calculate animated height for search bar section
+  const searchBarHeight = searchBarAnimation
+    ? searchBarAnimation.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 58],
+      extrapolate: 'clamp',
+    })
+    : showSearchBar ? 58 : 0;
+
+  const searchBarOpacity = searchBarAnimation
+    ? searchBarAnimation.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [0, 0, 1],
+      extrapolate: 'clamp',
+    })
+    : showSearchBar ? 1 : 0;
+
+  // Animate container bottom padding
+  const containerPaddingBottom = searchBarAnimation
+    ? searchBarAnimation.interpolate({
+      inputRange: [0, 1],
+      outputRange: [6, 12],
+      extrapolate: 'clamp',
+    })
+    : showSearchBar ? 12 : 6;
+
   return (
-    <View style={[
+    <Animated.View style={[
       styles.container,
       {
         paddingTop: insets.top + 4,
+        paddingBottom: containerPaddingBottom,
         backgroundColor: colors.background,
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
@@ -25,18 +68,31 @@ export default function TopBar() {
     ]}>
       {/* Location & Brand */}
       <View style={styles.topRow}>
-        <View style={styles.leftSection}>
-          <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
-            <Text style={styles.logoEmoji}>🍽️</Text>
-          </View>
-          <View>
-            <Text style={[styles.appName, { color: colors.foreground }]}>The Art Of Bhaojan</Text>
-            <Pressable style={styles.locationRow}>
-              <MapPin size={12} color={colors.primary} />
-              <Text style={[styles.location, { color: colors.mutedForeground }]}>Mumbai, India</Text>
+        {showBackButton ? (
+          <View style={styles.leftSection}>
+            <Pressable
+              style={[styles.backButton, { backgroundColor: colors.secondary }]}
+              onPress={handleBack}
+            >
+              <ChevronLeft size={24} color={colors.foreground} />
             </Pressable>
+            {title && (
+              <Text style={[styles.pageTitle, { color: colors.foreground }]}>{title}</Text>
+            )}
           </View>
-        </View>
+        ) : (
+          <View style={styles.leftSection}>
+            <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
+              <Text style={styles.logoEmoji}>🍽️</Text>
+            </View>
+            <View>
+              <Text style={[styles.appName, { color: colors.foreground }]}>The Art Of  </Text>
+              <Pressable style={styles.locationRow}>
+                <Text style={[styles.location, { color: colors.mutedForeground }]}>भ ओ जन</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         <View style={styles.rightSection}>
           <Pressable
@@ -49,44 +105,64 @@ export default function TopBar() {
         </View>
       </View>
 
-      {/* Search Bar */}
-      <View style={styles.searchRow}>
-        <Pressable
-          style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={handleSearchPress}
+      {/* Animated Search Bar */}
+      {showSearchBar && (
+        <Animated.View
+          style={[
+            styles.searchRow,
+            {
+              height: searchBarHeight,
+              opacity: searchBarOpacity,
+              overflow: 'hidden',
+            }
+          ]}
         >
-          <Search size={18} color={colors.mutedForeground} />
-          <Text style={[styles.searchPlaceholder, { color: colors.mutedForeground }]}>
-            Search products, brands...
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.filterButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={handleSearchPress}
-        >
-          <SlidersHorizontal size={20} color={colors.foreground} />
-        </Pressable>
-      </View>
-    </View>
+          <Pressable
+            style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={handleSearchPress}
+          >
+            <Search size={18} color={colors.mutedForeground} />
+            <Text style={[styles.searchPlaceholder, { color: colors.mutedForeground }]}>
+              Search products, brands...
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.filterButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={handleSearchPress}
+          >
+            <SlidersHorizontal size={20} color={colors.foreground} />
+          </Pressable>
+        </Animated.View>
+      )}
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 6,
-    paddingBottom: 12,
   },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
   },
   leftSection: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     flex: 1,
+  },
+  backButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pageTitle: {
+    fontSize: 18,
+    fontWeight: '700',
   },
   logoContainer: {
     width: 42,
@@ -138,6 +214,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    marginTop: 10,
   },
   searchContainer: {
     flex: 1,

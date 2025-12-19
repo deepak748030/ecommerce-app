@@ -1,7 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { colors } from '@/lib/colors';
-import { Button } from './Button';
 
 interface EmptyStateProps {
   title: string;
@@ -16,9 +15,9 @@ export function EmptyState({ title, subtitle, actionLabel, onAction }: EmptyStat
       <Text style={styles.title}>{title}</Text>
       {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
       {actionLabel && onAction && (
-        <View style={styles.buttonContainer}>
-          <Button title={actionLabel} onPress={onAction} />
-        </View>
+        <Pressable style={styles.button} onPress={onAction}>
+          <Text style={styles.buttonText}>{actionLabel}</Text>
+        </Pressable>
       )}
     </View>
   );
@@ -41,7 +40,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
   },
-  buttonContainer: {
+  button: {
     marginTop: 8,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  buttonText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

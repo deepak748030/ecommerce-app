@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
-import { colors } from '@/lib/colors';
+import { useTheme } from '@/hooks/useTheme';
 
 interface ConfirmationModalProps {
   isVisible: boolean;
@@ -10,6 +10,7 @@ interface ConfirmationModalProps {
   message: string;
   confirmText?: string;
   cancelText?: string;
+  confirmDestructive?: boolean;
 }
 
 export function ConfirmationModal({
@@ -18,14 +19,18 @@ export function ConfirmationModal({
   onConfirm,
   title,
   message,
-  confirmText = 'Yes, Cancel',
-  cancelText = 'No, Keep Booking',
+  confirmText = 'Yes',
+  cancelText = 'Cancel',
+  confirmDestructive = true,
 }: ConfirmationModalProps) {
+  const { colors, isDark } = useTheme();
+  const styles = createStyles(colors, isDark, confirmDestructive);
+
   return (
     <Modal
       visible={isVisible}
       transparent
-      animationType="slide"
+      animationType="fade"
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
@@ -48,31 +53,38 @@ export function ConfirmationModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean, confirmDestructive: boolean) => StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 24,
   },
   modal: {
     backgroundColor: colors.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderRadius: 20,
     width: '100%',
-    maxHeight: '85%',
+    maxWidth: 340,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
   },
   modalBody: {
-    paddingHorizontal: 20,
-    paddingTop: 32,
-    paddingBottom: 24,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 20,
     alignItems: 'center',
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.foreground,
-    marginBottom: 8,
+    marginBottom: 10,
     textAlign: 'center',
   },
   message: {
@@ -83,35 +95,34 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 20,
-    paddingBottom: 32,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
     gap: 12,
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: colors.muted,
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: colors.secondary,
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
   },
   cancelButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: colors.foreground,
   },
   confirmButton: {
     flex: 1,
-    backgroundColor: colors.destructive,
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: confirmDestructive ? colors.destructive : colors.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: 'center',
   },
   confirmButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: colors.primaryForeground,
+    color: '#FFFFFF',
   },
 });

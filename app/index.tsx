@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { Droplets, Leaf, Heart, Star, Sparkles } from 'lucide-react-native';
@@ -9,6 +10,7 @@ const { width, height } = Dimensions.get('window');
 
 export default function SplashScreen() {
   const { colors } = useTheme();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   // Animation values
   const logoScale = useRef(new Animated.Value(0)).current;
@@ -24,61 +26,74 @@ export default function SplashScreen() {
   const fadeOut = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Animated.sequence([
-      Animated.spring(logoScale, {
-        toValue: 1,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-      Animated.parallel([
-        Animated.timing(titleOpacity, {
+    const checkAuthAndNavigate = async () => {
+      // Check if user is already logged in
+      const userPhone = await AsyncStorage.getItem('user_phone');
+
+      Animated.sequence([
+        Animated.spring(logoScale, {
           toValue: 1,
-          duration: 400,
+          tension: 50,
+          friction: 7,
           useNativeDriver: true,
         }),
-        Animated.timing(titleTranslate, {
-          toValue: 0,
-          duration: 400,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.timing(subtitleOpacity, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.parallel([
-        Animated.timing(taglineOpacity, {
+        Animated.parallel([
+          Animated.timing(titleOpacity, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(titleTranslate, {
+            toValue: 0,
+            duration: 400,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.timing(subtitleOpacity, {
           toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.spring(taglineScale, {
-          toValue: 1,
-          tension: 80,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.stagger(100, [
-        Animated.spring(icon1, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
-        Animated.spring(icon2, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
-        Animated.spring(icon3, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
-        Animated.spring(icon4, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
-      ]),
-    ]).start(() => {
-      setTimeout(() => {
-        Animated.timing(fadeOut, {
-          toValue: 0,
           duration: 300,
           useNativeDriver: true,
-        }).start(() => {
-          router.replace('/(tabs)');
-        });
-      }, 500);
-    });
+        }),
+        Animated.parallel([
+          Animated.timing(taglineOpacity, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.spring(taglineScale, {
+            toValue: 1,
+            tension: 80,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.stagger(100, [
+          Animated.spring(icon1, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
+          Animated.spring(icon2, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
+          Animated.spring(icon3, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
+          Animated.spring(icon4, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
+        ]),
+      ]).start(() => {
+        setTimeout(() => {
+          Animated.timing(fadeOut, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }).start(() => {
+            if (userPhone) {
+              // User is logged in, go to home
+              router.replace('/(tabs)');
+            } else {
+              // User is not logged in, go to auth
+              router.replace('/auth/phone' as any);
+            }
+          });
+        }, 500);
+      });
+    };
+
+    checkAuthAndNavigate();
   }, []);
 
   const FloatingIcon = ({ icon: Icon, animValue, style, color, size = 24 }: any) => (

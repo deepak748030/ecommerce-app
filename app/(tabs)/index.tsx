@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Image, Animated, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { ArrowRight, Sparkles, Flame, Zap } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import TopBar from '@/components/TopBar';
@@ -10,6 +10,7 @@ import { trendingProducts, fashionProducts } from '@/lib/mockData';
 const { width } = Dimensions.get('window');
 const BANNER_WIDTH = width - 32;
 const CARD_WIDTH = (width - 20) / 2;
+const SCROLL_THRESHOLD = 50;
 
 const categories = [
   { id: '1', name: 'Fruits', image: 'https://images.pexels.com/photos/1132047/pexels-photo-1132047.jpeg?auto=compress&cs=tinysrgb&w=200', color: '#FEE2E2' },
@@ -55,6 +56,11 @@ export default function HomeScreen() {
   const [wishlist, setWishlist] = useState<string[]>([]);
   const bannerScrollRef = useRef<ScrollView>(null);
 
+  // Animation for search bar visibility
+  const searchBarAnimation = useRef(new Animated.Value(1)).current;
+  const lastScrollY = useRef(0);
+  const isSearchBarVisible = useRef(true);
+
   const handleBannerScroll = (event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
     const index = Math.round(offsetX / BANNER_WIDTH);
@@ -65,16 +71,44 @@ export default function HomeScreen() {
     setWishlist(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
+  const handleMainScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const currentScrollY = event.nativeEvent.contentOffset.y;
+    const scrollDiff = currentScrollY - lastScrollY.current;
+
+    // Scrolling down - hide search bar
+    if (scrollDiff > 0 && currentScrollY > SCROLL_THRESHOLD && isSearchBarVisible.current) {
+      isSearchBarVisible.current = false;
+      Animated.timing(searchBarAnimation, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: false,
+      }).start();
+    }
+    // Scrolling up - show search bar
+    else if (scrollDiff < -10 && !isSearchBarVisible.current) {
+      isSearchBarVisible.current = true;
+      Animated.timing(searchBarAnimation, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: false,
+      }).start();
+    }
+
+    lastScrollY.current = currentScrollY;
+  };
+
   const styles = createStyles(colors, isDark);
 
   return (
     <View style={styles.container}>
-      <TopBar />
+      <TopBar showSearchBar={true} searchBarAnimation={searchBarAnimation} />
 
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        onScroll={handleMainScroll}
+        scrollEventThrottle={16}
       >
         {/* Banner Carousel */}
         <ScrollView
