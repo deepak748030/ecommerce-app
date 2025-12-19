@@ -155,7 +155,13 @@ export default function ProductDetailsScreen() {
 
     setAddingToCart(true);
     try {
-      await addToCart(product.id, quantity);
+      await addToCart({
+        productId: product.id,
+        name: product.title,
+        price: product.price,
+        mrp: product.mrp,
+        image: product.image,
+      }, quantity);
       Alert.alert('Added to Cart', `${product.title} (x${quantity}) added to your cart!`, [
         { text: 'Continue Shopping', style: 'cancel' },
         { text: 'View Cart', onPress: () => router.push('/cart') }

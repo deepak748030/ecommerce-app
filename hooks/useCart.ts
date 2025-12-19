@@ -1,14 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Product, productsApi, getImageUrl } from '@/lib/api';
 
-const CART_STORAGE_KEY = 'cart_items';
-
-export interface CartItem {
-    productId: string;
-    product: Product | null;
-    quantity: number;
-}
+const CART_STORAGE_KEY = 'cart_items_local';
 
 export interface CartItemDisplay {
     productId: string;
@@ -20,143 +13,143 @@ export interface CartItemDisplay {
     unit: string;
 }
 
-let cartListeners: (() => void)[] = [];
+// Global cart state for instant updates across components
+let globalCartItems: CartItemDisplay[] = [];
+let cartListeners: Set<(items: CartItemDisplay[]) => void> = new Set();
 
-const notifyListeners = () => {
-    cartListeners.forEach(listener => listener());
+const notifyListeners = (items: CartItemDisplay[]) => {
+    globalCartItems = items;
+    cartListeners.forEach(listener => listener(items));
+};
+
+// Save to storage in background (non-blocking)
+const saveToStorage = (items: CartItemDisplay[]) => {
+    AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items)).catch(err => {
+        console.error('Error saving cart:', err);
+    });
+};
+
+// Load from storage on app start
+let isInitialized = false;
+const initializeCart = async () => {
+    if (isInitialized) return;
+    isInitialized = true;
+
+    try {
+        const stored = await AsyncStorage.getItem(CART_STORAGE_KEY);
+        if (stored) {
+            const items = JSON.parse(stored);
+            globalCartItems = items;
+            notifyListeners(items);
+        }
+    } catch (error) {
+        console.error('Error loading cart:', error);
+    }
 };
 
 export function useCart() {
-    const [cartItems, setCartItems] = useState<CartItemDisplay[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    const loadCart = useCallback(async () => {
-        try {
-            const stored = await AsyncStorage.getItem(CART_STORAGE_KEY);
-            if (!stored) {
-                setCartItems([]);
-                setLoading(false);
-                return;
-            }
-
-            const items: { productId: string; quantity: number }[] = JSON.parse(stored);
-
-            // Fetch product details for each item
-            const displayItems: CartItemDisplay[] = [];
-
-            for (const item of items) {
-                try {
-                    const result = await productsApi.getById(item.productId);
-                    if (result.success && result.response) {
-                        const product = result.response;
-                        displayItems.push({
-                            productId: product._id,
-                            name: product.title,
-                            price: product.price,
-                            mrp: product.mrp,
-                            quantity: item.quantity,
-                            image: getImageUrl(product.image),
-                            unit: 'pc',
-                        });
-                    }
-                } catch (err) {
-                    console.error('Error fetching product:', item.productId, err);
-                }
-            }
-
-            setCartItems(displayItems);
-        } catch (error) {
-            console.error('Error loading cart:', error);
-            setCartItems([]);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+    const [cartItems, setCartItems] = useState<CartItemDisplay[]>(globalCartItems);
+    const [loading, setLoading] = useState(!isInitialized);
 
     useEffect(() => {
-        loadCart();
+        // Subscribe to global cart updates
+        const listener = (items: CartItemDisplay[]) => {
+            setCartItems([...items]);
+        };
+        cartListeners.add(listener);
 
-        // Subscribe to cart changes
-        const listener = () => loadCart();
-        cartListeners.push(listener);
+        // Initialize cart if not done
+        if (!isInitialized) {
+            initializeCart().then(() => {
+                setCartItems([...globalCartItems]);
+                setLoading(false);
+            });
+        } else {
+            setCartItems([...globalCartItems]);
+            setLoading(false);
+        }
 
         return () => {
-            cartListeners = cartListeners.filter(l => l !== listener);
+            cartListeners.delete(listener);
         };
-    }, [loadCart]);
+    }, []);
 
-    const addToCart = async (productId: string, quantity: number = 1) => {
+    const addToCart = useCallback((product: {
+        productId: string;
+        name: string;
+        price: number;
+        mrp: number;
+        image: string;
+        unit?: string;
+    }, quantity: number = 1) => {
+        const existingIndex = globalCartItems.findIndex(item => item.productId === product.productId);
+        let newItems: CartItemDisplay[];
+
+        if (existingIndex >= 0) {
+            newItems = [...globalCartItems];
+            newItems[existingIndex] = {
+                ...newItems[existingIndex],
+                quantity: newItems[existingIndex].quantity + quantity,
+            };
+        } else {
+            newItems = [...globalCartItems, {
+                productId: product.productId,
+                name: product.name,
+                price: product.price,
+                mrp: product.mrp,
+                image: product.image,
+                unit: product.unit || 'pc',
+                quantity,
+            }];
+        }
+
+        notifyListeners(newItems);
+        saveToStorage(newItems);
+    }, []);
+
+    const updateQuantity = useCallback((productId: string, delta: number) => {
+        const index = globalCartItems.findIndex(item => item.productId === productId);
+        if (index < 0) return;
+
+        const newItems = [...globalCartItems];
+        const newQty = Math.max(1, newItems[index].quantity + delta);
+        newItems[index] = { ...newItems[index], quantity: newQty };
+
+        notifyListeners(newItems);
+        saveToStorage(newItems);
+    }, []);
+
+    const removeFromCart = useCallback((productId: string) => {
+        const newItems = globalCartItems.filter(item => item.productId !== productId);
+        notifyListeners(newItems);
+        saveToStorage(newItems);
+    }, []);
+
+    const clearCart = useCallback(() => {
+        notifyListeners([]);
+        AsyncStorage.removeItem(CART_STORAGE_KEY).catch(err => {
+            console.error('Error clearing cart:', err);
+        });
+    }, []);
+
+    const getCartForOrder = useCallback((): { productId: string; quantity: number }[] => {
+        return globalCartItems.map(item => ({
+            productId: item.productId,
+            quantity: item.quantity
+        }));
+    }, []);
+
+    const refreshCart = useCallback(async () => {
         try {
             const stored = await AsyncStorage.getItem(CART_STORAGE_KEY);
-            let items: { productId: string; quantity: number }[] = stored ? JSON.parse(stored) : [];
-
-            const existingIndex = items.findIndex(item => item.productId === productId);
-
-            if (existingIndex >= 0) {
-                items[existingIndex].quantity += quantity;
-            } else {
-                items.push({ productId, quantity });
+            if (stored) {
+                const items = JSON.parse(stored);
+                notifyListeners(items);
             }
-
-            await AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
-            notifyListeners();
         } catch (error) {
-            console.error('Error adding to cart:', error);
+            console.error('Error refreshing cart:', error);
         }
-    };
-
-    const updateQuantity = async (productId: string, delta: number) => {
-        try {
-            const stored = await AsyncStorage.getItem(CART_STORAGE_KEY);
-            if (!stored) return;
-
-            let items: { productId: string; quantity: number }[] = JSON.parse(stored);
-            const index = items.findIndex(item => item.productId === productId);
-
-            if (index >= 0) {
-                const newQty = Math.max(1, items[index].quantity + delta);
-                items[index].quantity = newQty;
-                await AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
-                notifyListeners();
-            }
-        } catch (error) {
-            console.error('Error updating quantity:', error);
-        }
-    };
-
-    const removeFromCart = async (productId: string) => {
-        try {
-            const stored = await AsyncStorage.getItem(CART_STORAGE_KEY);
-            if (!stored) return;
-
-            let items: { productId: string; quantity: number }[] = JSON.parse(stored);
-            items = items.filter(item => item.productId !== productId);
-
-            await AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
-            notifyListeners();
-        } catch (error) {
-            console.error('Error removing from cart:', error);
-        }
-    };
-
-    const clearCart = async () => {
-        try {
-            await AsyncStorage.removeItem(CART_STORAGE_KEY);
-            notifyListeners();
-        } catch (error) {
-            console.error('Error clearing cart:', error);
-        }
-    };
-
-    const getCartForOrder = async (): Promise<{ productId: string; quantity: number }[]> => {
-        try {
-            const stored = await AsyncStorage.getItem(CART_STORAGE_KEY);
-            return stored ? JSON.parse(stored) : [];
-        } catch (error) {
-            console.error('Error getting cart for order:', error);
-            return [];
-        }
-    };
+    }, []);
 
     const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const mrpTotal = cartItems.reduce((sum, item) => sum + (item.mrp * item.quantity), 0);
@@ -173,7 +166,7 @@ export function useCart() {
         removeFromCart,
         clearCart,
         getCartForOrder,
-        refreshCart: loadCart,
+        refreshCart,
         subtotal,
         mrpTotal,
         discount,

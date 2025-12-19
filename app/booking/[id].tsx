@@ -129,7 +129,13 @@ export default function BookingFlowScreen() {
     setIsProcessing(true);
     try {
       // Add item to cart and proceed to checkout
-      await addToCart(product.id, quantity);
+      await addToCart({
+        productId: product.id,
+        name: product.title,
+        price: product.price,
+        mrp: product.mrp,
+        image: product.image,
+      }, quantity);
       router.push('/checkout');
     } catch (error) {
       console.error('Error:', error);

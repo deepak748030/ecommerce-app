@@ -598,3 +598,28 @@ export const addressesApi = {
         });
     },
 };
+
+// Coupon Types
+export interface Coupon {
+    code: string;
+    discountType: 'percentage' | 'fixed';
+    discountValue: number;
+    discountAmount: number;
+    maxDiscount: number | null;
+    minOrderValue: number;
+    description: string;
+}
+
+// Coupons API
+export const couponsApi = {
+    validate: async (code: string, orderTotal: number) => {
+        return apiRequest<Coupon>('/coupons/validate', {
+            method: 'POST',
+            body: JSON.stringify({ code, orderTotal }),
+        });
+    },
+
+    getAll: async () => {
+        return apiRequest<{ count: number; data: Coupon[] }>('/coupons');
+    },
+};

@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert, Image, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, MapPin, CreditCard, Wallet, Smartphone, ChevronRight, ShieldCheck, Plus } from 'lucide-react-native';
+import { ArrowLeft, MapPin, CreditCard, Wallet, Smartphone, ChevronRight, ShieldCheck, Plus, Package, Tag, X, Check } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useCart } from '@/hooks/useCart';
 import { useAddress, Address } from '@/hooks/useAddress';
-import { getToken } from '@/lib/api';
+import { ordersApi, couponsApi, getToken, Coupon } from '@/lib/api';
 import { Banknote } from 'lucide-react-native';
+import { SuccessModal } from '@/components/SuccessModal';
 
 const paymentMethods = [
     { id: 'cod', name: 'Cash on Delivery', icon: Banknote, description: 'Pay when you receive' },
@@ -41,20 +42,42 @@ export default function CheckoutScreen() {
         image: params.productImage as string,
     } : null;
 
-    const { cartItems, subtotal: cartSubtotal, discount: cartDiscount, delivery: cartDelivery, tax: cartTax, total: cartTotal, itemCount: cartItemCount, loading: cartLoading } = useCart();
+    const { cartItems, subtotal: cartSubtotal, discount: cartDiscount, delivery: cartDelivery, tax: cartTax, total: cartTotal, itemCount: cartItemCount, loading: cartLoading, getCartForOrder, clearCart } = useCart();
     const { selectedAddress, addresses, loading: addressLoading } = useAddress();
     const [selectedPayment, setSelectedPayment] = useState('cod');
-    const [promoCode, setPromoCode] = useState('');
     const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [orderId, setOrderId] = useState<string | null>(null);
 
-    // Calculate totals based on whether it's Buy Now or Cart checkout
-    const subtotal = isBuyNow && buyNowItem ? buyNowItem.price * buyNowItem.quantity : cartSubtotal;
-    const mrpTotal = isBuyNow && buyNowItem ? buyNowItem.mrp * buyNowItem.quantity : subtotal;
-    const discount = Math.round(subtotal * 0.1);
-    const delivery = subtotal > 500 ? 0 : 40;
-    const tax = Math.round(subtotal * 0.05);
-    const total = subtotal - discount + delivery + tax;
+    // Coupon state
+    const [couponCode, setCouponCode] = useState('');
+    const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+    const [couponLoading, setCouponLoading] = useState(false);
+    const [couponError, setCouponError] = useState('');
+
+    // Calculate base totals
+    const baseSubtotal = isBuyNow && buyNowItem ? buyNowItem.price * buyNowItem.quantity : cartSubtotal;
+    const mrpTotal = isBuyNow && buyNowItem ? buyNowItem.mrp * buyNowItem.quantity : baseSubtotal;
     const itemCount = isBuyNow && buyNowItem ? buyNowItem.quantity : cartItemCount;
+
+    // Calculate discount (coupon or default 10%)
+    const couponDiscount = appliedCoupon?.discountAmount || 0;
+    const defaultDiscount = appliedCoupon ? 0 : Math.round(baseSubtotal * 0.1);
+    const totalDiscount = couponDiscount + defaultDiscount;
+
+    const delivery = baseSubtotal > 500 ? 0 : 40;
+    const tax = Math.round(baseSubtotal * 0.05);
+    const total = baseSubtotal - totalDiscount + delivery + tax;
+
+    // Get display items for showing what's being purchased
+    const displayItems = isBuyNow && buyNowItem ? [{
+        productId: buyNowItem.productId,
+        name: buyNowItem.name,
+        price: buyNowItem.price,
+        quantity: buyNowItem.quantity,
+        image: buyNowItem.image,
+    }] : cartItems;
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -74,9 +97,41 @@ export default function CheckoutScreen() {
         checkAuth();
     }, []);
 
+    const handleApplyCoupon = async () => {
+        if (!couponCode.trim()) {
+            setCouponError('Please enter a coupon code');
+            return;
+        }
+
+        setCouponLoading(true);
+        setCouponError('');
+
+        try {
+            const result = await couponsApi.validate(couponCode.trim(), baseSubtotal);
+
+            if (result.success && result.response) {
+                setAppliedCoupon(result.response);
+                setCouponCode('');
+                setCouponError('');
+            } else {
+                setCouponError(result.message || 'Invalid coupon code');
+            }
+        } catch (error) {
+            console.error('Coupon validation error:', error);
+            setCouponError('Failed to validate coupon');
+        } finally {
+            setCouponLoading(false);
+        }
+    };
+
+    const handleRemoveCoupon = () => {
+        setAppliedCoupon(null);
+        setCouponError('');
+    };
+
     const styles = createStyles(colors);
 
-    const handlePlaceOrder = () => {
+    const handlePlaceOrder = async () => {
         if (!selectedAddress) {
             Alert.alert('Address Required', 'Please add a delivery address to continue');
             return;
@@ -87,30 +142,70 @@ export default function CheckoutScreen() {
             return;
         }
 
-        // Pass buy now params to payment screen
-        if (isBuyNow && buyNowItem) {
-            router.push({
-                pathname: '/payment',
-                params: {
-                    paymentMethod: selectedPayment,
-                    promoCode: promoCode || '',
-                    buyNow: 'true',
+        setIsProcessing(true);
+
+        try {
+            let orderItems: { productId: string; quantity: number }[];
+
+            if (isBuyNow && buyNowItem) {
+                orderItems = [{
                     productId: buyNowItem.productId,
-                    quantity: buyNowItem.quantity.toString(),
-                    productName: buyNowItem.name,
-                    productPrice: buyNowItem.price.toString(),
-                    productMrp: buyNowItem.mrp.toString(),
-                    productImage: buyNowItem.image,
+                    quantity: buyNowItem.quantity,
+                }];
+            } else {
+                const cartForOrder = await getCartForOrder();
+                if (cartForOrder.length === 0) {
+                    Alert.alert('Error', 'Your cart is empty');
+                    setIsProcessing(false);
+                    return;
                 }
-            });
+                orderItems = cartForOrder.map(item => ({
+                    productId: item.productId,
+                    quantity: item.quantity,
+                }));
+            }
+
+            const orderData = {
+                items: orderItems,
+                shippingAddress: {
+                    name: selectedAddress.name,
+                    phone: selectedAddress.phone,
+                    address: selectedAddress.address,
+                    city: selectedAddress.city,
+                    state: selectedAddress.state,
+                    pincode: selectedAddress.pincode,
+                },
+                paymentMethod: selectedPayment,
+                promoCode: appliedCoupon?.code,
+            };
+
+            const result = await ordersApi.create(orderData);
+
+            if (result.success && result.response) {
+                setOrderId(result.response.order._id);
+
+                if (!isBuyNow) {
+                    await clearCart();
+                }
+
+                setShowSuccess(true);
+            } else {
+                Alert.alert('Order Failed', result.message || 'Failed to place order. Please try again.');
+            }
+        } catch (error) {
+            console.error('Order creation error:', error);
+            Alert.alert('Error', 'Something went wrong. Please try again.');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleSuccessClose = () => {
+        setShowSuccess(false);
+        if (orderId) {
+            router.replace(`/order/${orderId}` as any);
         } else {
-            router.push({
-                pathname: '/payment',
-                params: {
-                    paymentMethod: selectedPayment,
-                    promoCode: promoCode || ''
-                }
-            });
+            router.replace('/(tabs)');
         }
     };
 
@@ -138,6 +233,26 @@ export default function CheckoutScreen() {
             </View>
 
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+                {/* Items Being Purchased */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Items ({displayItems.length})</Text>
+                        <Package size={18} color={colors.mutedForeground} />
+                    </View>
+                    <View style={styles.itemsCard}>
+                        {displayItems.map((item) => (
+                            <View key={item.productId} style={styles.itemRow}>
+                                <Image source={{ uri: item.image }} style={styles.itemImage} />
+                                <View style={styles.itemInfo}>
+                                    <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
+                                    <Text style={styles.itemQuantity}>Qty: {item.quantity}</Text>
+                                </View>
+                                <Text style={styles.itemPrice}>₹{(item.price * item.quantity).toLocaleString()}</Text>
+                            </View>
+                        ))}
+                    </View>
+                </View>
+
                 {/* Delivery Address */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
@@ -170,6 +285,56 @@ export default function CheckoutScreen() {
                     )}
                 </View>
 
+                {/* Apply Coupon */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Apply Coupon</Text>
+                    {appliedCoupon ? (
+                        <View style={styles.appliedCouponCard}>
+                            <View style={styles.appliedCouponInfo}>
+                                <View style={styles.couponIconContainer}>
+                                    <Tag size={18} color={colors.success} />
+                                </View>
+                                <View style={styles.appliedCouponText}>
+                                    <Text style={styles.appliedCouponCode}>{appliedCoupon.code}</Text>
+                                    <Text style={styles.appliedCouponSaving}>You save ₹{couponDiscount}</Text>
+                                </View>
+                            </View>
+                            <Pressable style={styles.removeCouponButton} onPress={handleRemoveCoupon}>
+                                <X size={18} color={colors.destructive} />
+                            </Pressable>
+                        </View>
+                    ) : (
+                        <View style={styles.couponInputContainer}>
+                            <TextInput
+                                style={styles.couponInput}
+                                placeholder="Enter coupon code"
+                                placeholderTextColor={colors.mutedForeground}
+                                value={couponCode}
+                                onChangeText={(text) => {
+                                    setCouponCode(text.toUpperCase());
+                                    setCouponError('');
+                                }}
+                                autoCapitalize="characters"
+                                editable={!couponLoading}
+                            />
+                            <Pressable
+                                style={[styles.applyButton, couponLoading && styles.disabledButton]}
+                                onPress={handleApplyCoupon}
+                                disabled={couponLoading}
+                            >
+                                {couponLoading ? (
+                                    <ActivityIndicator size="small" color={colors.white} />
+                                ) : (
+                                    <Text style={styles.applyButtonText}>Apply</Text>
+                                )}
+                            </Pressable>
+                        </View>
+                    )}
+                    {couponError ? (
+                        <Text style={styles.couponError}>{couponError}</Text>
+                    ) : null}
+                </View>
+
                 {/* Payment Method */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Payment Method</Text>
@@ -199,35 +364,25 @@ export default function CheckoutScreen() {
                     </View>
                 </View>
 
-                {/* Promo Code */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Promo Code</Text>
-                    <View style={styles.promoContainer}>
-                        <TextInput
-                            style={styles.promoInput}
-                            placeholder="Enter promo code"
-                            placeholderTextColor={colors.mutedForeground}
-                            value={promoCode}
-                            onChangeText={setPromoCode}
-                        />
-                        <Pressable style={styles.applyButton}>
-                            <Text style={styles.applyButtonText}>Apply</Text>
-                        </Pressable>
-                    </View>
-                </View>
-
                 {/* Order Summary */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Order Summary</Text>
                     <View style={styles.summaryCard}>
                         <View style={styles.summaryRow}>
                             <Text style={styles.summaryLabel}>Subtotal ({itemCount} {itemCount === 1 ? 'item' : 'items'})</Text>
-                            <Text style={styles.summaryValue}>₹{subtotal}</Text>
+                            <Text style={styles.summaryValue}>₹{baseSubtotal}</Text>
                         </View>
-                        <View style={styles.summaryRow}>
-                            <Text style={styles.summaryLabel}>Discount (10%)</Text>
-                            <Text style={[styles.summaryValue, { color: colors.success }]}>-₹{discount}</Text>
-                        </View>
+                        {appliedCoupon ? (
+                            <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Coupon ({appliedCoupon.code})</Text>
+                                <Text style={[styles.summaryValue, { color: colors.success }]}>-₹{couponDiscount}</Text>
+                            </View>
+                        ) : (
+                            <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Discount (10%)</Text>
+                                <Text style={[styles.summaryValue, { color: colors.success }]}>-₹{defaultDiscount}</Text>
+                            </View>
+                        )}
                         <View style={styles.summaryRow}>
                             <Text style={styles.summaryLabel}>Delivery</Text>
                             <Text style={[styles.summaryValue, delivery === 0 && { color: colors.success }]}>
@@ -256,14 +411,27 @@ export default function CheckoutScreen() {
             {/* Place Order Button */}
             <View style={[styles.bottomContainer, { paddingBottom: insets.bottom + 12 }]}>
                 <Pressable
-                    style={[styles.placeOrderButton, !selectedAddress && styles.disabledButton]}
+                    style={[styles.placeOrderButton, (!selectedAddress || isProcessing) && styles.disabledButton]}
                     onPress={handlePlaceOrder}
-                    disabled={!selectedAddress}
+                    disabled={!selectedAddress || isProcessing}
                 >
-                    <Text style={styles.placeOrderText}>Place Order • ₹{total}</Text>
-                    <ChevronRight size={20} color={colors.white} />
+                    {isProcessing ? (
+                        <ActivityIndicator size="small" color={colors.white} />
+                    ) : (
+                        <>
+                            <Text style={styles.placeOrderText}>Place Order • ₹{total}</Text>
+                            <ChevronRight size={20} color={colors.white} />
+                        </>
+                    )}
                 </Pressable>
             </View>
+
+            <SuccessModal
+                isVisible={showSuccess}
+                onClose={handleSuccessClose}
+                title="Order Placed!"
+                message="Your order has been placed successfully. You will receive a confirmation shortly."
+            />
         </View>
     );
 }
@@ -348,6 +516,116 @@ const createStyles = (colors: any) => StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         color: colors.primary,
+    },
+    itemsCard: {
+        backgroundColor: colors.card,
+        borderRadius: 12,
+        padding: 14,
+        borderWidth: 1,
+        borderColor: colors.border,
+        gap: 12,
+    },
+    itemRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    itemImage: {
+        width: 60,
+        height: 60,
+        borderRadius: 8,
+        backgroundColor: colors.secondary,
+    },
+    itemInfo: {
+        flex: 1,
+    },
+    itemName: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: colors.foreground,
+        marginBottom: 4,
+    },
+    itemQuantity: {
+        fontSize: 12,
+        color: colors.mutedForeground,
+    },
+    itemPrice: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: colors.foreground,
+    },
+    appliedCouponCard: {
+        backgroundColor: colors.card,
+        borderRadius: 12,
+        padding: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderWidth: 1,
+        borderColor: colors.success,
+    },
+    appliedCouponInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        flex: 1,
+    },
+    couponIconContainer: {
+        width: 36,
+        height: 36,
+        borderRadius: 8,
+        backgroundColor: `${colors.success}20`,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    appliedCouponText: {
+        flex: 1,
+    },
+    appliedCouponCode: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: colors.foreground,
+    },
+    appliedCouponSaving: {
+        fontSize: 12,
+        color: colors.success,
+        fontWeight: '600',
+    },
+    removeCouponButton: {
+        padding: 8,
+    },
+    couponInputContainer: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    couponInput: {
+        flex: 1,
+        backgroundColor: colors.card,
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        fontSize: 14,
+        color: colors.foreground,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    applyButton: {
+        backgroundColor: colors.primary,
+        borderRadius: 10,
+        paddingHorizontal: 20,
+        justifyContent: 'center',
+        minWidth: 80,
+        alignItems: 'center',
+    },
+    applyButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: colors.white,
+    },
+    couponError: {
+        fontSize: 12,
+        color: colors.destructive,
+        marginTop: 8,
     },
     addressIcon: {
         width: 40,
@@ -459,17 +737,6 @@ const createStyles = (colors: any) => StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
     },
-    applyButton: {
-        backgroundColor: colors.primary,
-        borderRadius: 10,
-        paddingHorizontal: 20,
-        justifyContent: 'center',
-    },
-    applyButtonText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: colors.white,
-    },
     summaryCard: {
         backgroundColor: colors.card,
         borderRadius: 12,
@@ -545,4 +812,4 @@ const createStyles = (colors: any) => StyleSheet.create({
         fontWeight: '700',
         color: colors.white,
     },
-});
+}); 
