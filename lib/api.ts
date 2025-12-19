@@ -1,9 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// API Base URL - Change this to your server URL
-// const API_BASE_URL = 'http://localhost:5000/api';
-// const API_BASE_URL = 'https://planify-app-server.vercel.app/api';
-const API_BASE_URL = 'https://planify-app-server.onrender.com/api';
+// API Base URL - Bhaojan Server
+const API_BASE_URL = 'https://bhaojan-server.vercel.app/api';
 
 // Server Base URL (without /api) for constructing image URLs
 export const SERVER_BASE_URL = API_BASE_URL.replace('/api', '');

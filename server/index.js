@@ -9,9 +9,6 @@ const seedRoutes = require('./routes/seedRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Connect to MongoDB
-connectDB();
-
 // Middleware
 app.use(cors({
     origin: '*',
@@ -19,6 +16,20 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
+
+// Database connection middleware for serverless
+const dbMiddleware = async (req, res, next) => {
+    try {
+        await connectDB();
+        next();
+    } catch (error) {
+        console.error('Database connection failed:', error);
+        res.status(500).json({ success: false, message: 'Database connection failed' });
+    }
+};
+
+// Apply DB middleware to all API routes
+app.use('/api', dbMiddleware);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -33,15 +44,22 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// Root route
+app.get('/', (req, res) => {
+    res.json({ success: true, message: 'Bhaojan API Server' });
+});
+
 // Error handler
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({ success: false, message: 'Something went wrong!' });
 });
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+// Only start server if not in serverless environment
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
 
 module.exports = app;
