@@ -121,11 +121,7 @@ export default function WishlistScreen() {
                         ))}
                     </View>
 
-                    {/* Move All to Cart */}
-                    <Pressable style={styles.moveAllButton}>
-                        <ShoppingBag size={20} color={colors.white} />
-                        <Text style={styles.moveAllText}>Move All to Cart</Text>
-                    </Pressable>
+
                 </ScrollView>
             )}
         </View>
@@ -225,10 +221,5 @@ const createStyles = (colors: any) => StyleSheet.create({
         justifyContent: 'center',
         gap: 10,
         marginTop: 20,
-    },
-    moveAllText: {
-        color: colors.white,
-        fontSize: 15,
-        fontWeight: '700',
-    },
+    }
 });

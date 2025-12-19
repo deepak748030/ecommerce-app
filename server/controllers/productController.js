@@ -6,7 +6,16 @@ const Category = require('../models/Category');
 // @access  Public
 const getProducts = async (req, res) => {
     try {
-        const { category, search, limit = 50, page = 1 } = req.query;
+        const {
+            category,
+            search,
+            limit = 50,
+            page = 1,
+            minPrice,
+            maxPrice,
+            minRating,
+            sort
+        } = req.query;
 
         const query = { isActive: true };
 
@@ -20,14 +29,40 @@ const getProducts = async (req, res) => {
 
         // Search by title or description
         if (search) {
-            query.$text = { $search: search };
+            query.$or = [
+                { title: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } },
+                { location: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        // Filter by price range
+        if (minPrice || maxPrice) {
+            query.price = {};
+            if (minPrice) query.price.$gte = parseFloat(minPrice);
+            if (maxPrice) query.price.$lte = parseFloat(maxPrice);
+        }
+
+        // Filter by minimum rating
+        if (minRating) {
+            query.rating = { $gte: parseFloat(minRating) };
         }
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
+        // Build sort object
+        let sortObj = { createdAt: -1 };
+        if (sort === 'price_low_to_high') {
+            sortObj = { price: 1 };
+        } else if (sort === 'price_high_to_low') {
+            sortObj = { price: -1 };
+        } else if (sort === 'rating') {
+            sortObj = { rating: -1 };
+        }
+
         const products = await Product.find(query)
             .populate('category', 'name color')
-            .sort({ createdAt: -1 })
+            .sort(sortObj)
             .skip(skip)
             .limit(parseInt(limit));
 

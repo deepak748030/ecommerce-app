@@ -268,12 +268,25 @@ export interface Category {
 
 // Products API (Public GET, Admin POST/PUT/DELETE)
 export const productsApi = {
-    getAll: async (params?: { category?: string; search?: string; limit?: number; page?: number }) => {
+    getAll: async (params?: {
+        category?: string;
+        search?: string;
+        limit?: number;
+        page?: number;
+        minPrice?: number;
+        maxPrice?: number;
+        minRating?: number;
+        sort?: 'price_low_to_high' | 'price_high_to_low' | 'rating';
+    }) => {
         const query = new URLSearchParams();
         if (params?.category) query.append('category', params.category);
         if (params?.search) query.append('search', params.search);
         if (params?.limit) query.append('limit', params.limit.toString());
         if (params?.page) query.append('page', params.page.toString());
+        if (params?.minPrice) query.append('minPrice', params.minPrice.toString());
+        if (params?.maxPrice) query.append('maxPrice', params.maxPrice.toString());
+        if (params?.minRating) query.append('minRating', params.minRating.toString());
+        if (params?.sort) query.append('sort', params.sort);
 
         return apiRequest<{ count: number; total: number; data: Product[] }>(`/products?${query.toString()}`);
     },

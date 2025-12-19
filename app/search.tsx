@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, RefreshControl, Dimensions, ActivityIndicator } from 'react-native';
 import { Search, ListFilter, X, TrendingUp, TrendingDown, ArrowLeft } from 'lucide-react-native';
 import EventCard from '@/components/EventCard';
@@ -19,10 +19,19 @@ export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Applied filter states (used for API calls)
+  const [appliedCategory, setAppliedCategory] = useState('all');
+  const [appliedPriceRange, setAppliedPriceRange] = useState([0, 100000]);
+  const [appliedMinRating, setAppliedMinRating] = useState('all');
+  const [appliedPriceSort, setAppliedPriceSort] = useState<'none' | 'low_to_high' | 'high_to_low'>('none');
+
+  // Temp filter states (used in modal)
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [priceRange, setPriceRange] = useState([0, 100000]);
   const [minRating, setMinRating] = useState('all');
   const [priceSort, setPriceSort] = useState<'none' | 'low_to_high' | 'high_to_low'>('none');
+
   const [favorites, setFavorites] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -40,11 +49,50 @@ export default function SearchScreen() {
     { value: '4.8', label: '4.8+ Stars' },
   ];
 
-  // Fetch data from API
+  // Fetch data from API with filters
   const fetchData = useCallback(async () => {
     try {
+      setLoading(true);
+
+      // Build filter params for API using applied states
+      const filterParams: {
+        limit: number;
+        search?: string;
+        category?: string;
+        minPrice?: number;
+        maxPrice?: number;
+        minRating?: number;
+        sort?: 'price_low_to_high' | 'price_high_to_low' | 'rating';
+      } = { limit: 100 };
+
+      if (debouncedSearchQuery.trim()) {
+        filterParams.search = debouncedSearchQuery.trim();
+      }
+
+      if (appliedCategory !== 'all') {
+        filterParams.category = appliedCategory;
+      }
+
+      if (appliedPriceRange[0] > 0) {
+        filterParams.minPrice = appliedPriceRange[0];
+      }
+
+      if (appliedPriceRange[1] < 100000) {
+        filterParams.maxPrice = appliedPriceRange[1];
+      }
+
+      if (appliedMinRating !== 'all') {
+        filterParams.minRating = parseFloat(appliedMinRating);
+      }
+
+      if (appliedPriceSort === 'low_to_high') {
+        filterParams.sort = 'price_low_to_high';
+      } else if (appliedPriceSort === 'high_to_low') {
+        filterParams.sort = 'price_high_to_low';
+      }
+
       const [productsRes, categoriesRes] = await Promise.all([
-        productsApi.getAll({ limit: 50 }),
+        productsApi.getAll(filterParams),
         categoriesApi.getAll(),
       ]);
 
@@ -61,7 +109,7 @@ export default function SearchScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [debouncedSearchQuery, appliedCategory, appliedPriceRange, appliedMinRating, appliedPriceSort]);
 
   useEffect(() => {
     fetchData();
@@ -71,6 +119,7 @@ export default function SearchScreen() {
   useEffect(() => {
     if (params.category) {
       setSelectedCategory(params.category);
+      setAppliedCategory(params.category);
     }
   }, [params.category]);
 
@@ -89,49 +138,8 @@ export default function SearchScreen() {
     loadFavorites();
   }, []);
 
-  // Filter and sort products
-  const filteredProducts = useMemo(() => {
-    let results = [...products];
-
-    // Search filter
-    if (debouncedSearchQuery.trim()) {
-      const query = debouncedSearchQuery.toLowerCase();
-      results = results.filter(product =>
-        product.title.toLowerCase().includes(query) ||
-        product.description.toLowerCase().includes(query) ||
-        product.location.toLowerCase().includes(query)
-      );
-    }
-
-    // Category filter
-    if (selectedCategory !== 'all') {
-      results = results.filter(product => {
-        const categoryName = typeof product.category === 'object' ? product.category.name : product.category;
-        return categoryName?.toLowerCase() === selectedCategory.toLowerCase() ||
-          categoryName?.toLowerCase().includes(selectedCategory.toLowerCase());
-      });
-    }
-
-    // Price filter
-    results = results.filter(product =>
-      product.price >= priceRange[0] && product.price <= priceRange[1]
-    );
-
-    // Rating filter
-    if (minRating !== 'all') {
-      const minRatingValue = parseFloat(minRating);
-      results = results.filter(product => product.rating >= minRatingValue);
-    }
-
-    // Price sort
-    if (priceSort === 'low_to_high') {
-      results.sort((a, b) => a.price - b.price);
-    } else if (priceSort === 'high_to_low') {
-      results.sort((a, b) => b.price - a.price);
-    }
-
-    return results;
-  }, [debouncedSearchQuery, selectedCategory, priceRange, minRating, priceSort, products]);
+  // Products are now filtered server-side, so we just use them directly
+  const filteredProducts = products;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -153,11 +161,42 @@ export default function SearchScreen() {
     }
   };
 
+  const openFilters = () => {
+    // Sync temp states with applied states when opening modal
+    setSelectedCategory(appliedCategory);
+    setPriceRange(appliedPriceRange);
+    setMinRating(appliedMinRating);
+    setPriceSort(appliedPriceSort);
+    setShowFilters(true);
+  };
+
+  const applyFilters = () => {
+    // Apply temp states to applied states
+    setAppliedCategory(selectedCategory);
+    setAppliedPriceRange(priceRange);
+    setAppliedMinRating(minRating);
+    setAppliedPriceSort(priceSort);
+    setShowFilters(false);
+  };
+
   const clearFilters = () => {
+    // Clear temp states
     setSelectedCategory('all');
     setPriceRange([0, 100000]);
     setMinRating('all');
     setPriceSort('none');
+  };
+
+  const clearAllFilters = () => {
+    // Clear both temp and applied states
+    setSelectedCategory('all');
+    setPriceRange([0, 100000]);
+    setMinRating('all');
+    setPriceSort('none');
+    setAppliedCategory('all');
+    setAppliedPriceRange([0, 100000]);
+    setAppliedMinRating('all');
+    setAppliedPriceSort('none');
   };
 
   const styles = createStyles(colors);
@@ -195,7 +234,7 @@ export default function SearchScreen() {
               </Pressable>
             )}
           </View>
-          <Pressable style={styles.filterButton} onPress={() => setShowFilters(true)}>
+          <Pressable style={styles.filterButton} onPress={openFilters}>
             <ListFilter size={18} color={colors.foreground} strokeWidth={2} />
           </Pressable>
         </View>
@@ -223,7 +262,7 @@ export default function SearchScreen() {
           {filteredProducts.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No products found matching your filters</Text>
-              <Pressable onPress={clearFilters}>
+              <Pressable onPress={clearAllFilters}>
                 <Text style={styles.clearFiltersLink}>Clear all filters</Text>
               </Pressable>
             </View>
@@ -392,7 +431,7 @@ export default function SearchScreen() {
               <Pressable style={styles.clearButton} onPress={clearFilters}>
                 <Text style={styles.clearButtonText}>Clear All</Text>
               </Pressable>
-              <Pressable style={styles.applyButton} onPress={() => setShowFilters(false)}>
+              <Pressable style={styles.applyButton} onPress={applyFilters}>
                 <Text style={styles.applyButtonText}>Apply Filters</Text>
               </Pressable>
             </View>
