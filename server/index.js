@@ -16,7 +16,10 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-app.use(express.json());
+
+// Increase payload limit for base64 images (max 4.5MB for Vercel)
+app.use(express.json({ limit: '4.5mb' }));
+app.use(express.urlencoded({ limit: '4.5mb', extended: true }));
 
 // Database connection middleware for serverless
 const dbMiddleware = async (req, res, next) => {

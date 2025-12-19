@@ -17,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { User, Mail, MapPin, Camera, Check, Sparkles } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfileSetupScreen() {
@@ -26,6 +27,7 @@ export default function ProfileSetupScreen() {
     const [email, setEmail] = useState('');
     const [address, setAddress] = useState('');
     const [avatar, setAvatar] = useState<string | null>(null);
+    const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [errors, setErrors] = useState<{ name?: string; email?: string }>({});
 
@@ -43,14 +45,35 @@ export default function ProfileSetupScreen() {
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
             aspect: [1, 1],
-            quality: 0.8,
-            base64: true,
+            quality: 0.5, // Reduced quality to keep base64 size manageable
         });
 
         if (!result.canceled && result.assets[0]) {
-            // Store as base64 for server upload
-            const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
-            setAvatar(base64Image);
+            const uri = result.assets[0].uri;
+            setAvatar(uri);
+
+            try {
+                // Convert to base64
+                const base64 = await FileSystem.readAsStringAsync(uri, {
+                    encoding: 'base64',
+                });
+
+                // Get mime type from uri
+                const extension = uri.split('.').pop()?.toLowerCase() || 'jpeg';
+                const mimeType = extension === 'png' ? 'image/png' : 'image/jpeg';
+
+                const base64Image = `data:${mimeType};base64,${base64}`;
+
+                // Check size (rough estimate: base64 is ~33% larger than binary)
+                if (base64Image.length > 4 * 1024 * 1024) {
+                    setErrors({ name: 'Image too large. Please use a smaller image.' });
+                    return;
+                }
+
+                setAvatarBase64(base64Image);
+            } catch (err) {
+                console.error('Error converting image to base64:', err);
+            }
         }
     };
 
@@ -77,7 +100,7 @@ export default function ProfileSetupScreen() {
             const result = await authApi.updateProfile({
                 name: name.trim(),
                 email: email.trim(),
-                avatar: avatar || undefined,
+                avatar: avatarBase64 || undefined, // Send base64 instead of URI
             });
 
             if (result.success) {

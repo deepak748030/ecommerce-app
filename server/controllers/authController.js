@@ -133,10 +133,22 @@ const resendOtp = async (req, res) => {
 // @access  Public
 const register = async (req, res) => {
     try {
-        const { name, email, phone, avatar } = req.body;
+        const { name, email, phone, avatar, expoPushToken } = req.body;
 
         if (!phone) {
             return res.status(400).json({ success: false, message: 'Phone number is required' });
+        }
+
+        // Validate base64 image if provided
+        if (avatar && avatar.startsWith('data:image')) {
+            // Check size - Vercel limit is ~4.5MB payload
+            const base64Length = avatar.length * 0.75; // Approximate byte size
+            if (base64Length > 4 * 1024 * 1024) { // 4MB limit for image
+                return res.status(400).json({
+                    success: false,
+                    message: 'Image too large. Please use an image smaller than 4MB.'
+                });
+            }
         }
 
         const existingUser = await User.findOne({ phone });
@@ -145,6 +157,9 @@ const register = async (req, res) => {
             existingUser.name = name || existingUser.name;
             existingUser.email = email || existingUser.email;
             existingUser.avatar = avatar || existingUser.avatar;
+            if (expoPushToken) {
+                existingUser.expoPushToken = expoPushToken;
+            }
             await existingUser.save();
 
             return res.json({
@@ -209,6 +224,17 @@ const updateProfile = async (req, res) => {
     try {
         const user = req.user;
         const { name, email, avatar } = req.body;
+
+        // Validate base64 image if provided
+        if (avatar && avatar.startsWith('data:image')) {
+            const base64Length = avatar.length * 0.75;
+            if (base64Length > 4 * 1024 * 1024) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Image too large. Please use an image smaller than 4MB.'
+                });
+            }
+        }
 
         if (name !== undefined) user.name = name;
         if (email !== undefined) user.email = email;

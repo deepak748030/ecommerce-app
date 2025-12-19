@@ -28,7 +28,6 @@ export interface AuthUser {
 export interface LoginResponse {
     token: string;
     user: AuthUser;
-    isNewUser: boolean;
 }
 
 // Get stored token
@@ -219,3 +218,22 @@ export const authApi = {
     },
 };
 
+// Helper to get image URL - supports base64, URLs, and relative paths
+export const getImageUrl = (image: string | undefined | null): string => {
+    if (!image) {
+        return 'https://via.placeholder.com/300x200?text=No+Image';
+    }
+
+    // If it's already a base64 string, return as-is
+    if (image.startsWith('data:image')) {
+        return image;
+    }
+
+    // If it's a full URL, return as-is
+    if (image.startsWith('http://') || image.startsWith('https://')) {
+        return image;
+    }
+
+    // Otherwise treat as relative path (placeholder for now)
+    return image;
+};
