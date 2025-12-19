@@ -3,6 +3,7 @@ const Product = require('../models/Product');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
 const { sendOrderStatusNotification } = require('../services/notificationService');
+const { createNotification } = require('./notificationController');
 
 // @desc    Create new order with payment
 // @route   POST /api/orders
@@ -90,6 +91,18 @@ const createOrder = async (req, res) => {
             status: 'completed',
             type: 'payment',
             description: `Payment for order ${order.orderNumber}`,
+        });
+
+        // Create in-app notification for order placed
+        await createNotification(req.user._id, {
+            title: '📦 Order Placed Successfully',
+            message: `Your order #${order.orderNumber} has been placed and is being processed. Total: ₹${total}`,
+            type: 'order',
+            data: {
+                orderId: order._id.toString(),
+                orderNumber: order.orderNumber,
+                status: 'pending',
+            },
         });
 
         // Send push notification for order placed
@@ -222,6 +235,18 @@ const cancelOrder = async (req, res) => {
             refundedAt: new Date(),
         });
 
+        // Create in-app notification for cancellation
+        await createNotification(req.user._id, {
+            title: '❌ Order Cancelled',
+            message: `Your order #${order.orderNumber} has been cancelled. Refund of ₹${order.total} will be processed.`,
+            type: 'order',
+            data: {
+                orderId: order._id.toString(),
+                orderNumber: order.orderNumber,
+                status: 'cancelled',
+            },
+        });
+
         res.json({
             success: true,
             message: 'Order cancelled and refund initiated',
@@ -348,9 +373,38 @@ const updateOrderStatus = async (req, res) => {
 
         await order.save();
 
-        // Send push notification to user
-        if (order.user && order.user.expoPushToken) {
-            await sendOrderStatusNotification(order.user.expoPushToken, order, status);
+        // Get user for notification
+        const user = await User.findById(order.user._id || order.user);
+
+        // Create in-app notification for status update
+        const statusMessages = {
+            pending: { title: '📦 Order Received', message: `Your order #${order.orderNumber} has been received.` },
+            confirmed: { title: '✅ Order Confirmed', message: `Your order #${order.orderNumber} has been confirmed.` },
+            processing: { title: '🔄 Order Processing', message: `Your order #${order.orderNumber} is being processed.` },
+            shipped: { title: '🚚 Order Shipped', message: `Your order #${order.orderNumber} has been shipped!` },
+            out_for_delivery: { title: '🏃 Out for Delivery', message: `Your order #${order.orderNumber} is out for delivery.` },
+            delivered: { title: '🎉 Order Delivered', message: `Your order #${order.orderNumber} has been delivered!` },
+            cancelled: { title: '❌ Order Cancelled', message: `Your order #${order.orderNumber} has been cancelled.` },
+        };
+
+        const notifData = statusMessages[status] || { title: 'Order Update', message: `Order #${order.orderNumber} status: ${status}` };
+
+        if (user) {
+            await createNotification(user._id, {
+                title: notifData.title,
+                message: notifData.message,
+                type: 'order',
+                data: {
+                    orderId: order._id.toString(),
+                    orderNumber: order.orderNumber,
+                    status: status,
+                },
+            });
+
+            // Send push notification to user
+            if (user.expoPushToken) {
+                await sendOrderStatusNotification(user.expoPushToken, order, status);
+            }
         }
 
         res.json({
