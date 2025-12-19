@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, Image, Modal, Alert } from 'react-native';
 import { Camera, X } from 'lucide-react-native';
-import { colors } from '@/lib/colors';
+import { useTheme } from '@/hooks/useTheme';
 import { authApi, getStoredUser } from '@/lib/api';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -12,11 +12,14 @@ interface EditProfileModalProps {
 }
 
 export function EditProfileModal({ isVisible, onClose, onSave }: EditProfileModalProps) {
+  const { colors } = useTheme();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const styles = createStyles(colors);
 
   useEffect(() => {
     if (isVisible) {
@@ -63,7 +66,7 @@ export function EditProfileModal({ isVisible, onClose, onSave }: EditProfileModa
     }
 
     let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: [(ImagePicker as any).MediaType?.Image ?? 'images'],
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 1,
@@ -139,7 +142,7 @@ export function EditProfileModal({ isVisible, onClose, onSave }: EditProfileModa
                   style={styles.avatar}
                 />
                 <Pressable style={styles.cameraButton} onPress={pickImage}>
-                  <Camera size={16} color={colors.primaryForeground} />
+                  <Camera size={16} color={colors.white} />
                 </Pressable>
               </View>
               <Text style={styles.avatarCaption}>Tap camera icon to change picture</Text>
@@ -152,6 +155,7 @@ export function EditProfileModal({ isVisible, onClose, onSave }: EditProfileModa
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your full name"
+                  placeholderTextColor={colors.mutedForeground}
                   value={name}
                   onChangeText={setName}
                   autoCapitalize="words"
@@ -163,6 +167,7 @@ export function EditProfileModal({ isVisible, onClose, onSave }: EditProfileModa
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your email"
+                  placeholderTextColor={colors.mutedForeground}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -175,6 +180,7 @@ export function EditProfileModal({ isVisible, onClose, onSave }: EditProfileModa
                 <TextInput
                   style={[styles.input, styles.disabledInput]}
                   placeholder="Phone number"
+                  placeholderTextColor={colors.mutedForeground}
                   value={phone}
                   editable={false}
                   keyboardType="phone-pad"
@@ -208,7 +214,7 @@ export function EditProfileModal({ isVisible, onClose, onSave }: EditProfileModa
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -316,6 +322,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
+    backgroundColor: colors.background,
   },
   cancelButtonText: {
     fontSize: 16,
@@ -335,6 +342,6 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.primaryForeground,
+    color: colors.white,
   },
 });

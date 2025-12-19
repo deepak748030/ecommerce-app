@@ -62,7 +62,11 @@ export default function MyOrdersScreen() {
 
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
                 {mockOrders.map((order) => (
-                    <Pressable key={order.id} style={styles.orderCard}>
+                    <Pressable
+                        key={order.id}
+                        style={styles.orderCard}
+                        onPress={() => router.push(`/order/${order.id}` as any)}
+                    >
                         <Image source={{ uri: order.image }} style={styles.orderImage} />
                         <View style={styles.orderInfo}>
                             <Text style={styles.orderNumber}>{order.orderNumber}</Text>

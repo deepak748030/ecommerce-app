@@ -1,26 +1,56 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { router } from 'expo-router';
-import { User, Package, MapPin, Bell, HelpCircle, Settings, LogOut, ChevronRight, Sun, Moon, Shield } from 'lucide-react-native';
+import { Package, MapPin, Bell, HelpCircle, Settings, LogOut, ChevronRight, Sun, Moon, Shield, Receipt, Pencil, Camera } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { EditProfileModal } from '@/components/EditProfileModal';
 
 const mockUser = {
   name: 'John Doe',
   phone: '+91 9876543210',
   email: 'john.doe@email.com',
-  orders: 12,
-  points: 2450,
+  avatar: null as string | null,
 };
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark, toggleTheme } = useTheme();
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [userAvatar, setUserAvatar] = useState<string | null>(mockUser.avatar);
+  const [userName, setUserName] = useState(mockUser.name);
+  const [userEmail, setUserEmail] = useState(mockUser.email);
+  const [userPhone, setUserPhone] = useState(mockUser.phone);
 
   const styles = createStyles(colors, isDark);
 
   const handleMenuPress = (route: string) => {
     router.push(route as any);
+  };
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'Sorry, we need camera roll permissions to change your profile picture!');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setUserAvatar(result.assets[0].uri);
+    }
+  };
+
+  const handleProfileSave = () => {
+    // Refresh user data after save
+    setIsEditModalVisible(false);
   };
 
   const menuSections = [
@@ -29,6 +59,7 @@ export default function ProfileScreen() {
       items: [
         { id: '1', icon: Package, label: 'My Orders', badge: '3 Active', route: '/my-orders' },
         { id: '2', icon: MapPin, label: 'Saved Addresses', badge: '2', route: '/saved-addresses' },
+        { id: '3', icon: Receipt, label: 'Transactions', badge: '', route: '/transactions' },
       ],
     },
     {
@@ -57,33 +88,26 @@ export default function ProfileScreen() {
         {/* Profile Card */}
         <View style={styles.profileCard}>
           <View style={styles.avatarRow}>
-            <View style={styles.avatar}>
-              <User size={36} color={colors.white} strokeWidth={2} />
-            </View>
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>{mockUser.name}</Text>
-              <Text style={styles.userEmail}>{mockUser.email}</Text>
-              <Text style={styles.userPhone}>{mockUser.phone}</Text>
-            </View>
-            <Pressable style={styles.editButton}>
-              <Text style={styles.editButtonText}>Edit</Text>
+            <Pressable style={styles.avatarContainer} onPress={pickImage}>
+              {userAvatar ? (
+                <Image source={{ uri: userAvatar }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarInitial}>{userName.charAt(0).toUpperCase()}</Text>
+                </View>
+              )}
+              <View style={styles.cameraIconContainer}>
+                <Camera size={14} color={colors.white} strokeWidth={2.5} />
+              </View>
             </Pressable>
-          </View>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{mockUser.orders}</Text>
-              <Text style={styles.statLabel}>Orders</Text>
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>{userName}</Text>
+              <Text style={styles.userEmail}>{userEmail}</Text>
+              <Text style={styles.userPhone}>{userPhone}</Text>
             </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{mockUser.points}</Text>
-              <Text style={styles.statLabel}>Points</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>Gold</Text>
-              <Text style={styles.statLabel}>Tier</Text>
-            </View>
+            <Pressable style={styles.editButton} onPress={() => setIsEditModalVisible(true)}>
+              <Pencil size={18} color={colors.primary} strokeWidth={2} />
+            </Pressable>
           </View>
         </View>
 
@@ -145,6 +169,13 @@ export default function ProfileScreen() {
         {/* App Version */}
         <Text style={styles.versionText}>Version 1.0.0</Text>
       </ScrollView>
+
+      {/* Edit Profile Modal */}
+      <EditProfileModal
+        isVisible={isEditModalVisible}
+        onClose={() => setIsEditModalVisible(false)}
+        onSave={handleProfileSave}
+      />
     </View>
   );
 }
@@ -185,15 +216,40 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   avatarRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 18,
+  },
+  avatarContainer: {
+    position: 'relative',
   },
   avatar: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+  },
+  avatarPlaceholder: {
     width: 70,
     height: 70,
     borderRadius: 35,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarInitial: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.white,
+  },
+  cameraIconContainer: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.card,
   },
   userInfo: {
     flex: 1,
@@ -215,40 +271,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.mutedForeground,
   },
   editButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.secondary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  editButtonText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    backgroundColor: colors.secondary,
-    borderRadius: 12,
-    padding: 14,
-  },
-  statItem: {
-    flex: 1,
     alignItems: 'center',
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: colors.border,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.primary,
-    marginBottom: 2,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: colors.mutedForeground,
-    fontWeight: '600',
+    justifyContent: 'center',
   },
   themeToggle: {
     backgroundColor: colors.card,

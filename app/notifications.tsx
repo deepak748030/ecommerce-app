@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Platform, RefreshControl, ActivityIndicator } from 'react-native';
 import { Bell, Tag, CheckCheck, Trash2 } from 'lucide-react-native';
-import { colors } from '@/lib/colors';
+import { useTheme } from '@/hooks/useTheme';
 import { notificationsApi, ServerNotification } from '@/lib/api';
 import TopBar from '@/components/TopBar';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
@@ -9,12 +9,15 @@ import { useRouter } from 'expo-router';
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { expoPushToken } = usePushNotifications();
   const [notifications, setNotifications] = useState<ServerNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showTokenInfo, setShowTokenInfo] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  const styles = createStyles(colors);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -202,7 +205,7 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
