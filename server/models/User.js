@@ -22,6 +22,11 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    // Admin role - only admin can upload products
+    isAdmin: {
+        type: Boolean,
+        default: false,
+    },
     expoPushToken: {
         type: String,
         default: '',

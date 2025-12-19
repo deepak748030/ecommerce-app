@@ -218,6 +218,128 @@ export const authApi = {
     },
 };
 
+// Product Types
+export interface Product {
+    _id: string;
+    title: string;
+    description: string;
+    price: number;
+    mrp: number;
+    category: { _id: string; name: string; color: string } | string;
+    image: string;
+    images: string[];
+    badge: string;
+    location: string;
+    fullLocation: string;
+    rating: number;
+    reviews: number;
+    date: string;
+    time: string;
+    services: string[];
+    isActive: boolean;
+}
+
+export interface Category {
+    _id: string;
+    name: string;
+    image: string;
+    color: string;
+    itemsCount: number;
+    isActive: boolean;
+}
+
+// Products API (Public GET, Admin POST/PUT/DELETE)
+export const productsApi = {
+    getAll: async (params?: { category?: string; search?: string; limit?: number; page?: number }) => {
+        const query = new URLSearchParams();
+        if (params?.category) query.append('category', params.category);
+        if (params?.search) query.append('search', params.search);
+        if (params?.limit) query.append('limit', params.limit.toString());
+        if (params?.page) query.append('page', params.page.toString());
+
+        return apiRequest<{ count: number; total: number; data: Product[] }>(`/products?${query.toString()}`);
+    },
+
+    getById: async (id: string) => {
+        return apiRequest<Product>(`/products/${id}`);
+    },
+
+    getByCategory: async (categoryId: string, params?: { limit?: number; page?: number }) => {
+        const query = new URLSearchParams();
+        if (params?.limit) query.append('limit', params.limit.toString());
+        if (params?.page) query.append('page', params.page.toString());
+
+        return apiRequest<{ count: number; total: number; data: Product[] }>(`/products/category/${categoryId}?${query.toString()}`);
+    },
+
+    create: async (data: Partial<Product>) => {
+        return apiRequest<Product>('/products', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+
+    update: async (id: string, data: Partial<Product>) => {
+        return apiRequest<Product>(`/products/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+
+    delete: async (id: string) => {
+        return apiRequest<{ id: string }>(`/products/${id}`, {
+            method: 'DELETE',
+        });
+    },
+};
+
+// Categories API (Public GET, Admin POST/PUT/DELETE)
+export const categoriesApi = {
+    getAll: async () => {
+        return apiRequest<{ count: number; data: Category[] }>('/categories');
+    },
+
+    getById: async (id: string) => {
+        return apiRequest<Category>(`/categories/${id}`);
+    },
+
+    create: async (data: Partial<Category>) => {
+        return apiRequest<Category>('/categories', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+
+    update: async (id: string, data: Partial<Category>) => {
+        return apiRequest<Category>(`/categories/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+
+    delete: async (id: string) => {
+        return apiRequest<{ id: string }>(`/categories/${id}`, {
+            method: 'DELETE',
+        });
+    },
+};
+
+// Seed API (Public - no token required)
+export const seedApi = {
+    seedAll: async () => {
+        return apiRequest<{ users: number; categories: number; products: number }>('/seed/all');
+    },
+    seedCategories: async () => {
+        return apiRequest<{ count: number; data: Category[] }>('/seed/categories');
+    },
+    seedProducts: async () => {
+        return apiRequest<{ count: number; data: Product[] }>('/seed/products');
+    },
+    seedUsers: async () => {
+        return apiRequest<{ count: number; data: any[] }>('/seed/users');
+    },
+};
+
 // Helper to get image URL - supports base64, URLs, and relative paths
 export const getImageUrl = (image: string | undefined | null): string => {
     if (!image) {
