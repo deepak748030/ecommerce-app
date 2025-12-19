@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Dimensions, Image } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { Utensils, Leaf, Heart, Star, Sparkles } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { getToken } from '@/lib/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -27,8 +27,8 @@ export default function SplashScreen() {
 
   useEffect(() => {
     const checkAuthAndNavigate = async () => {
-      // Check if user is already logged in
-      const userPhone = await AsyncStorage.getItem('user_phone');
+      // Check if user has a valid auth token
+      const token = await getToken();
 
       Animated.sequence([
         Animated.spring(logoScale, {
@@ -81,7 +81,7 @@ export default function SplashScreen() {
             duration: 300,
             useNativeDriver: true,
           }).start(() => {
-            if (userPhone) {
+            if (token) {
               // User is logged in, go to home
               router.replace('/(tabs)');
             } else {

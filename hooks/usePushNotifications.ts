@@ -41,7 +41,7 @@ function handleNotificationNavigation(data: Record<string, unknown>) {
         const senderName = data.senderName as string;
         if (senderId) {
             router.push({
-                pathname: '/chat/[id]',
+                pathname: '/chat/[id]' as any,
                 params: {
                     id: senderId,
                     vendorName: senderName || 'Vendor',

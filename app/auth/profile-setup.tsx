@@ -44,10 +44,13 @@ export default function ProfileSetupScreen() {
             allowsEditing: true,
             aspect: [1, 1],
             quality: 0.8,
+            base64: true,
         });
 
         if (!result.canceled && result.assets[0]) {
-            setAvatar(result.assets[0].uri);
+            // Store as base64 for server upload
+            const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+            setAvatar(base64Image);
         }
     };
 

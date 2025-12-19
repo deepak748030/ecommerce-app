@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, Image, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Image, Modal, Alert, ActivityIndicator } from 'react-native';
 import { Camera, X } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { authApi, getStoredUser } from '@/lib/api';
@@ -18,6 +18,7 @@ export function EditProfileModal({ isVisible, onClose, onSave }: EditProfileModa
   const [phone, setPhone] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fetchingData, setFetchingData] = useState(false);
 
   const styles = createStyles(colors);
 
@@ -29,32 +30,35 @@ export function EditProfileModal({ isVisible, onClose, onSave }: EditProfileModa
 
   const loadUserData = async () => {
     try {
+      setFetchingData(true);
       // First try API
       const result = await authApi.getMe();
       if (result.success && result.response) {
-        setName(result.response.name);
-        setEmail(result.response.email);
-        setPhone(result.response.phone);
-        setSelectedImage(result.response.avatar);
+        setName(result.response.name || '');
+        setEmail(result.response.email || '');
+        setPhone(result.response.phone || '');
+        setSelectedImage(result.response.avatar || null);
       } else {
         // Fallback to stored user
         const user = await getStoredUser();
         if (user) {
-          setName(user.name);
-          setEmail(user.email);
-          setPhone(user.phone);
-          setSelectedImage(user.avatar);
+          setName(user.name || '');
+          setEmail(user.email || '');
+          setPhone(user.phone || '');
+          setSelectedImage(user.avatar || null);
         }
       }
     } catch (error) {
       // Fallback to stored user
       const user = await getStoredUser();
       if (user) {
-        setName(user.name);
-        setEmail(user.email);
-        setPhone(user.phone);
-        setSelectedImage(user.avatar);
+        setName(user.name || '');
+        setEmail(user.email || '');
+        setPhone(user.phone || '');
+        setSelectedImage(user.avatar || null);
       }
+    } finally {
+      setFetchingData(false);
     }
   };
 
@@ -69,17 +73,19 @@ export function EditProfileModal({ isVisible, onClose, onSave }: EditProfileModa
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 1,
+      quality: 0.8,
+      base64: true,
     });
 
-    if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
+    if (!result.canceled && result.assets[0]) {
+      const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+      setSelectedImage(base64Image);
     }
   };
 
   const handleSave = async () => {
-    if (!name.trim() || !email.trim()) {
-      Alert.alert('Validation Error', 'Name and email are required.');
+    if (!name.trim()) {
+      Alert.alert('Validation Error', 'Name is required.');
       return;
     }
 
@@ -114,6 +120,13 @@ export function EditProfileModal({ isVisible, onClose, onSave }: EditProfileModa
     onClose();
   };
 
+  const getAvatarSource = () => {
+    if (selectedImage) {
+      return { uri: selectedImage };
+    }
+    return { uri: `https://api.dicebear.com/7.x/avataaars/png?seed=${name || 'user'}` };
+  };
+
   return (
     <Modal
       visible={isVisible}
@@ -133,81 +146,88 @@ export function EditProfileModal({ isVisible, onClose, onSave }: EditProfileModa
           </View>
 
           {/* Content */}
-          <View style={styles.content}>
-            {/* Avatar Section */}
-            <View style={styles.avatarSection}>
-              <View style={styles.avatarContainer}>
-                <Image
-                  source={{ uri: selectedImage || 'https://api.dicebear.com/7.x/avataaars/png?seed=user' }}
-                  style={styles.avatar}
-                />
-                <Pressable style={styles.cameraButton} onPress={pickImage}>
-                  <Camera size={16} color={colors.white} />
+          {fetchingData ? (
+            <View style={styles.loadingContent}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.loadingText}>Loading profile...</Text>
+            </View>
+          ) : (
+            <View style={styles.content}>
+              {/* Avatar Section */}
+              <View style={styles.avatarSection}>
+                <View style={styles.avatarContainer}>
+                  <Image
+                    source={getAvatarSource()}
+                    style={styles.avatar}
+                  />
+                  <Pressable style={styles.cameraButton} onPress={pickImage}>
+                    <Camera size={16} color={colors.white} />
+                  </Pressable>
+                </View>
+                <Text style={styles.avatarCaption}>Tap camera icon to change picture</Text>
+              </View>
+
+              {/* Form Fields */}
+              <View style={styles.form}>
+                <View style={styles.fieldContainer}>
+                  <Text style={styles.label}>Full Name *</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your full name"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={name}
+                    onChangeText={setName}
+                    autoCapitalize="words"
+                  />
+                </View>
+
+                <View style={styles.fieldContainer}>
+                  <Text style={styles.label}>Email Address</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your email"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                <View style={styles.fieldContainer}>
+                  <Text style={styles.label}>Phone Number</Text>
+                  <TextInput
+                    style={[styles.input, styles.disabledInput]}
+                    placeholder="Phone number"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={phone}
+                    editable={false}
+                    keyboardType="phone-pad"
+                  />
+                  <Text style={styles.helperText}>Phone number cannot be changed</Text>
+                </View>
+              </View>
+
+              {/* Buttons */}
+              <View style={styles.buttonRow}>
+                <Pressable style={styles.cancelButton} onPress={handleCancel}>
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.saveButton,
+                    (!name.trim() || loading) && styles.disabledButton
+                  ]}
+                  onPress={handleSave}
+                  disabled={!name.trim() || loading}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {loading ? 'Saving...' : 'Save Changes'}
+                  </Text>
                 </Pressable>
               </View>
-              <Text style={styles.avatarCaption}>Tap camera icon to change picture</Text>
             </View>
-
-            {/* Form Fields */}
-            <View style={styles.form}>
-              <View style={styles.fieldContainer}>
-                <Text style={styles.label}>Full Name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your full name"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={name}
-                  onChangeText={setName}
-                  autoCapitalize="words"
-                />
-              </View>
-
-              <View style={styles.fieldContainer}>
-                <Text style={styles.label}>Email Address</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your email"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-
-              <View style={styles.fieldContainer}>
-                <Text style={styles.label}>Phone Number</Text>
-                <TextInput
-                  style={[styles.input, styles.disabledInput]}
-                  placeholder="Phone number"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={phone}
-                  editable={false}
-                  keyboardType="phone-pad"
-                />
-                <Text style={styles.helperText}>Phone number cannot be changed</Text>
-              </View>
-            </View>
-
-            {/* Buttons */}
-            <View style={styles.buttonRow}>
-              <Pressable style={styles.cancelButton} onPress={handleCancel}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.saveButton,
-                  (!name.trim() || !email.trim() || loading) && styles.disabledButton
-                ]}
-                onPress={handleSave}
-                disabled={!name.trim() || !email.trim() || loading}
-              >
-                <Text style={styles.saveButtonText}>
-                  {loading ? 'Saving...' : 'Save Changes'}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -246,6 +266,16 @@ const createStyles = (colors: any) => StyleSheet.create({
   },
   placeholder: {
     width: 32,
+  },
+  loadingContent: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: colors.mutedForeground,
   },
   content: {
     padding: 20,

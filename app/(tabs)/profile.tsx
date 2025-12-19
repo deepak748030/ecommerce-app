@@ -1,31 +1,64 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Package, MapPin, Bell, HelpCircle, Settings, LogOut, ChevronRight, Sun, Moon, Shield, Receipt, Pencil, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { EditProfileModal } from '@/components/EditProfileModal';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
-
-const mockUser = {
-  name: 'John Doe',
-  phone: '+91 9876543210',
-  email: 'john.doe@email.com',
-  avatar: null as string | null,
-};
+import { authApi, getStoredUser, getToken, AuthUser } from '@/lib/api';
+import { useRequireAuth } from '@/hooks/useAuth';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark, toggleTheme } = useTheme();
+  const { isLoading: authLoading } = useRequireAuth();
+
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
-  const [userAvatar, setUserAvatar] = useState<string | null>(mockUser.avatar);
-  const [userName, setUserName] = useState(mockUser.name);
-  const [userEmail, setUserEmail] = useState(mockUser.email);
-  const [userPhone, setUserPhone] = useState(mockUser.phone);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const styles = createStyles(colors, isDark);
+
+  const loadUserData = async () => {
+    try {
+      setIsLoading(true);
+      const token = await getToken();
+
+      if (!token) {
+        router.replace('/auth/phone');
+        return;
+      }
+
+      // Try to get from API first
+      const result = await authApi.getMe();
+      if (result.success && result.response) {
+        setUser(result.response);
+      } else {
+        // Fallback to stored user
+        const storedUser = await getStoredUser();
+        if (storedUser) {
+          setUser(storedUser);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+      const storedUser = await getStoredUser();
+      if (storedUser) {
+        setUser(storedUser);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadUserData();
+    }, [])
+  );
 
   const handleMenuPress = (route: string) => {
     router.push(route as any);
@@ -43,21 +76,38 @@ export default function ProfileScreen() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
+      base64: true,
     });
 
-    if (!result.canceled) {
-      setUserAvatar(result.assets[0].uri);
+    if (!result.canceled && result.assets[0]) {
+      const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+
+      try {
+        const updateResult = await authApi.updateProfile({ avatar: base64Image });
+        if (updateResult.success && updateResult.response) {
+          setUser(updateResult.response);
+          Alert.alert('Success', 'Profile picture updated!');
+        } else {
+          Alert.alert('Error', updateResult.message || 'Failed to update profile picture');
+        }
+      } catch (error) {
+        Alert.alert('Error', 'Failed to update profile picture');
+      }
     }
   };
 
   const handleProfileSave = () => {
-    // Refresh user data after save
+    loadUserData();
     setIsEditModalVisible(false);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsLogoutModalVisible(false);
-    // Navigate to login screen
+    try {
+      await authApi.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
     router.replace('/auth/phone');
   };
 
@@ -85,6 +135,20 @@ export default function ProfileScreen() {
       ],
     },
   ];
+
+  if (authLoading || isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </View>
+    );
+  }
+
+  const userName = user?.name || 'User';
+  const userEmail = user?.email || 'No email set';
+  const userPhone = user?.phone || '';
+  const userAvatar = user?.avatar || null;
 
   return (
     <View style={styles.container}>
@@ -204,6 +268,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: colors.mutedForeground,
   },
   header: {
     paddingHorizontal: 16,

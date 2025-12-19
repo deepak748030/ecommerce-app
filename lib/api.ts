@@ -28,6 +28,7 @@ export interface AuthUser {
 export interface LoginResponse {
     token: string;
     user: AuthUser;
+    isNewUser: boolean;
 }
 
 // Get stored token
@@ -217,3 +218,4 @@ export const authApi = {
         return result;
     },
 };
+

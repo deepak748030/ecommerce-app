@@ -130,14 +130,14 @@ export default function OTPScreen() {
                 const user = result.response.user;
 
                 setTimeout(() => {
-                    if (isNewUser || !user.name) {
-                        // New user or incomplete profile - go to profile setup
+                    // Only show profile setup for NEW users (signup), not existing users
+                    if (isNewUser) {
                         router.push({
                             pathname: '/auth/profile-setup' as any,
                             params: { phone },
                         });
                     } else {
-                        // Existing user with profile - go to home
+                        // Existing user - go to home directly
                         router.replace('/(tabs)');
                     }
                 }, 800);
