@@ -1,34 +1,31 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
-import { Search, ChevronRight, Sparkles, SlidersHorizontal } from 'lucide-react-native';
+import { Search, ChevronRight, Sparkles } from 'lucide-react-native';
 import { router } from 'expo-router';
 
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 12 - 16) / 2;
-
+// Categories that match mock data products
 const allCategories = [
-    { id: '1', name: 'Fruits & Vegetables', image: 'https://images.pexels.com/photos/1132047/pexels-photo-1132047.jpeg?auto=compress&cs=tinysrgb&w=200', items: 248, color: '#DCFCE7' },
-    { id: '2', name: 'Fashion & Apparel', image: 'https://images.pexels.com/photos/934070/pexels-photo-934070.jpeg?auto=compress&cs=tinysrgb&w=200', items: 1256, color: '#E0E7FF' },
-    { id: '3', name: 'Electronics', image: 'https://images.pexels.com/photos/356056/pexels-photo-356056.jpeg?auto=compress&cs=tinysrgb&w=200', items: 856, color: '#FEF3C7' },
-    { id: '4', name: 'Home & Living', image: 'https://images.pexels.com/photos/1350789/pexels-photo-1350789.jpeg?auto=compress&cs=tinysrgb&w=200', items: 534, color: '#FCE7F3' },
-    { id: '5', name: 'Beauty & Health', image: 'https://images.pexels.com/photos/2587370/pexels-photo-2587370.jpeg?auto=compress&cs=tinysrgb&w=200', items: 678, color: '#FED7AA' },
-    { id: '6', name: 'Sports & Fitness', image: 'https://images.pexels.com/photos/46798/the-ball-stadion-football-the-pitch-46798.jpeg?auto=compress&cs=tinysrgb&w=200', items: 345, color: '#CFFAFE' },
-    { id: '7', name: 'Toys & Games', image: 'https://images.pexels.com/photos/163036/mario-luigi-yoschi-figures-163036.jpeg?auto=compress&cs=tinysrgb&w=200', items: 423, color: '#D1FAE5' },
-    { id: '8', name: 'Books & Stationery', image: 'https://images.pexels.com/photos/159711/books-bookstore-book-reading-159711.jpeg?auto=compress&cs=tinysrgb&w=200', items: 567, color: '#FEE2E2' },
-    { id: '9', name: 'Jewelry & Watches', image: 'https://images.pexels.com/photos/248077/pexels-photo-248077.jpeg?auto=compress&cs=tinysrgb&w=200', items: 234, color: '#E5E7EB' },
-    { id: '10', name: 'Baby & Kids', image: 'https://images.pexels.com/photos/35188/child-childrens-baby-children-s.jpg?auto=compress&cs=tinysrgb&w=200', items: 456, color: '#DBEAFE' },
-    { id: '11', name: 'Groceries', image: 'https://images.pexels.com/photos/264636/pexels-photo-264636.jpeg?auto=compress&cs=tinysrgb&w=200', items: 892, color: '#FEF9C3' },
-    { id: '12', name: 'Pet Supplies', image: 'https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=200', items: 178, color: '#F3E8FF' },
+    { id: '1', name: 'Fruits', searchKey: 'Fruits', image: 'https://images.pexels.com/photos/1132047/pexels-photo-1132047.jpeg?auto=compress&cs=tinysrgb&w=200', items: 4, color: '#DCFCE7' },
+    { id: '2', name: 'Fashion', searchKey: 'Fashion', image: 'https://images.pexels.com/photos/934070/pexels-photo-934070.jpeg?auto=compress&cs=tinysrgb&w=200', items: 4, color: '#E0E7FF' },
+    { id: '3', name: 'Weddings', searchKey: 'Weddings', image: 'https://images.pexels.com/photos/1983046/pexels-photo-1983046.jpeg?auto=compress&cs=tinysrgb&w=200', items: 2, color: '#FCE7F3' },
+    { id: '4', name: 'Birthday Parties', searchKey: 'Birthday Parties', image: 'https://images.pexels.com/photos/1857157/pexels-photo-1857157.jpeg?auto=compress&cs=tinysrgb&w=200', items: 2, color: '#FEF3C7' },
+    { id: '5', name: 'Corporate Events', searchKey: 'Corporate Events', image: 'https://images.pexels.com/photos/1181396/pexels-photo-1181396.jpeg?auto=compress&cs=tinysrgb&w=200', items: 1, color: '#CFFAFE' },
+    { id: '6', name: 'Concerts & Music', searchKey: 'Concerts & Music', image: 'https://images.pexels.com/photos/1190298/pexels-photo-1190298.jpeg?auto=compress&cs=tinysrgb&w=200', items: 1, color: '#F3E8FF' },
 ];
 
 export default function CategoriesScreen() {
     const insets = useSafeAreaInsets();
-    const { colors, isDark } = useTheme();
+    const { colors } = useTheme();
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-    const styles = createStyles(colors, isDark);
+    const handleCategoryPress = (category: typeof allCategories[0]) => {
+        setSelectedCategory(category.id);
+        router.push({ pathname: '/search', params: { category: category.searchKey } });
+    };
+
+    const styles = createStyles(colors);
 
     return (
         <View style={styles.container}>
@@ -43,14 +40,14 @@ export default function CategoriesScreen() {
 
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
                 {/* Featured Banner */}
-                <Pressable style={styles.featuredBanner}>
+                <Pressable style={styles.featuredBanner} onPress={() => router.push('/search')}>
                     <View style={styles.featuredContent}>
                         <View style={styles.featuredBadge}>
                             <Sparkles size={12} color={colors.primary} />
                             <Text style={styles.featuredBadgeText}>Featured</Text>
                         </View>
                         <Text style={styles.featuredTitle}>Explore All Products</Text>
-                        <Text style={styles.featuredSubtitle}>Browse 5000+ products across all categories</Text>
+                        <Text style={styles.featuredSubtitle}>Browse all products across categories</Text>
                     </View>
                     <Text style={styles.featuredEmoji}>🛍️</Text>
                 </Pressable>
@@ -64,7 +61,7 @@ export default function CategoriesScreen() {
                                 styles.categoryCard,
                                 selectedCategory === category.id && styles.selectedCategoryCard
                             ]}
-                            onPress={() => router.push(`/category/${category.id}` as any)}
+                            onPress={() => handleCategoryPress(category)}
                         >
                             <View style={[styles.categoryIconBg, { backgroundColor: category.color }]}>
                                 <Image source={{ uri: category.image }} style={styles.categoryImage} />
@@ -82,7 +79,7 @@ export default function CategoriesScreen() {
     );
 }
 
-const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
@@ -121,6 +118,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
+        paddingHorizontal: 6,
         paddingTop: 12,
         paddingBottom: 100,
     },

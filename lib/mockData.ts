@@ -470,9 +470,11 @@ export const mockBanners: Banner[] = [
   }
 ];
 
-// Mock Categories
+// Mock Categories - Updated to match all product categories
 export const mockCategories = [
-  { id: "all", name: "All Events" },
+  { id: "all", name: "All Products" },
+  { id: "Fruits", name: "Fruits" },
+  { id: "Fashion", name: "Fashion" },
   { id: "Weddings", name: "Weddings" },
   { id: "Birthday Parties", name: "Birthday Parties" },
   { id: "Corporate Events", name: "Corporate Events" },

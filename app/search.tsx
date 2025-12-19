@@ -18,7 +18,6 @@ export default function SearchScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedLocation, setSelectedLocation] = useState('all');
   const [priceRange, setPriceRange] = useState([0, 100000]);
   const [minRating, setMinRating] = useState('all');
   const [priceSort, setPriceSort] = useState<'none' | 'low_to_high' | 'high_to_low'>('none');
@@ -27,7 +26,6 @@ export default function SearchScreen() {
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  const locations = ['all', 'Mumbai', 'Bangalore', 'Delhi', 'Goa', 'Pune'];
   const ratings = [
     { value: 'all', label: 'All Ratings' },
     { value: '4', label: '4+ Stars' },
@@ -78,13 +76,6 @@ export default function SearchScreen() {
       );
     }
 
-    // Location filter
-    if (selectedLocation !== 'all') {
-      results = results.filter(event =>
-        event.location.toLowerCase().includes(selectedLocation.toLowerCase())
-      );
-    }
-
     // Price filter
     results = results.filter(event =>
       event.price >= priceRange[0] && event.price <= priceRange[1]
@@ -104,7 +95,7 @@ export default function SearchScreen() {
     }
 
     return results;
-  }, [debouncedSearchQuery, selectedCategory, selectedLocation, priceRange, minRating, priceSort]);
+  }, [debouncedSearchQuery, selectedCategory, priceRange, minRating, priceSort]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -125,7 +116,6 @@ export default function SearchScreen() {
 
   const clearFilters = () => {
     setSelectedCategory('all');
-    setSelectedLocation('all');
     setPriceRange([0, 100000]);
     setMinRating('all');
     setPriceSort('none');
@@ -245,30 +235,6 @@ export default function SearchScreen() {
                         selectedCategory === category.id && styles.selectedFilterOptionText
                       ]}>
                         {category.name}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-
-              {/* Location Filter */}
-              <View style={styles.filterSection}>
-                <Text style={styles.filterSectionTitle}>Location</Text>
-                <View style={styles.filterOptions}>
-                  {locations.map((location) => (
-                    <Pressable
-                      key={location}
-                      style={[
-                        styles.filterOption,
-                        selectedLocation === location && styles.selectedFilterOption
-                      ]}
-                      onPress={() => setSelectedLocation(location)}
-                    >
-                      <Text style={[
-                        styles.filterOptionText,
-                        selectedLocation === location && styles.selectedFilterOptionText
-                      ]}>
-                        {location === 'all' ? 'All Locations' : location}
                       </Text>
                     </Pressable>
                   ))}

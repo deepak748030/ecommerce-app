@@ -49,20 +49,6 @@ export default function AppSettingsScreen() {
             ],
         },
         {
-            title: 'Security',
-            items: [
-                {
-                    id: 'biometric',
-                    icon: Lock,
-                    label: 'Biometric Login',
-                    subtitle: 'Use fingerprint or face ID',
-                    type: 'switch',
-                    value: biometric,
-                    onToggle: setBiometric,
-                },
-            ],
-        },
-        {
             title: 'General',
             items: [
                 {

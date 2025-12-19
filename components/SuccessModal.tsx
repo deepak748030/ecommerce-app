@@ -1,8 +1,8 @@
 // components/SuccessModal.tsx
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Modal, Pressable } from 'react-native';
 import { CircleCheck as CheckCircle2, AlertCircle, X } from 'lucide-react-native';
-import { colors } from '@/lib/colors';
+import { useTheme } from '@/hooks/useTheme';
 
 interface SuccessModalProps {
   isVisible: boolean;
@@ -14,6 +14,7 @@ interface SuccessModalProps {
 }
 
 export function SuccessModal({ isVisible, onClose, title, message, autoClose = true, duration = 1000 }: SuccessModalProps) {
+  const { colors } = useTheme();
   const isError = title.toLowerCase().includes('error');
 
   useEffect(() => {
@@ -25,6 +26,8 @@ export function SuccessModal({ isVisible, onClose, title, message, autoClose = t
       return () => clearTimeout(timer);
     }
   }, [isVisible, autoClose, duration, onClose]);
+
+  const styles = createStyles(colors);
 
   return (
     <Modal
@@ -69,7 +72,7 @@ export function SuccessModal({ isVisible, onClose, title, message, autoClose = t
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -114,10 +117,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   successIcon: {
-    backgroundColor: colors.success + '15',
+    backgroundColor: colors.success + '20',
   },
   errorIcon: {
-    backgroundColor: colors.destructive + '15',
+    backgroundColor: colors.destructive + '20',
   },
   title: {
     fontSize: 20,
