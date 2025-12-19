@@ -69,23 +69,48 @@ export default function ProfileSetupScreen() {
 
         setIsLoading(true);
 
-        // Save user profile
-        const userProfile = {
-            phone,
-            name: name.trim(),
-            email: email.trim(),
-            address: address.trim(),
-            avatar,
-            createdAt: new Date().toISOString(),
-        };
+        try {
+            const { authApi } = await import('@/lib/api');
+            const result = await authApi.updateProfile({
+                name: name.trim(),
+                email: email.trim(),
+                avatar: avatar || undefined,
+            });
 
-        await AsyncStorage.setItem('user_profile', JSON.stringify(userProfile));
-        await AsyncStorage.setItem('user_phone', phone || '');
+            if (result.success) {
+                // Also save locally
+                const userProfile = {
+                    phone,
+                    name: name.trim(),
+                    email: email.trim(),
+                    address: address.trim(),
+                    avatar,
+                    createdAt: new Date().toISOString(),
+                };
+                await AsyncStorage.setItem('user_profile', JSON.stringify(userProfile));
+                await AsyncStorage.setItem('user_phone', phone || '');
 
-        setTimeout(() => {
-            setIsLoading(false);
+                router.replace('/(tabs)');
+            } else {
+                setErrors({ name: result.message || 'Failed to save profile' });
+            }
+        } catch (err) {
+            // Fallback to local storage if server fails
+            const userProfile = {
+                phone,
+                name: name.trim(),
+                email: email.trim(),
+                address: address.trim(),
+                avatar,
+                createdAt: new Date().toISOString(),
+            };
+            await AsyncStorage.setItem('user_profile', JSON.stringify(userProfile));
+            await AsyncStorage.setItem('user_phone', phone || '');
+
             router.replace('/(tabs)');
-        }, 1000);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handlePressIn = () => {

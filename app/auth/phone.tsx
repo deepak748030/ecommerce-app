@@ -60,15 +60,28 @@ export default function PhoneAuthScreen() {
         }
 
         setIsLoading(true);
+        setError('');
 
-        // Simulate API call
-        setTimeout(() => {
+        try {
+            const { authApi } = await import('@/lib/api');
+            const fullPhone = `${countryCode}${phoneNumber}`;
+            const result = await authApi.login(fullPhone);
+
+            if (result.success) {
+                router.push({
+                    pathname: '/auth/otp' as any,
+                    params: { phone: fullPhone },
+                });
+            } else {
+                setError(result.message || 'Failed to send OTP');
+                triggerShake();
+            }
+        } catch (err) {
+            setError('Network error. Please try again.');
+            triggerShake();
+        } finally {
             setIsLoading(false);
-            router.push({
-                pathname: '/auth/otp' as any,
-                params: { phone: `${countryCode}${phoneNumber}` },
-            });
-        }, 1000);
+        }
     };
 
     const handlePressIn = () => {

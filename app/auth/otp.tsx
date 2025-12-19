@@ -113,10 +113,11 @@ export default function OTPScreen() {
         setIsLoading(true);
         setError('');
 
-        // Simulate API verification
-        setTimeout(async () => {
-            // For demo, accept any 6-digit OTP
-            if (otpCode.length === 6) {
+        try {
+            const { authApi } = await import('@/lib/api');
+            const result = await authApi.verifyOtp(phone || '', otpCode);
+
+            if (result.success && result.response) {
                 setIsVerified(true);
                 Animated.spring(successScale, {
                     toValue: 1,
@@ -125,34 +126,40 @@ export default function OTPScreen() {
                     useNativeDriver: true,
                 }).start();
 
-                // Check if user exists (simulated)
-                const existingUser = await AsyncStorage.getItem('user_phone');
+                const isNewUser = (result.response as any).isNewUser;
+                const user = result.response.user;
 
                 setTimeout(() => {
-                    if (existingUser === phone) {
-                        // Existing user - go to home
-                        router.replace('/(tabs)');
-                    } else {
-                        // New user - go to profile setup
-                        AsyncStorage.setItem('user_phone', phone || '');
+                    if (isNewUser || !user.name) {
+                        // New user or incomplete profile - go to profile setup
                         router.push({
                             pathname: '/auth/profile-setup' as any,
                             params: { phone },
                         });
+                    } else {
+                        // Existing user with profile - go to home
+                        router.replace('/(tabs)');
                     }
                 }, 800);
             } else {
-                setError('Invalid OTP. Please try again.');
+                setError(result.message || 'Invalid OTP. Please try again.');
                 triggerShake();
                 setOtp(Array(OTP_LENGTH).fill(''));
                 inputRefs.current[0]?.focus();
                 setFocusedIndex(0);
             }
+        } catch (err) {
+            setError('Network error. Please try again.');
+            triggerShake();
+            setOtp(Array(OTP_LENGTH).fill(''));
+            inputRefs.current[0]?.focus();
+            setFocusedIndex(0);
+        } finally {
             setIsLoading(false);
-        }, 1500);
+        }
     };
 
-    const handleResend = () => {
+    const handleResend = async () => {
         if (!canResend) return;
         setCanResend(false);
         setResendTimer(30);
@@ -160,6 +167,13 @@ export default function OTPScreen() {
         setError('');
         inputRefs.current[0]?.focus();
         setFocusedIndex(0);
+
+        try {
+            const { authApi } = await import('@/lib/api');
+            await authApi.resendOtp(phone || '');
+        } catch (err) {
+            console.log('Resend OTP error:', err);
+        }
     };
 
     const maskedPhone = phone

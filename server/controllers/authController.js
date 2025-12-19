@@ -1,0 +1,292 @@
+const User = require('../models/User');
+const Otp = require('../models/Otp');
+const { generateToken } = require('../middleware/auth');
+
+// @desc    Send OTP to phone (Login)
+// @route   POST /api/auth/login
+// @access  Public
+const login = async (req, res) => {
+    try {
+        const { phone } = req.body;
+
+        if (!phone) {
+            return res.status(400).json({ success: false, message: 'Phone number is required' });
+        }
+
+        // Store OTP (hardcoded 123456 for development)
+        await Otp.findOneAndUpdate(
+            { phone },
+            { phone, otp: '123456', expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
+            { upsert: true, new: true }
+        );
+
+        const existingUser = await User.findOne({ phone });
+
+        res.json({
+            success: true,
+            message: 'OTP sent successfully',
+            response: {
+                phone,
+                isNewUser: !existingUser,
+                isBlocked: existingUser?.isBlocked || false,
+            },
+        });
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Verify OTP and login/register
+// @route   POST /api/auth/verify-otp
+// @access  Public
+const verifyOtp = async (req, res) => {
+    try {
+        const { phone, otp, expoPushToken } = req.body;
+
+        if (!phone || !otp) {
+            return res.status(400).json({ success: false, message: 'Phone and OTP are required' });
+        }
+
+        const storedOtp = await Otp.findOne({ phone });
+
+        // Check OTP (always accept 123456 for development)
+        if (otp !== '123456' && (!storedOtp || storedOtp.otp !== otp || new Date() > storedOtp.expiresAt)) {
+            return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+        }
+
+        // Clear OTP
+        await Otp.deleteOne({ phone });
+
+        // Find or create user
+        let user = await User.findOne({ phone });
+        const isNewUser = !user;
+
+        if (!user) {
+            user = await User.create({
+                phone,
+                expoPushToken: expoPushToken || '',
+            });
+        } else if (expoPushToken) {
+            user.expoPushToken = expoPushToken;
+            await user.save();
+        }
+
+        const token = generateToken(user._id);
+
+        res.json({
+            success: true,
+            message: isNewUser ? 'User registered successfully' : 'Login successful',
+            response: {
+                token,
+                user: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    phone: user.phone,
+                    avatar: user.avatar,
+                    isBlocked: user.isBlocked,
+                    memberSince: user.memberSince,
+                },
+                isNewUser,
+            },
+        });
+    } catch (error) {
+        console.error('Verify OTP error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Resend OTP
+// @route   POST /api/auth/resend-otp
+// @access  Public
+const resendOtp = async (req, res) => {
+    try {
+        const { phone } = req.body;
+
+        if (!phone) {
+            return res.status(400).json({ success: false, message: 'Phone number is required' });
+        }
+
+        await Otp.findOneAndUpdate(
+            { phone },
+            { phone, otp: '123456', expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
+            { upsert: true, new: true }
+        );
+
+        res.json({
+            success: true,
+            message: 'OTP resent successfully',
+            response: {
+                phone,
+                otpSent: true,
+            },
+        });
+    } catch (error) {
+        console.error('Resend OTP error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Register new user with profile
+// @route   POST /api/auth/register
+// @access  Public
+const register = async (req, res) => {
+    try {
+        const { name, email, phone, avatar } = req.body;
+
+        if (!phone) {
+            return res.status(400).json({ success: false, message: 'Phone number is required' });
+        }
+
+        const existingUser = await User.findOne({ phone });
+
+        if (existingUser) {
+            existingUser.name = name || existingUser.name;
+            existingUser.email = email || existingUser.email;
+            existingUser.avatar = avatar || existingUser.avatar;
+            await existingUser.save();
+
+            return res.json({
+                success: true,
+                message: 'Profile updated',
+                response: {
+                    phone,
+                    isNewUser: false,
+                },
+            });
+        }
+
+        await Otp.findOneAndUpdate(
+            { phone },
+            { phone, otp: '123456', expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
+            { upsert: true, new: true }
+        );
+
+        res.json({
+            success: true,
+            message: 'OTP sent for registration',
+            response: {
+                phone,
+                isNewUser: true,
+            },
+        });
+    } catch (error) {
+        console.error('Register error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get current user profile
+// @route   GET /api/auth/me
+// @access  Private
+const getMe = async (req, res) => {
+    try {
+        const user = req.user;
+
+        res.json({
+            success: true,
+            response: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                avatar: user.avatar,
+                isBlocked: user.isBlocked,
+                memberSince: user.memberSince,
+            },
+        });
+    } catch (error) {
+        console.error('Get me error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Update user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+const updateProfile = async (req, res) => {
+    try {
+        const user = req.user;
+        const { name, email, avatar } = req.body;
+
+        if (name !== undefined) user.name = name;
+        if (email !== undefined) user.email = email;
+        if (avatar !== undefined) user.avatar = avatar;
+
+        await user.save();
+
+        res.json({
+            success: true,
+            message: 'Profile updated successfully',
+            response: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                avatar: user.avatar,
+                isBlocked: user.isBlocked,
+                memberSince: user.memberSince,
+            },
+        });
+    } catch (error) {
+        console.error('Update profile error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Update push token
+// @route   PUT /api/auth/push-token
+// @access  Private
+const updatePushToken = async (req, res) => {
+    try {
+        const user = req.user;
+        const { expoPushToken } = req.body;
+
+        user.expoPushToken = expoPushToken || '';
+        await user.save();
+
+        res.json({
+            success: true,
+            response: {
+                tokenUpdated: true,
+                isBlocked: user.isBlocked,
+            },
+        });
+    } catch (error) {
+        console.error('Update push token error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Logout user
+// @route   POST /api/auth/logout
+// @access  Private
+const logout = async (req, res) => {
+    try {
+        const user = req.user;
+        user.expoPushToken = '';
+        await user.save();
+
+        res.json({
+            success: true,
+            response: {
+                loggedOut: true,
+            },
+        });
+    } catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+module.exports = {
+    login,
+    verifyOtp,
+    resendOtp,
+    register,
+    getMe,
+    updateProfile,
+    updatePushToken,
+    logout,
+};
