@@ -1,18 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, MapPin, CreditCard, Wallet, Smartphone, ChevronRight, Check, ShieldCheck } from 'lucide-react-native';
+import { ArrowLeft, MapPin, CreditCard, Wallet, Smartphone, ChevronRight, ShieldCheck, Plus } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-
-const mockAddress = {
-    type: 'Home',
-    name: 'John Doe',
-    address: '123, Park Street, Andheri West',
-    city: 'Mumbai',
-    pincode: '400058',
-    phone: '+91 9876543210',
-};
+import { useCart } from '@/hooks/useCart';
+import { useAddress, Address } from '@/hooks/useAddress';
+import { getToken } from '@/lib/api';
 
 const paymentMethods = [
     { id: 'upi', name: 'UPI', icon: Smartphone, description: 'Pay using UPI apps' },
@@ -23,19 +17,63 @@ const paymentMethods = [
 export default function CheckoutScreen() {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
+    const { cartItems, subtotal, discount, delivery, tax, total, itemCount, loading: cartLoading } = useCart();
+    const { selectedAddress, addresses, loading: addressLoading } = useAddress();
     const [selectedPayment, setSelectedPayment] = useState('upi');
     const [promoCode, setPromoCode] = useState('');
+    const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
-    const subtotal = 3278;
-    const discount = 328;
-    const delivery = 0;
-    const total = subtotal - discount + delivery;
+    useEffect(() => {
+        const checkAuth = async () => {
+            const token = await getToken();
+            setIsAuthenticated(!!token);
+            if (!token) {
+                Alert.alert(
+                    'Login Required',
+                    'Please login to continue with checkout',
+                    [
+                        { text: 'Cancel', onPress: () => router.back() },
+                        { text: 'Login', onPress: () => router.push('/auth/phone') }
+                    ]
+                );
+            }
+        };
+        checkAuth();
+    }, []);
 
     const styles = createStyles(colors);
 
     const handlePlaceOrder = () => {
-        router.push({ pathname: '/payment', params: { eventId: 'cart', price: total.toString() } });
+        if (!selectedAddress) {
+            Alert.alert('Address Required', 'Please add a delivery address to continue');
+            return;
+        }
+
+        if (cartItems.length === 0) {
+            Alert.alert('Empty Cart', 'Your cart is empty');
+            return;
+        }
+
+        router.push({
+            pathname: '/payment',
+            params: {
+                paymentMethod: selectedPayment,
+                promoCode: promoCode || ''
+            }
+        });
     };
+
+    if (cartLoading || addressLoading || isAuthenticated === null) {
+        return (
+            <View style={[styles.container, styles.loadingContainer]}>
+                <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+        );
+    }
+
+    if (!isAuthenticated) {
+        return null;
+    }
 
     return (
         <View style={styles.container}>
@@ -52,23 +90,31 @@ export default function CheckoutScreen() {
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>Delivery Address</Text>
                         <Pressable onPress={() => router.push('/saved-addresses')}>
-                            <Text style={styles.changeText}>Change</Text>
+                            <Text style={styles.changeText}>{selectedAddress ? 'Change' : 'Add'}</Text>
                         </Pressable>
                     </View>
-                    <View style={styles.addressCard}>
-                        <View style={styles.addressIcon}>
-                            <MapPin size={20} color={colors.primary} />
-                        </View>
-                        <View style={styles.addressInfo}>
-                            <View style={styles.addressTypeRow}>
-                                <Text style={styles.addressType}>{mockAddress.type}</Text>
+
+                    {selectedAddress ? (
+                        <View style={styles.addressCard}>
+                            <View style={styles.addressIcon}>
+                                <MapPin size={20} color={colors.primary} />
                             </View>
-                            <Text style={styles.addressName}>{mockAddress.name}</Text>
-                            <Text style={styles.addressText}>{mockAddress.address}</Text>
-                            <Text style={styles.addressText}>{mockAddress.city} - {mockAddress.pincode}</Text>
-                            <Text style={styles.addressPhone}>{mockAddress.phone}</Text>
+                            <View style={styles.addressInfo}>
+                                <View style={styles.addressTypeRow}>
+                                    <Text style={styles.addressType}>{selectedAddress.type}</Text>
+                                </View>
+                                <Text style={styles.addressName}>{selectedAddress.name}</Text>
+                                <Text style={styles.addressText}>{selectedAddress.address}</Text>
+                                <Text style={styles.addressText}>{selectedAddress.city}, {selectedAddress.state} - {selectedAddress.pincode}</Text>
+                                <Text style={styles.addressPhone}>{selectedAddress.phone}</Text>
+                            </View>
                         </View>
-                    </View>
+                    ) : (
+                        <Pressable style={styles.addAddressCard} onPress={() => router.push('/saved-addresses')}>
+                            <Plus size={24} color={colors.primary} />
+                            <Text style={styles.addAddressText}>Add Delivery Address</Text>
+                        </Pressable>
+                    )}
                 </View>
 
                 {/* Payment Method */}
@@ -122,16 +168,22 @@ export default function CheckoutScreen() {
                     <Text style={styles.sectionTitle}>Order Summary</Text>
                     <View style={styles.summaryCard}>
                         <View style={styles.summaryRow}>
-                            <Text style={styles.summaryLabel}>Subtotal (4 items)</Text>
+                            <Text style={styles.summaryLabel}>Subtotal ({itemCount} items)</Text>
                             <Text style={styles.summaryValue}>₹{subtotal}</Text>
                         </View>
                         <View style={styles.summaryRow}>
-                            <Text style={styles.summaryLabel}>Discount</Text>
+                            <Text style={styles.summaryLabel}>Discount (10%)</Text>
                             <Text style={[styles.summaryValue, { color: colors.success }]}>-₹{discount}</Text>
                         </View>
                         <View style={styles.summaryRow}>
                             <Text style={styles.summaryLabel}>Delivery</Text>
-                            <Text style={[styles.summaryValue, { color: colors.success }]}>FREE</Text>
+                            <Text style={[styles.summaryValue, delivery === 0 && { color: colors.success }]}>
+                                {delivery === 0 ? 'FREE' : `₹${delivery}`}
+                            </Text>
+                        </View>
+                        <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Tax (5%)</Text>
+                            <Text style={styles.summaryValue}>₹{tax}</Text>
                         </View>
                         <View style={styles.divider} />
                         <View style={styles.totalRow}>
@@ -150,8 +202,12 @@ export default function CheckoutScreen() {
 
             {/* Place Order Button */}
             <View style={[styles.bottomContainer, { paddingBottom: insets.bottom + 12 }]}>
-                <Pressable style={styles.placeOrderButton} onPress={handlePlaceOrder}>
-                    <Text style={styles.placeOrderText}>Place Order</Text>
+                <Pressable
+                    style={[styles.placeOrderButton, !selectedAddress && styles.disabledButton]}
+                    onPress={handlePlaceOrder}
+                    disabled={!selectedAddress}
+                >
+                    <Text style={styles.placeOrderText}>Place Order • ₹{total}</Text>
                     <ChevronRight size={20} color={colors.white} />
                 </Pressable>
             </View>
@@ -163,6 +219,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
+    },
+    loadingContainer: {
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     header: {
         backgroundColor: colors.background,
@@ -218,6 +278,23 @@ const createStyles = (colors: any) => StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
         gap: 12,
+    },
+    addAddressCard: {
+        backgroundColor: colors.card,
+        borderRadius: 12,
+        padding: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderStyle: 'dashed',
+        gap: 8,
+    },
+    addAddressText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: colors.primary,
     },
     addressIcon: {
         width: 40,
@@ -406,6 +483,9 @@ const createStyles = (colors: any) => StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
+    },
+    disabledButton: {
+        opacity: 0.6,
     },
     placeOrderText: {
         fontSize: 16,

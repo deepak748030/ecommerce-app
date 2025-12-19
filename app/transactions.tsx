@@ -1,40 +1,66 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { ArrowLeft, IndianRupee, Wallet, Smartphone, CreditCard, ShoppingBag } from 'lucide-react-native';
+import { ArrowLeft, IndianRupee, Wallet, Smartphone, CreditCard, Package } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { EmptyState } from '@/components/EmptyState';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ordersApi, Order } from '@/lib/api';
 
 interface Transaction {
     id: string;
     title: string;
+    orderNumber: string;
     amount: number;
     type: 'payment' | 'refund';
     paymentMethod: string;
     date: string;
+    status: string;
 }
-
-// Mock transactions data
-const mockTransactions: Transaction[] = [
-    { id: '1', title: 'Fresh Apples', amount: 120, type: 'payment', paymentMethod: 'upi', date: '2025-01-15' },
-    { id: '2', title: 'Summer T-Shirt', amount: 599, type: 'payment', paymentMethod: 'card', date: '2025-01-14' },
-    { id: '3', title: 'Organic Bananas - Refund', amount: 60, type: 'refund', paymentMethod: 'wallet', date: '2025-01-13' },
-    { id: '4', title: 'Premium Mangoes', amount: 250, type: 'payment', paymentMethod: 'upi', date: '2025-01-12' },
-    { id: '5', title: 'Denim Jeans', amount: 1299, type: 'payment', paymentMethod: 'card', date: '2025-01-10' },
-];
 
 export default function TransactionsScreen() {
     const { colors } = useTheme();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const insets = useSafeAreaInsets();
+
+    const fetchTransactions = useCallback(async () => {
+        try {
+            const result = await ordersApi.getAll();
+            if (result.success && result.response?.data) {
+                const orders = result.response.data;
+                const txns: Transaction[] = orders.map((order: Order) => ({
+                    id: order._id,
+                    title: order.items.length > 0 ? order.items[0].name : 'Order',
+                    orderNumber: order.orderNumber,
+                    amount: order.total,
+                    type: order.status === 'cancelled' ? 'refund' : 'payment',
+                    paymentMethod: order.paymentMethod,
+                    date: order.createdAt,
+                    status: order.status,
+                }));
+                setTransactions(txns);
+            }
+        } catch (error) {
+            console.error('Error fetching transactions:', error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, []);
 
     useFocusEffect(
         useCallback(() => {
-            setTransactions(mockTransactions);
-        }, [])
+            fetchTransactions();
+        }, [fetchTransactions])
     );
+
+    const onRefresh = useCallback(() => {
+        setRefreshing(true);
+        fetchTransactions();
+    }, [fetchTransactions]);
 
     const getPaymentMethodIcon = (method: string) => {
         switch (method?.toLowerCase()) {
@@ -75,11 +101,15 @@ export default function TransactionsScreen() {
         const isRefund = item.type === 'refund';
 
         return (
-            <View style={styles.transactionCard}>
+            <Pressable
+                style={styles.transactionCard}
+                onPress={() => router.push(`/order/${item.id}` as any)}
+            >
                 <View style={styles.transactionInfo}>
                     <Text style={styles.eventTitle} numberOfLines={1}>
                         {item.title}
                     </Text>
+                    <Text style={styles.orderNumber}>{item.orderNumber}</Text>
                     <Text style={styles.bookingDate}>
                         {formatDate(item.date)}
                     </Text>
@@ -105,9 +135,26 @@ export default function TransactionsScreen() {
                         {isRefund ? 'Refunded' : 'Debited'}
                     </Text>
                 </View>
-            </View>
+            </Pressable>
         );
     };
+
+    if (loading) {
+        return (
+            <View style={[styles.container, { paddingTop: insets.top }]}>
+                <View style={styles.header}>
+                    <Pressable onPress={() => router.back()} style={styles.backButton}>
+                        <ArrowLeft size={24} color={colors.foreground} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>Transaction History</Text>
+                    <View style={styles.placeholder} />
+                </View>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -121,11 +168,14 @@ export default function TransactionsScreen() {
             </View>
 
             {transactions.length === 0 ? (
-                <EmptyState
-                    title="No transactions yet"
-                    actionLabel="Browse Products"
-                    onAction={() => router.push('/(tabs)')}
-                />
+                <View style={styles.emptyContainer}>
+                    <Package size={60} color={colors.mutedForeground} />
+                    <Text style={styles.emptyTitle}>No transactions yet</Text>
+                    <Text style={styles.emptySubtitle}>Your order transactions will appear here</Text>
+                    <Pressable style={styles.shopButton} onPress={() => router.push('/(tabs)')}>
+                        <Text style={styles.shopButtonText}>Start Shopping</Text>
+                    </Pressable>
+                </View>
             ) : (
                 <FlatList
                     data={transactions}
@@ -133,6 +183,9 @@ export default function TransactionsScreen() {
                     keyExtractor={(item) => item.id}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
+                    refreshControl={
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                    }
                 />
             )}
         </View>
@@ -165,10 +218,46 @@ const createStyles = (colors: any) => StyleSheet.create({
     placeholder: {
         width: 32,
     },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+    },
+    emptyTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: colors.foreground,
+        marginTop: 16,
+    },
+    emptySubtitle: {
+        fontSize: 14,
+        color: colors.mutedForeground,
+        marginTop: 4,
+        textAlign: 'center',
+    },
+    shopButton: {
+        backgroundColor: colors.primary,
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 10,
+        marginTop: 20,
+    },
+    shopButtonText: {
+        color: colors.white,
+        fontSize: 14,
+        fontWeight: '600',
+    },
     listContent: {
         paddingHorizontal: 6,
-        gap: 2,
+        gap: 8,
         paddingBottom: 20,
+        paddingTop: 8,
     },
     transactionCard: {
         backgroundColor: colors.card,
@@ -182,12 +271,17 @@ const createStyles = (colors: any) => StyleSheet.create({
     },
     transactionInfo: {
         flex: 1,
-        gap: 4,
+        gap: 2,
     },
     eventTitle: {
         fontSize: 15,
         fontWeight: '600',
         color: colors.foreground,
+    },
+    orderNumber: {
+        fontSize: 12,
+        color: colors.primary,
+        fontWeight: '500',
     },
     bookingDate: {
         fontSize: 12,
@@ -241,4 +335,3 @@ const createStyles = (colors: any) => StyleSheet.create({
         color: colors.success,
     },
 });
-

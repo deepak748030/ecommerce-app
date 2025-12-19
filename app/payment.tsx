@@ -1,57 +1,65 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { ArrowLeft, Smartphone, Wallet, CreditCard, CheckCircle } from 'lucide-react-native';
-import { allProducts, Event } from '@/lib/mockData';
 import { SuccessModal } from '@/components/SuccessModal';
 import { useTheme } from '@/hooks/useTheme';
+import { useCart } from '@/hooks/useCart';
+import { useAddress } from '@/hooks/useAddress';
+import { ordersApi, getToken } from '@/lib/api';
 
 export default function PaymentScreen() {
-  const { eventId, price } = useLocalSearchParams();
+  const { paymentMethod: initialPaymentMethod, promoCode } = useLocalSearchParams();
   const { colors } = useTheme();
-  const [paymentMethod, setPaymentMethod] = useState('upi');
+  const { cartItems, total, getCartForOrder, clearCart, loading: cartLoading } = useCart();
+  const { selectedAddress, loading: addressLoading } = useAddress();
+
+  const [paymentMethod, setPaymentMethod] = useState(initialPaymentMethod as string || 'upi');
   const [upiId, setUpiId] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [product, setProduct] = useState<Event | null>(null);
-
-  const bookingPrice = parseInt(price as string) || 0;
-
-  useEffect(() => {
-    // For cart checkout, we don't need a specific product
-    if (eventId === 'cart') {
-      setProduct({
-        id: 'cart',
-        title: 'Cart Items',
-        image: 'https://images.pexels.com/photos/5632388/pexels-photo-5632388.jpeg?auto=compress&cs=tinysrgb&w=300',
-        images: [],
-        location: '',
-        fullLocation: '',
-        category: 'Multiple Items',
-        price: bookingPrice,
-        mrp: bookingPrice,
-        rating: 0,
-        reviews: 0,
-        description: '',
-        date: '',
-        time: '',
-        services: [],
-        vendor: { id: '', name: '', avatar: '', phone: '', email: '', experience: '' }
-      });
-    } else {
-      const foundProduct = allProducts.find(e => e.id === eventId);
-      setProduct(foundProduct || null);
-    }
-  }, [eventId, bookingPrice]);
+  const [orderId, setOrderId] = useState<string | null>(null);
 
   const styles = createStyles(colors);
 
-  if (!product) {
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = await getToken();
+      if (!token) {
+        Alert.alert('Login Required', 'Please login to continue');
+        router.replace('/auth/phone');
+      }
+    };
+    checkAuth();
+  }, []);
+
+  if (cartLoading || addressLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.container, styles.loadingContainer]} edges={['top']}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  if (cartItems.length === 0) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>Product not found</Text>
+          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>Your cart is empty</Text>
+          <Pressable style={[styles.goBackButton, { backgroundColor: colors.primary }]} onPress={() => router.replace('/(tabs)')}>
+            <Text style={[styles.goBackButtonText, { color: colors.primaryForeground }]}>Shop Now</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!selectedAddress) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>No delivery address selected</Text>
           <Pressable style={[styles.goBackButton, { backgroundColor: colors.primary }]} onPress={() => router.back()}>
             <Text style={[styles.goBackButtonText, { color: colors.primaryForeground }]}>Go Back</Text>
           </Pressable>
@@ -60,19 +68,64 @@ export default function PaymentScreen() {
     );
   }
 
-  const handlePayment = () => {
-    if (paymentMethod === 'upi' && !upiId) return;
+  const handlePayment = async () => {
+    if (paymentMethod === 'upi' && !upiId) {
+      Alert.alert('UPI ID Required', 'Please enter your UPI ID to continue');
+      return;
+    }
 
     setIsProcessing(true);
-    setTimeout(() => {
+
+    try {
+      const cartForOrder = await getCartForOrder();
+
+      if (cartForOrder.length === 0) {
+        Alert.alert('Error', 'Your cart is empty');
+        setIsProcessing(false);
+        return;
+      }
+
+      const orderData = {
+        items: cartForOrder.map(item => ({
+          productId: item.productId,
+          quantity: item.quantity,
+        })),
+        shippingAddress: {
+          name: selectedAddress.name,
+          phone: selectedAddress.phone,
+          address: selectedAddress.address,
+          city: selectedAddress.city,
+          state: selectedAddress.state,
+          pincode: selectedAddress.pincode,
+        },
+        paymentMethod: paymentMethod,
+        promoCode: promoCode as string || undefined,
+      };
+
+      const result = await ordersApi.create(orderData);
+
+      if (result.success && result.response) {
+        setOrderId(result.response._id);
+        await clearCart();
+        setShowSuccess(true);
+      } else {
+        Alert.alert('Order Failed', result.message || 'Failed to place order. Please try again.');
+      }
+    } catch (error) {
+      console.error('Order creation error:', error);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
       setIsProcessing(false);
-      setShowSuccess(true);
-    }, 1500);
+    }
   };
 
   const handleSuccessClose = () => {
     setShowSuccess(false);
-    router.replace('/(tabs)');
+    if (orderId) {
+      router.replace(`/order/${orderId}` as any);
+    } else {
+      router.replace('/(tabs)');
+    }
   };
 
   const paymentMethods = [
@@ -93,14 +146,27 @@ export default function PaymentScreen() {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          {/* Product Summary */}
+          {/* Order Summary */}
           <View style={[styles.productCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Image source={{ uri: product.image }} style={styles.productImage} />
-            <View style={styles.productInfo}>
-              <Text style={[styles.productTitle, { color: colors.foreground }]} numberOfLines={2}>{product.title}</Text>
-              <Text style={[styles.productCategory, { color: colors.mutedForeground }]}>{product.category}</Text>
-              <Text style={[styles.productPrice, { color: colors.primary }]}>₹{bookingPrice.toLocaleString()}</Text>
+            <View style={styles.orderSummaryHeader}>
+              <Text style={[styles.orderSummaryTitle, { color: colors.foreground }]}>Order Summary</Text>
+              <Text style={[styles.orderSummaryCount, { color: colors.mutedForeground }]}>{cartItems.length} items</Text>
             </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.itemsPreview}>
+              {cartItems.slice(0, 4).map((item, index) => (
+                <Image
+                  key={item.productId}
+                  source={{ uri: item.image }}
+                  style={[styles.previewImage, index > 0 && styles.previewImageOverlap]}
+                />
+              ))}
+              {cartItems.length > 4 && (
+                <View style={[styles.moreItems, { backgroundColor: colors.secondary }]}>
+                  <Text style={[styles.moreItemsText, { color: colors.foreground }]}>+{cartItems.length - 4}</Text>
+                </View>
+              )}
+            </ScrollView>
+            <Text style={[styles.productPrice, { color: colors.primary }]}>₹{total.toLocaleString()}</Text>
           </View>
 
           {/* Payment Methods */}
@@ -150,20 +216,20 @@ export default function PaymentScreen() {
             </View>
           )}
 
+          {/* Delivery Address */}
+          <View style={[styles.addressCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.addressLabel, { color: colors.mutedForeground }]}>Delivering to</Text>
+            <Text style={[styles.addressName, { color: colors.foreground }]}>{selectedAddress.name}</Text>
+            <Text style={[styles.addressText, { color: colors.mutedForeground }]}>
+              {selectedAddress.address}, {selectedAddress.city} - {selectedAddress.pincode}
+            </Text>
+          </View>
+
           {/* Price Summary */}
           <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Item Total</Text>
-              <Text style={[styles.summaryValue, { color: colors.foreground }]}>₹{bookingPrice.toLocaleString()}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Delivery</Text>
-              <Text style={[styles.summaryValue, { color: colors.success }]}>FREE</Text>
-            </View>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <View style={styles.summaryRow}>
-              <Text style={[styles.totalLabel, { color: colors.foreground }]}>Amount to Pay</Text>
-              <Text style={[styles.totalValue, { color: colors.foreground }]}>₹{bookingPrice.toLocaleString()}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Amount to Pay</Text>
+              <Text style={[styles.totalValue, { color: colors.foreground }]}>₹{total.toLocaleString()}</Text>
             </View>
           </View>
         </View>
@@ -174,7 +240,7 @@ export default function PaymentScreen() {
         <View style={styles.bottomContent}>
           <View style={styles.bottomPrice}>
             <Text style={[styles.bottomLabel, { color: colors.mutedForeground }]}>Total</Text>
-            <Text style={[styles.bottomTotal, { color: colors.foreground }]}>₹{bookingPrice.toLocaleString()}</Text>
+            <Text style={[styles.bottomTotal, { color: colors.foreground }]}>₹{total.toLocaleString()}</Text>
           </View>
           <Pressable
             style={[
@@ -207,6 +273,10 @@ export default function PaymentScreen() {
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   errorContainer: {
     flex: 1,
@@ -250,33 +320,50 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingBottom: 100,
   },
   productCard: {
-    flexDirection: 'row',
     borderRadius: 10,
-    padding: 10,
+    padding: 14,
     marginBottom: 16,
     borderWidth: 1,
   },
-  productImage: {
-    width: 60,
-    height: 60,
+  orderSummaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  orderSummaryTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  orderSummaryCount: {
+    fontSize: 12,
+  },
+  itemsPreview: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  previewImage: {
+    width: 50,
+    height: 50,
     borderRadius: 8,
   },
-  productInfo: {
-    flex: 1,
-    marginLeft: 10,
+  previewImageOverlap: {
+    marginLeft: -10,
+  },
+  moreItems: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    marginLeft: -10,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  productTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  productCategory: {
-    fontSize: 11,
-    marginBottom: 4,
+  moreItemsText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   productPrice: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: '800',
   },
   sectionTitle: {
@@ -344,6 +431,24 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 10,
     fontSize: 13,
   },
+  addressCard: {
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  addressLabel: {
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  addressName: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  addressText: {
+    fontSize: 12,
+  },
   summaryCard: {
     borderRadius: 10,
     padding: 12,
@@ -353,25 +458,12 @@ const createStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
   summaryLabel: {
-    fontSize: 12,
-  },
-  summaryValue: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  divider: {
-    height: 1,
-    marginVertical: 8,
-  },
-  totalLabel: {
     fontSize: 13,
-    fontWeight: '700',
   },
   totalValue: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: '800',
   },
   bottomBar: {

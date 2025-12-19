@@ -1,44 +1,49 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Image, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
+import { useCart } from '@/hooks/useCart';
 import { router } from 'expo-router';
 import { Trash2, Plus, Minus, ShoppingBag, Truck, Tag, ArrowRight } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
-const mockCartItems = [
-    { id: '1', name: 'Fresh Apples', price: 120, quantity: 2, icon: '🍎', unit: 'kg' },
-    { id: '2', name: 'Summer T-Shirt', price: 599, quantity: 1, icon: '👕', unit: 'pc' },
-    { id: '3', name: 'Organic Bananas', price: 60, quantity: 3, icon: '🍌', unit: 'dozen' },
-    { id: '4', name: 'Sneakers', price: 2499, quantity: 1, icon: '👟', unit: 'pair' },
-];
-
 export default function CartScreen() {
     const insets = useSafeAreaInsets();
     const { colors, isDark } = useTheme();
-    const [cartItems, setCartItems] = useState(mockCartItems);
+    const {
+        cartItems,
+        loading,
+        updateQuantity,
+        removeFromCart,
+        subtotal,
+        discount,
+        delivery,
+        total,
+        refreshCart
+    } = useCart();
 
-    const updateQuantity = (id: string, delta: number) => {
-        setCartItems(prev => prev.map(item => {
-            if (item.id === id) {
-                const newQty = Math.max(1, item.quantity + delta);
-                return { ...item, quantity: newQty };
-            }
-            return item;
-        }));
+    useEffect(() => {
+        refreshCart();
+    }, []);
+
+    const handleUpdateQuantity = (productId: string, delta: number) => {
+        updateQuantity(productId, delta);
     };
 
-    const removeItem = (id: string) => {
-        setCartItems(prev => prev.filter(item => item.id !== id));
+    const handleRemoveItem = (productId: string) => {
+        removeFromCart(productId);
     };
-
-    const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const delivery = subtotal > 500 ? 0 : 40;
-    const discount = Math.round(subtotal * 0.1);
-    const total = subtotal - discount + delivery;
 
     const styles = createStyles(colors, isDark);
+
+    if (loading) {
+        return (
+            <View style={[styles.container, styles.loadingContainer]}>
+                <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -54,7 +59,7 @@ export default function CartScreen() {
                     <ShoppingBag size={80} color={colors.mutedForeground} strokeWidth={1} />
                     <Text style={styles.emptyTitle}>Your cart is empty</Text>
                     <Text style={styles.emptySubtitle}>Add items to start shopping</Text>
-                    <Pressable style={styles.shopButton}>
+                    <Pressable style={styles.shopButton} onPress={() => router.push('/(tabs)')}>
                         <Text style={styles.shopButtonText}>Start Shopping</Text>
                     </Pressable>
                 </View>
@@ -73,25 +78,31 @@ export default function CartScreen() {
 
                         {/* Cart Items */}
                         {cartItems.map((item) => (
-                            <View key={item.id} style={styles.cartItem}>
-                                <View style={styles.itemIconContainer}>
-                                    <Text style={styles.itemIcon}>{item.icon}</Text>
-                                </View>
+                            <View key={item.productId} style={styles.cartItem}>
+                                <Image
+                                    source={{ uri: item.image }}
+                                    style={styles.itemImage}
+                                />
                                 <View style={styles.itemInfo}>
-                                    <Text style={styles.itemName}>{item.name}</Text>
+                                    <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
                                     <Text style={styles.itemUnit}>per {item.unit}</Text>
-                                    <Text style={styles.itemPrice}>₹{item.price}</Text>
+                                    <View style={styles.priceRow}>
+                                        <Text style={styles.itemPrice}>₹{item.price}</Text>
+                                        {item.mrp > item.price && (
+                                            <Text style={styles.itemMrp}>₹{item.mrp}</Text>
+                                        )}
+                                    </View>
                                 </View>
                                 <View style={styles.itemActions}>
-                                    <Pressable style={styles.deleteButton} onPress={() => removeItem(item.id)}>
+                                    <Pressable style={styles.deleteButton} onPress={() => handleRemoveItem(item.productId)}>
                                         <Trash2 size={18} color={colors.destructive} />
                                     </Pressable>
                                     <View style={styles.quantityContainer}>
-                                        <Pressable style={styles.qtyButton} onPress={() => updateQuantity(item.id, -1)}>
+                                        <Pressable style={styles.qtyButton} onPress={() => handleUpdateQuantity(item.productId, -1)}>
                                             <Minus size={16} color={colors.foreground} />
                                         </Pressable>
                                         <Text style={styles.qtyText}>{item.quantity}</Text>
-                                        <Pressable style={[styles.qtyButton, styles.qtyButtonAdd]} onPress={() => updateQuantity(item.id, 1)}>
+                                        <Pressable style={[styles.qtyButton, styles.qtyButtonAdd]} onPress={() => handleUpdateQuantity(item.productId, 1)}>
                                             <Plus size={16} color={colors.white} />
                                         </Pressable>
                                     </View>
@@ -154,6 +165,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
+    },
+    loadingContainer: {
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     header: {
         paddingHorizontal: 16,
@@ -241,32 +256,27 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     },
     cartItem: {
         backgroundColor: colors.card,
-        borderRadius: 3,
-        padding: 6,
+        borderRadius: 10,
+        padding: 10,
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 0,
+        marginBottom: 8,
         borderWidth: 1,
         borderColor: colors.border,
     },
-    itemIconContainer: {
-        width: 60,
-        height: 60,
-        borderRadius: 4,
+    itemImage: {
+        width: 70,
+        height: 70,
+        borderRadius: 8,
         backgroundColor: colors.secondary,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 14,
-    },
-    itemIcon: {
-        fontSize: 30,
     },
     itemInfo: {
         flex: 1,
+        marginLeft: 12,
     },
     itemName: {
-        fontSize: 15,
-        fontWeight: '700',
+        fontSize: 14,
+        fontWeight: '600',
         color: colors.foreground,
         marginBottom: 2,
     },
@@ -275,10 +285,20 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         color: colors.mutedForeground,
         marginBottom: 4,
     },
+    priceRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
     itemPrice: {
         fontSize: 16,
         fontWeight: '800',
         color: colors.primary,
+    },
+    itemMrp: {
+        fontSize: 12,
+        color: colors.mutedForeground,
+        textDecorationLine: 'line-through',
     },
     itemActions: {
         alignItems: 'flex-end',
