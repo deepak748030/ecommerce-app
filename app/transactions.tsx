@@ -129,7 +129,7 @@ export default function TransactionsScreen() {
         return (
             <Pressable
                 style={styles.transactionCard}
-                onPress={() => item.bookingId && router.push(`/booking-details/${item.bookingId}`)}
+                onPress={() => item.bookingId && router.push(`/booking/${item.bookingId}` as any)}
             >
                 <View style={styles.transactionInfo}>
                     <Text style={styles.eventTitle} numberOfLines={1}>

@@ -2,11 +2,15 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, Shield, Database, Lock, Eye, UserCheck, CreditCard, Bell, Trash2 } from 'lucide-react-native';
-import { colors } from '@/lib/colors';
+import { ArrowLeft, Shield, Database, Lock, Eye, UserCheck, CreditCard, Bell, Trash2, Sun, Moon } from 'lucide-react-native';
+import { useTheme } from '@/hooks/useTheme';
 
 export default function PrivacyPolicyScreen() {
   const insets = useSafeAreaInsets();
+  const { colors, isDark, toggleTheme } = useTheme();
+
+  const styles = createStyles(colors, isDark);
+
   const policyItems = [
     {
       icon: Database,
@@ -57,6 +61,7 @@ export default function PrivacyPolicyScreen() {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
+
           {/* Hero Section */}
           <View style={styles.heroSection}>
             <View style={styles.heroIcon}>
@@ -109,7 +114,7 @@ export default function PrivacyPolicyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -141,6 +146,61 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 16,
     paddingBottom: 40,
+  },
+  themeToggle: {
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  themeIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  themeInfo: {
+    flex: 1,
+  },
+  themeLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.foreground,
+    marginBottom: 2,
+  },
+  themeValue: {
+    fontSize: 12,
+    color: colors.mutedForeground,
+  },
+  toggleContainer: {
+    padding: 4,
+  },
+  toggleTrack: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.border,
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  toggleTrackActive: {
+    backgroundColor: colors.primary,
+  },
+  toggleThumb: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.white,
+  },
+  toggleThumbActive: {
+    alignSelf: 'flex-end',
   },
   heroSection: {
     alignItems: 'center',

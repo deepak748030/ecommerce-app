@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { router } from 'expo-router';
-import { User, Package, MapPin, Bell, HelpCircle, Settings, LogOut, ChevronRight, Sun, Moon, Gift, Shield } from 'lucide-react-native';
+import { User, Package, MapPin, Bell, HelpCircle, Settings, LogOut, ChevronRight, Sun, Moon, Shield } from 'lucide-react-native';
 
 const mockUser = {
   name: 'John Doe',
@@ -34,7 +34,6 @@ export default function ProfileScreen() {
     {
       title: 'Account',
       items: [
-        { id: '4', icon: Gift, label: 'Rewards & Points', badge: `${mockUser.points} pts`, route: '/rewards' },
         { id: '5', icon: Bell, label: 'Notifications', badge: '', route: '/notifications' },
         { id: '6', icon: Shield, label: 'Privacy & Security', badge: '', route: '/privacy-policy' },
       ],

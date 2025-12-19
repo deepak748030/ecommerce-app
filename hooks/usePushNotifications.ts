@@ -50,11 +50,11 @@ function handleNotificationNavigation(data: Record<string, unknown>) {
             });
         }
     } else if (data?.type === 'booking' && data?.bookingId) {
-        router.push(`/booking-details/${data.bookingId}`);
+        router.push(`/booking/${data.bookingId}` as any);
     } else if (data?.type === 'booking_confirmed' && data?.bookingId) {
-        router.push(`/booking-details/${data.bookingId}`);
+        router.push(`/booking/${data.bookingId}` as any);
     } else if (data?.type === 'booking_cancelled' && data?.bookingId) {
-        router.push(`/booking-details/${data.bookingId}`);
+        router.push(`/booking/${data.bookingId}` as any);
     } else if (data?.type === 'event' && data?.eventId) {
         router.push(`/event/${data.eventId}`);
     }

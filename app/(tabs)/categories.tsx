@@ -67,7 +67,7 @@ export default function CategoriesScreen() {
                                 styles.categoryCard,
                                 selectedCategory === category.id && styles.selectedCategoryCard
                             ]}
-                            onPress={() => setSelectedCategory(category.id)}
+                            onPress={() => router.push(`/category/${category.id}` as any)}
                         >
                             <View style={[styles.categoryIconBg, { backgroundColor: category.color }]}>
                                 <Image source={{ uri: category.image }} style={styles.categoryImage} />

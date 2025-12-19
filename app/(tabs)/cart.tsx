@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
+import { router } from 'expo-router';
 import { Trash2, Plus, Minus, ShoppingBag, Truck, Tag, ArrowRight } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
@@ -132,7 +133,7 @@ export default function CartScreen() {
 
                     {/* Checkout Button */}
                     <View style={[styles.checkoutContainer, { paddingBottom: 12 }]}>
-                        <Pressable style={styles.checkoutButton}>
+                        <Pressable style={styles.checkoutButton} onPress={() => router.push('/checkout' as any)}>
                             <View style={styles.checkoutInfo}>
                                 <Text style={styles.checkoutTotal}>₹{total}</Text>
                                 <Text style={styles.checkoutItems}>{cartItems.length} items</Text>

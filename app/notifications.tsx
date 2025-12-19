@@ -64,7 +64,7 @@ export default function NotificationsScreen() {
 
     // Navigate based on notification type/data
     if (notification.data?.bookingId) {
-      router.push(`/booking-details/${notification.data.bookingId}`);
+      router.push(`/booking/${notification.data.bookingId}` as any);
     } else if (notification.data?.eventId) {
       router.push(`/event/${notification.data.eventId}`);
     }
