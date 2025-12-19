@@ -663,3 +663,52 @@ export const couponsApi = {
         return apiRequest<{ count: number; data: Coupon[] }>('/coupons');
     },
 };
+
+// Notification Types
+export interface AppNotification {
+    _id: string;
+    user: string;
+    title: string;
+    message: string;
+    type: 'order' | 'promo' | 'system' | 'booking';
+    data?: {
+        orderId?: string;
+        orderNumber?: string;
+        productId?: string;
+        status?: string;
+    };
+    read: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Notifications API (All Protected)
+export const notificationsApi = {
+    getAll: async () => {
+        return apiRequest<{ notifications: AppNotification[]; unreadCount: number }>('/notifications');
+    },
+
+    markAsRead: async (id: string) => {
+        return apiRequest<AppNotification>(`/notifications/${id}/read`, {
+            method: 'PUT',
+        });
+    },
+
+    markAllAsRead: async () => {
+        return apiRequest<{ message: string }>('/notifications/read-all', {
+            method: 'PUT',
+        });
+    },
+
+    delete: async (id: string) => {
+        return apiRequest<{ message: string }>(`/notifications/${id}`, {
+            method: 'DELETE',
+        });
+    },
+
+    deleteAll: async () => {
+        return apiRequest<{ message: string }>('/notifications/all', {
+            method: 'DELETE',
+        });
+    },
+};

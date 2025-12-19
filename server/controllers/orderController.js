@@ -104,11 +104,8 @@ const createOrder = async (req, res) => {
                 status: 'pending',
             },
         });
-
-        // Send push notification for order placed
-        if (req.user.expoPushToken) {
-            await sendOrderStatusNotification(req.user.expoPushToken, order, 'pending');
-        }
+        // Send push notification for order placed (checks user preferences)
+        await sendOrderStatusNotification(req.user, order, 'pending');
 
         res.status(201).json({
             success: true,
@@ -246,6 +243,9 @@ const cancelOrder = async (req, res) => {
                 status: 'cancelled',
             },
         });
+
+        // Send push notification for cancellation (checks user preferences)
+        await sendOrderStatusNotification(req.user, order, 'cancelled');
 
         res.json({
             success: true,
@@ -401,10 +401,8 @@ const updateOrderStatus = async (req, res) => {
                 },
             });
 
-            // Send push notification to user
-            if (user.expoPushToken) {
-                await sendOrderStatusNotification(user.expoPushToken, order, status);
-            }
+            // Send push notification to user (checks user preferences)
+            await sendOrderStatusNotification(user, order, status);
         }
 
         res.json({
