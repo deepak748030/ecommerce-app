@@ -358,6 +358,78 @@ export const seedApi = {
     },
 };
 
+// Order Types
+export interface OrderItem {
+    product: string;
+    name: string;
+    price: number;
+    quantity: number;
+    image: string;
+}
+
+export interface Order {
+    _id: string;
+    orderNumber: string;
+    user: string;
+    items: OrderItem[];
+    shippingAddress: {
+        name: string;
+        phone: string;
+        address: string;
+        city: string;
+        state: string;
+        pincode: string;
+    };
+    paymentMethod: string;
+    subtotal: number;
+    discount: number;
+    shipping: number;
+    tax: number;
+    total: number;
+    status: string;
+    timeline: { status: string; date: string; completed: boolean }[];
+    promoCode?: string;
+    deliveredAt?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Orders API (All Protected)
+export const ordersApi = {
+    create: async (data: {
+        items: { productId: string; quantity: number }[];
+        shippingAddress: {
+            name: string;
+            phone: string;
+            address: string;
+            city: string;
+            state: string;
+            pincode: string;
+        };
+        paymentMethod: string;
+        promoCode?: string;
+    }) => {
+        return apiRequest<Order>('/orders', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+
+    getAll: async () => {
+        return apiRequest<{ count: number; data: Order[] }>('/orders');
+    },
+
+    getById: async (id: string) => {
+        return apiRequest<Order>(`/orders/${id}`);
+    },
+
+    cancel: async (id: string) => {
+        return apiRequest<Order>(`/orders/${id}/cancel`, {
+            method: 'PUT',
+        });
+    },
+};
+
 // Helper to get image URL - supports base64, URLs, and relative paths
 export const getImageUrl = (image: string | undefined | null): string => {
     if (!image) {

@@ -1,55 +1,89 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft, Package, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-
-const mockOrders = [
-    {
-        id: '1',
-        orderNumber: 'ORD-2024-001',
-        date: 'Dec 15, 2024',
-        status: 'Delivered',
-        total: 2499,
-        items: 3,
-        image: 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=300',
-    },
-    {
-        id: '2',
-        orderNumber: 'ORD-2024-002',
-        date: 'Dec 12, 2024',
-        status: 'In Transit',
-        total: 1299,
-        items: 2,
-        image: 'https://images.pexels.com/photos/1598507/pexels-photo-1598507.jpeg?auto=compress&cs=tinysrgb&w=300',
-    },
-    {
-        id: '3',
-        orderNumber: 'ORD-2024-003',
-        date: 'Dec 10, 2024',
-        status: 'Processing',
-        total: 899,
-        items: 1,
-        image: 'https://images.pexels.com/photos/3780681/pexels-photo-3780681.jpeg?auto=compress&cs=tinysrgb&w=300',
-    },
-];
+import { ordersApi, Order, getImageUrl } from '@/lib/api';
 
 export default function MyOrdersScreen() {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
+    const [orders, setOrders] = useState<Order[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchOrders = useCallback(async () => {
+        try {
+            setError(null);
+            const result = await ordersApi.getAll();
+            if (result.success && result.response) {
+                setOrders(result.response.data);
+            } else {
+                setError(result.message || 'Failed to fetch orders');
+            }
+        } catch (err) {
+            setError('Network error. Please try again.');
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchOrders();
+    }, [fetchOrders]);
+
+    const onRefresh = useCallback(() => {
+        setRefreshing(true);
+        fetchOrders();
+    }, [fetchOrders]);
 
     const styles = createStyles(colors);
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'Delivered': return colors.success;
-            case 'In Transit': return colors.warning;
-            case 'Processing': return colors.primary;
-            case 'Cancelled': return colors.destructive;
+            case 'delivered': return colors.success;
+            case 'shipped':
+            case 'out_for_delivery': return colors.warning;
+            case 'confirmed':
+            case 'processing': return colors.primary;
+            case 'cancelled': return colors.destructive;
             default: return colors.mutedForeground;
         }
     };
+
+    const formatStatus = (status: string) => {
+        return status.split('_').map(word =>
+            word.charAt(0).toUpperCase() + word.slice(1)
+        ).join(' ');
+    };
+
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-IN', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+    };
+
+    if (loading) {
+        return (
+            <View style={styles.container}>
+                <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
+                    <Pressable style={styles.backButton} onPress={() => router.back()}>
+                        <ArrowLeft size={22} color={colors.foreground} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>My Orders</Text>
+                </View>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                </View>
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -60,32 +94,52 @@ export default function MyOrdersScreen() {
                 <Text style={styles.headerTitle}>My Orders</Text>
             </View>
 
-            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-                {mockOrders.map((order) => (
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
+            >
+                {error && (
+                    <View style={styles.errorContainer}>
+                        <Text style={styles.errorText}>{error}</Text>
+                        <Pressable style={styles.retryButton} onPress={fetchOrders}>
+                            <Text style={styles.retryButtonText}>Retry</Text>
+                        </Pressable>
+                    </View>
+                )}
+
+                {orders.map((order) => (
                     <Pressable
-                        key={order.id}
+                        key={order._id}
                         style={styles.orderCard}
-                        onPress={() => router.push(`/order/${order.id}` as any)}
+                        onPress={() => router.push(`/order/${order._id}` as any)}
                     >
-                        <Image source={{ uri: order.image }} style={styles.orderImage} />
+                        <Image
+                            source={{ uri: getImageUrl(order.items[0]?.image) }}
+                            style={styles.orderImage}
+                        />
                         <View style={styles.orderInfo}>
                             <Text style={styles.orderNumber}>{order.orderNumber}</Text>
-                            <Text style={styles.orderDate}>{order.date}</Text>
+                            <Text style={styles.orderDate}>{formatDate(order.createdAt)}</Text>
                             <View style={styles.orderMeta}>
-                                <Text style={styles.orderItems}>{order.items} items</Text>
+                                <Text style={styles.orderItems}>{order.items.length} items</Text>
                                 <Text style={styles.orderTotal}>₹{order.total.toLocaleString()}</Text>
                             </View>
                         </View>
                         <View style={styles.orderRight}>
                             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + '20' }]}>
-                                <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>{order.status}</Text>
+                                <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>
+                                    {formatStatus(order.status)}
+                                </Text>
                             </View>
                             <ChevronRight size={18} color={colors.mutedForeground} />
                         </View>
                     </Pressable>
                 ))}
 
-                {mockOrders.length === 0 && (
+                {orders.length === 0 && !error && (
                     <View style={styles.emptyState}>
                         <Package size={60} color={colors.mutedForeground} />
                         <Text style={styles.emptyTitle}>No orders yet</Text>
@@ -120,6 +174,11 @@ const createStyles = (colors: any) => StyleSheet.create({
         fontWeight: '700',
         color: colors.foreground,
     },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     scrollView: {
         flex: 1,
     },
@@ -127,6 +186,29 @@ const createStyles = (colors: any) => StyleSheet.create({
         paddingHorizontal: 6,
         paddingVertical: 12,
         paddingBottom: 40,
+    },
+    errorContainer: {
+        backgroundColor: colors.destructive + '20',
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 16,
+        alignItems: 'center',
+    },
+    errorText: {
+        color: colors.destructive,
+        fontSize: 14,
+        marginBottom: 12,
+    },
+    retryButton: {
+        backgroundColor: colors.primary,
+        paddingHorizontal: 20,
+        paddingVertical: 8,
+        borderRadius: 8,
+    },
+    retryButtonText: {
+        color: colors.white,
+        fontSize: 14,
+        fontWeight: '600',
     },
     orderCard: {
         backgroundColor: colors.card,

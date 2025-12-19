@@ -1,162 +1,109 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Package, MapPin, CreditCard, Clock, CheckCircle, Truck, Box } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-
-const mockOrderDetails: Record<string, any> = {
-    '1': {
-        id: '1',
-        orderNumber: 'ORD-2024-001',
-        date: 'Dec 15, 2024',
-        status: 'Delivered',
-        deliveredDate: 'Dec 18, 2024',
-        total: 2499,
-        subtotal: 2299,
-        shipping: 100,
-        discount: 0,
-        tax: 100,
-        paymentMethod: 'UPI',
-        shippingAddress: {
-            name: 'John Doe',
-            phone: '+91 9876543210',
-            address: '123 Main Street, Apartment 4B',
-            city: 'Mumbai',
-            state: 'Maharashtra',
-            pincode: '400001',
-        },
-        items: [
-            {
-                id: '1',
-                name: 'Diamond Pendant Necklace',
-                price: 1299,
-                quantity: 1,
-                image: 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=300',
-            },
-            {
-                id: '2',
-                name: 'Gold Hoop Earrings',
-                price: 699,
-                quantity: 1,
-                image: 'https://images.pexels.com/photos/1191531/pexels-photo-1191531.jpeg?auto=compress&cs=tinysrgb&w=300',
-            },
-            {
-                id: '3',
-                name: 'Silver Bracelet',
-                price: 301,
-                quantity: 1,
-                image: 'https://images.pexels.com/photos/1453008/pexels-photo-1453008.jpeg?auto=compress&cs=tinysrgb&w=300',
-            },
-        ],
-        timeline: [
-            { status: 'Order Placed', date: 'Dec 15, 2024 10:30 AM', completed: true },
-            { status: 'Order Confirmed', date: 'Dec 15, 2024 11:00 AM', completed: true },
-            { status: 'Shipped', date: 'Dec 16, 2024 02:00 PM', completed: true },
-            { status: 'Out for Delivery', date: 'Dec 18, 2024 09:00 AM', completed: true },
-            { status: 'Delivered', date: 'Dec 18, 2024 03:30 PM', completed: true },
-        ],
-    },
-    '2': {
-        id: '2',
-        orderNumber: 'ORD-2024-002',
-        date: 'Dec 12, 2024',
-        status: 'In Transit',
-        deliveredDate: null,
-        total: 1299,
-        subtotal: 1199,
-        shipping: 50,
-        discount: 0,
-        tax: 50,
-        paymentMethod: 'Card',
-        shippingAddress: {
-            name: 'John Doe',
-            phone: '+91 9876543210',
-            address: '123 Main Street, Apartment 4B',
-            city: 'Mumbai',
-            state: 'Maharashtra',
-            pincode: '400001',
-        },
-        items: [
-            {
-                id: '1',
-                name: 'Pearl Drop Earrings',
-                price: 799,
-                quantity: 1,
-                image: 'https://images.pexels.com/photos/1598507/pexels-photo-1598507.jpeg?auto=compress&cs=tinysrgb&w=300',
-            },
-            {
-                id: '2',
-                name: 'Rose Gold Ring',
-                price: 500,
-                quantity: 1,
-                image: 'https://images.pexels.com/photos/1616096/pexels-photo-1616096.jpeg?auto=compress&cs=tinysrgb&w=300',
-            },
-        ],
-        timeline: [
-            { status: 'Order Placed', date: 'Dec 12, 2024 02:15 PM', completed: true },
-            { status: 'Order Confirmed', date: 'Dec 12, 2024 02:45 PM', completed: true },
-            { status: 'Shipped', date: 'Dec 13, 2024 10:00 AM', completed: true },
-            { status: 'Out for Delivery', date: 'Expected Dec 20, 2024', completed: false },
-            { status: 'Delivered', date: '-', completed: false },
-        ],
-    },
-    '3': {
-        id: '3',
-        orderNumber: 'ORD-2024-003',
-        date: 'Dec 10, 2024',
-        status: 'Processing',
-        deliveredDate: null,
-        total: 899,
-        subtotal: 849,
-        shipping: 0,
-        discount: 0,
-        tax: 50,
-        paymentMethod: 'Net Banking',
-        shippingAddress: {
-            name: 'John Doe',
-            phone: '+91 9876543210',
-            address: '123 Main Street, Apartment 4B',
-            city: 'Mumbai',
-            state: 'Maharashtra',
-            pincode: '400001',
-        },
-        items: [
-            {
-                id: '1',
-                name: 'Emerald Stud Earrings',
-                price: 899,
-                quantity: 1,
-                image: 'https://images.pexels.com/photos/3780681/pexels-photo-3780681.jpeg?auto=compress&cs=tinysrgb&w=300',
-            },
-        ],
-        timeline: [
-            { status: 'Order Placed', date: 'Dec 10, 2024 09:00 AM', completed: true },
-            { status: 'Order Confirmed', date: 'Dec 10, 2024 09:30 AM', completed: true },
-            { status: 'Shipped', date: 'Processing...', completed: false },
-            { status: 'Out for Delivery', date: '-', completed: false },
-            { status: 'Delivered', date: '-', completed: false },
-        ],
-    },
-};
+import { ordersApi, Order, getImageUrl } from '@/lib/api';
 
 export default function OrderDetailScreen() {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const { id } = useLocalSearchParams<{ id: string }>();
+    const [order, setOrder] = useState<Order | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [cancelling, setCancelling] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const order = mockOrderDetails[id || '1'];
+    const fetchOrder = useCallback(async () => {
+        if (!id) return;
+        try {
+            setError(null);
+            const result = await ordersApi.getById(id);
+            if (result.success && result.response) {
+                setOrder(result.response);
+            } else {
+                setError(result.message || 'Failed to fetch order');
+            }
+        } catch (err) {
+            setError('Network error. Please try again.');
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, [id]);
+
+    useEffect(() => {
+        fetchOrder();
+    }, [fetchOrder]);
+
+    const onRefresh = useCallback(() => {
+        setRefreshing(true);
+        fetchOrder();
+    }, [fetchOrder]);
+
+    const handleCancelOrder = () => {
+        Alert.alert(
+            'Cancel Order',
+            'Are you sure you want to cancel this order?',
+            [
+                { text: 'No', style: 'cancel' },
+                {
+                    text: 'Yes, Cancel',
+                    style: 'destructive',
+                    onPress: async () => {
+                        if (!order) return;
+                        setCancelling(true);
+                        try {
+                            const result = await ordersApi.cancel(order._id);
+                            if (result.success && result.response) {
+                                setOrder(result.response);
+                                Alert.alert('Success', 'Order cancelled successfully');
+                            } else {
+                                Alert.alert('Error', result.message || 'Failed to cancel order');
+                            }
+                        } catch (err) {
+                            Alert.alert('Error', 'Network error. Please try again.');
+                        } finally {
+                            setCancelling(false);
+                        }
+                    }
+                },
+            ]
+        );
+    };
 
     const styles = createStyles(colors);
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'Delivered': return colors.success;
-            case 'In Transit': return colors.warning;
-            case 'Processing': return colors.primary;
-            case 'Cancelled': return colors.destructive;
+            case 'delivered': return colors.success;
+            case 'shipped':
+            case 'out_for_delivery': return colors.warning;
+            case 'confirmed':
+            case 'processing': return colors.primary;
+            case 'cancelled': return colors.destructive;
             default: return colors.mutedForeground;
         }
+    };
+
+    const formatStatus = (status: string) => {
+        return status.split('_').map(word =>
+            word.charAt(0).toUpperCase() + word.slice(1)
+        ).join(' ');
+    };
+
+    const formatDate = (dateString: string | null) => {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-IN', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
     };
 
     const getTimelineIcon = (status: string, completed: boolean) => {
@@ -177,7 +124,33 @@ export default function OrderDetailScreen() {
         }
     };
 
-    if (!order) {
+    const formatPaymentMethod = (method: string) => {
+        switch (method) {
+            case 'upi': return 'UPI';
+            case 'card': return 'Credit/Debit Card';
+            case 'wallet': return 'Wallet';
+            case 'cod': return 'Cash on Delivery';
+            default: return method;
+        }
+    };
+
+    if (loading) {
+        return (
+            <View style={styles.container}>
+                <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
+                    <Pressable style={styles.backButton} onPress={() => router.back()}>
+                        <ArrowLeft size={22} color={colors.foreground} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>Order Details</Text>
+                </View>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                </View>
+            </View>
+        );
+    }
+
+    if (error || !order) {
         return (
             <View style={styles.container}>
                 <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
@@ -187,7 +160,10 @@ export default function OrderDetailScreen() {
                     <Text style={styles.headerTitle}>Order Details</Text>
                 </View>
                 <View style={styles.emptyState}>
-                    <Text style={styles.emptyText}>Order not found</Text>
+                    <Text style={styles.emptyText}>{error || 'Order not found'}</Text>
+                    <Pressable style={styles.retryButton} onPress={fetchOrder}>
+                        <Text style={styles.retryButtonText}>Retry</Text>
+                    </Pressable>
                 </View>
             </View>
         );
@@ -202,16 +178,24 @@ export default function OrderDetailScreen() {
                 <Text style={styles.headerTitle}>Order Details</Text>
             </View>
 
-            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
+            >
                 {/* Order Summary Card */}
                 <View style={styles.card}>
                     <View style={styles.cardHeader}>
                         <View>
                             <Text style={styles.orderNumber}>{order.orderNumber}</Text>
-                            <Text style={styles.orderDate}>Placed on {order.date}</Text>
+                            <Text style={styles.orderDate}>Placed on {formatDate(order.createdAt)}</Text>
                         </View>
                         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + '20' }]}>
-                            <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>{order.status}</Text>
+                            <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>
+                                {formatStatus(order.status)}
+                            </Text>
                         </View>
                     </View>
                 </View>
@@ -219,9 +203,9 @@ export default function OrderDetailScreen() {
                 {/* Order Items */}
                 <View style={styles.card}>
                     <Text style={styles.sectionTitle}>Items ({order.items.length})</Text>
-                    {order.items.map((item: any, index: number) => (
-                        <View key={item.id} style={[styles.itemRow, index < order.items.length - 1 && styles.itemBorder]}>
-                            <Image source={{ uri: item.image }} style={styles.itemImage} />
+                    {order.items.map((item, index) => (
+                        <View key={index} style={[styles.itemRow, index < order.items.length - 1 && styles.itemBorder]}>
+                            <Image source={{ uri: getImageUrl(item.image) }} style={styles.itemImage} />
                             <View style={styles.itemInfo}>
                                 <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
                                 <Text style={styles.itemQuantity}>Qty: {item.quantity}</Text>
@@ -234,7 +218,7 @@ export default function OrderDetailScreen() {
                 {/* Order Timeline */}
                 <View style={styles.card}>
                     <Text style={styles.sectionTitle}>Order Timeline</Text>
-                    {order.timeline.map((step: any, index: number) => (
+                    {order.timeline.map((step, index) => (
                         <View key={index} style={styles.timelineItem}>
                             <View style={styles.timelineIconContainer}>
                                 {getTimelineIcon(step.status, step.completed)}
@@ -246,7 +230,7 @@ export default function OrderDetailScreen() {
                                 <Text style={[styles.timelineStatus, step.completed && styles.timelineStatusCompleted]}>
                                     {step.status}
                                 </Text>
-                                <Text style={styles.timelineDate}>{step.date}</Text>
+                                <Text style={styles.timelineDate}>{formatDate(step.date)}</Text>
                             </View>
                         </View>
                     ))}
@@ -274,7 +258,7 @@ export default function OrderDetailScreen() {
                     </View>
                     <View style={styles.paymentRow}>
                         <Text style={styles.paymentLabel}>Payment Method</Text>
-                        <Text style={styles.paymentValue}>{order.paymentMethod}</Text>
+                        <Text style={styles.paymentValue}>{formatPaymentMethod(order.paymentMethod)}</Text>
                     </View>
                     <View style={styles.divider} />
                     <View style={styles.paymentRow}>
@@ -304,12 +288,25 @@ export default function OrderDetailScreen() {
 
                 {/* Action Buttons */}
                 <View style={styles.actionButtons}>
-                    {order.status === 'Delivered' && (
+                    {['pending', 'confirmed', 'processing'].includes(order.status) && (
+                        <Pressable
+                            style={styles.cancelButton}
+                            onPress={handleCancelOrder}
+                            disabled={cancelling}
+                        >
+                            {cancelling ? (
+                                <ActivityIndicator size="small" color={colors.destructive} />
+                            ) : (
+                                <Text style={styles.cancelButtonText}>Cancel Order</Text>
+                            )}
+                        </Pressable>
+                    )}
+                    {order.status === 'delivered' && (
                         <Pressable style={styles.secondaryButton}>
                             <Text style={styles.secondaryButtonText}>Write a Review</Text>
                         </Pressable>
                     )}
-                    <Pressable style={styles.primaryButton}>
+                    <Pressable style={styles.primaryButton} onPress={() => router.push('/help-support' as any)}>
                         <Text style={styles.primaryButtonText}>Need Help?</Text>
                     </Pressable>
                 </View>
@@ -340,6 +337,11 @@ const createStyles = (colors: any) => StyleSheet.create({
         fontSize: 18,
         fontWeight: '700',
         color: colors.foreground,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     scrollView: {
         flex: 1,
@@ -479,8 +481,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paymentRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: 10,
     },
     paymentLabel: {
         fontSize: 13,
@@ -502,7 +503,7 @@ const createStyles = (colors: any) => StyleSheet.create({
         color: colors.foreground,
     },
     totalValue: {
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: '800',
         color: colors.primary,
     },
@@ -510,37 +511,61 @@ const createStyles = (colors: any) => StyleSheet.create({
         gap: 10,
         marginTop: 8,
     },
-    primaryButton: {
-        backgroundColor: colors.primary,
+    cancelButton: {
+        backgroundColor: colors.destructive + '20',
+        borderRadius: 12,
         paddingVertical: 14,
-        borderRadius: 10,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: colors.destructive,
     },
-    primaryButtonText: {
-        color: colors.white,
-        fontSize: 15,
+    cancelButtonText: {
+        fontSize: 14,
         fontWeight: '700',
+        color: colors.destructive,
     },
     secondaryButton: {
         backgroundColor: colors.secondary,
+        borderRadius: 12,
         paddingVertical: 14,
-        borderRadius: 10,
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: colors.border,
     },
     secondaryButtonText: {
+        fontSize: 14,
+        fontWeight: '700',
         color: colors.foreground,
-        fontSize: 15,
-        fontWeight: '600',
+    },
+    primaryButton: {
+        backgroundColor: colors.primary,
+        borderRadius: 12,
+        paddingVertical: 14,
+        alignItems: 'center',
+    },
+    primaryButtonText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: colors.white,
     },
     emptyState: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
+        paddingVertical: 60,
     },
     emptyText: {
         fontSize: 16,
         color: colors.mutedForeground,
+        marginBottom: 16,
+    },
+    retryButton: {
+        backgroundColor: colors.primary,
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 8,
+    },
+    retryButtonText: {
+        color: colors.white,
+        fontSize: 14,
+        fontWeight: '600',
     },
 });

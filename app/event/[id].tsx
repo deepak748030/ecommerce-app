@@ -1,28 +1,104 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Star, ShoppingCart, Minus, Plus, ChevronRight } from 'lucide-react-native';
-import { allProducts, mockReviews, getFavorites, toggleFavorite, Event, Review } from '@/lib/mockData';
+import { mockReviews, getFavorites, toggleFavorite, Review } from '@/lib/mockData';
+import { productsApi, Product, getImageUrl } from '@/lib/api';
 import { ImageCarousel } from '@/components/ImageCarousel';
 import { useTheme } from '@/hooks/useTheme';
 
 const { width: screenWidth } = Dimensions.get('window');
+
+interface ProductDisplay {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  mrp: number;
+  category: string;
+  image: string;
+  images: string[];
+  badge: string;
+  location: string;
+  fullLocation: string;
+  rating: number;
+  reviews: number;
+  date: string;
+  time: string;
+  services: string[];
+}
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams();
   const { colors } = useTheme();
   const [favorites, setFavorites] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
-  const [product, setProduct] = useState<Event | null>(null);
+  const [product, setProduct] = useState<ProductDisplay | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const foundProduct = allProducts.find(e => e.id === id);
-    setProduct(foundProduct || null);
+    const fetchProduct = async () => {
+      if (!id || typeof id !== 'string') {
+        setError('Invalid product ID');
+        setLoading(false);
+        return;
+      }
 
-    const productReviews = mockReviews.filter(r => r.eventId === id);
-    setReviews(productReviews);
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await productsApi.getById(id);
+
+        if (response.success && response.response) {
+          const apiProduct = response.response;
+
+          // Transform API response to display format
+          const categoryName = typeof apiProduct.category === 'object'
+            ? apiProduct.category.name
+            : apiProduct.category || 'General';
+
+          const displayProduct: ProductDisplay = {
+            id: apiProduct._id,
+            title: apiProduct.title,
+            description: apiProduct.description || '',
+            price: apiProduct.price,
+            mrp: apiProduct.mrp || apiProduct.price,
+            category: categoryName,
+            image: getImageUrl(apiProduct.image),
+            images: apiProduct.images?.length > 0
+              ? apiProduct.images.map(img => getImageUrl(img))
+              : [getImageUrl(apiProduct.image)],
+            badge: apiProduct.badge || '',
+            location: apiProduct.location || '',
+            fullLocation: apiProduct.fullLocation || '',
+            rating: apiProduct.rating || 4.5,
+            reviews: apiProduct.reviews || 0,
+            date: apiProduct.date || '',
+            time: apiProduct.time || '',
+            services: apiProduct.services || [],
+          };
+
+          setProduct(displayProduct);
+
+          // Load reviews for this product
+          const productReviews = mockReviews.filter(r => r.eventId === id);
+          setReviews(productReviews);
+        } else {
+          setError(response.message || 'Product not found');
+        }
+      } catch (err) {
+        console.error('Error fetching product:', err);
+        setError('Failed to load product');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProduct();
 
     const loadFavorites = async () => {
       const favs = await getFavorites();
@@ -33,11 +109,22 @@ export default function ProductDetailsScreen() {
 
   const styles = createStyles(colors);
 
-  if (!product) {
+  if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Product not found</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.errorText, { marginTop: 12 }]}>Loading product...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !product) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error || 'Product not found'}</Text>
           <Pressable style={styles.backBtn} onPress={() => router.back()}>
             <Text style={styles.backBtnText}>Go Back</Text>
           </Pressable>
