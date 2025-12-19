@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions, Activ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Star, ShoppingCart, Minus, Plus, ChevronRight } from 'lucide-react-native';
-import { mockReviews, getFavorites, toggleFavorite, Review } from '@/lib/mockData';
-import { productsApi, Product, getImageUrl } from '@/lib/api';
+import { getFavorites, toggleFavorite } from '@/lib/mockData';
+import { productsApi, reviewsApi, Product, Review, getImageUrl } from '@/lib/api';
 import { ImageCarousel } from '@/components/ImageCarousel';
 import { useTheme } from '@/hooks/useTheme';
 import { useCart } from '@/hooks/useCart';
@@ -38,7 +38,11 @@ export default function ProductDetailsScreen() {
   const [quantity, setQuantity] = useState(1);
   const [product, setProduct] = useState<ProductDisplay | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [ratingDistribution, setRatingDistribution] = useState<{ [key: number]: number }>({
+    5: 0, 4: 0, 3: 0, 2: 0, 1: 0
+  });
   const [loading, setLoading] = useState(true);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addingToCart, setAddingToCart] = useState(false);
 
@@ -87,9 +91,8 @@ export default function ProductDetailsScreen() {
 
           setProduct(displayProduct);
 
-          // Load reviews for this product
-          const productReviews = mockReviews.filter(r => r.eventId === id);
-          setReviews(productReviews);
+          // Fetch real reviews for this product
+          fetchProductReviews(apiProduct._id);
         } else {
           setError(response.message || 'Product not found');
         }
@@ -98,6 +101,22 @@ export default function ProductDetailsScreen() {
         setError('Failed to load product');
       } finally {
         setLoading(false);
+      }
+    };
+
+    const fetchProductReviews = async (productId: string) => {
+      try {
+        setReviewsLoading(true);
+        const reviewsResponse = await reviewsApi.getProductReviews(productId);
+
+        if (reviewsResponse.success && reviewsResponse.response) {
+          setReviews(reviewsResponse.response.reviews);
+          setRatingDistribution(reviewsResponse.response.ratingDistribution);
+        }
+      } catch (err) {
+        console.error('Error fetching reviews:', err);
+      } finally {
+        setReviewsLoading(false);
       }
     };
 
@@ -192,19 +211,22 @@ export default function ProductDetailsScreen() {
     });
   };
 
-  // Calculate rating distribution (mock data for now)
-  const totalReviews = product.reviews || 0;
-  const ratingDistribution = {
-    5: Math.round(totalReviews * 0.6),
-    4: Math.round(totalReviews * 0.25),
-    3: Math.round(totalReviews * 0.08),
-    2: Math.round(totalReviews * 0.04),
-    1: Math.round(totalReviews * 0.03),
-  };
+  // Calculate total reviews from real data
+  const totalReviews = product.reviews || reviews.length;
 
   const getBarWidth = (count: number) => {
     if (totalReviews === 0) return 0;
     return (count / totalReviews) * 100;
+  };
+
+  // Format review date
+  const formatReviewDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
   };
 
   return (
@@ -327,14 +349,26 @@ export default function ProductDetailsScreen() {
             </View>
 
             {/* Recent Reviews */}
-            {reviews.length > 0 && (
+            {reviewsLoading ? (
+              <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 20 }} />
+            ) : reviews.length > 0 ? (
               <View style={styles.reviewsList}>
                 {reviews.slice(0, 3).map((review) => (
                   <View key={review.id} style={[styles.reviewItem, { borderBottomColor: colors.border }]}>
                     <View style={styles.reviewHeader}>
-                      <Image source={{ uri: review.userAvatar }} style={styles.reviewerAvatar} />
+                      <Image
+                        source={{ uri: review.userAvatar || 'https://via.placeholder.com/100' }}
+                        style={styles.reviewerAvatar}
+                      />
                       <View style={styles.reviewerInfo}>
-                        <Text style={[styles.reviewerName, { color: colors.foreground }]}>{review.userName}</Text>
+                        <View style={styles.reviewerNameRow}>
+                          <Text style={[styles.reviewerName, { color: colors.foreground }]}>{review.userName}</Text>
+                          {review.isVerifiedPurchase && (
+                            <View style={[styles.verifiedBadge, { backgroundColor: colors.success }]}>
+                              <Text style={styles.verifiedText}>Verified</Text>
+                            </View>
+                          )}
+                        </View>
                         <View style={styles.reviewMeta}>
                           <View style={styles.reviewStars}>
                             {[1, 2, 3, 4, 5].map((i) => (
@@ -346,11 +380,13 @@ export default function ProductDetailsScreen() {
                               />
                             ))}
                           </View>
-                          <Text style={[styles.reviewDate, { color: colors.mutedForeground }]}>{review.date}</Text>
+                          <Text style={[styles.reviewDate, { color: colors.mutedForeground }]}>
+                            {formatReviewDate(review.date)}
+                          </Text>
                         </View>
                       </View>
                     </View>
-                    <Text style={[styles.reviewComment, { color: colors.mutedForeground }]} numberOfLines={2}>
+                    <Text style={[styles.reviewComment, { color: colors.mutedForeground }]} numberOfLines={3}>
                       {review.comment}
                     </Text>
                   </View>
@@ -358,15 +394,15 @@ export default function ProductDetailsScreen() {
 
                 {reviews.length > 3 && (
                   <Pressable style={styles.seeAllBtn}>
-                    <Text style={[styles.seeAllText, { color: colors.primary }]}>See all reviews</Text>
+                    <Text style={[styles.seeAllText, { color: colors.primary }]}>See all {totalReviews} reviews</Text>
                     <ChevronRight size={16} color={colors.primary} />
                   </Pressable>
                 )}
               </View>
-            )}
-
-            {reviews.length === 0 && (
-              <Text style={[styles.noReviews, { color: colors.mutedForeground }]}>No reviews yet</Text>
+            ) : (
+              <Text style={[styles.noReviews, { color: colors.mutedForeground }]}>
+                No reviews yet. Be the first to review this product!
+              </Text>
             )}
           </View>
         </View>
@@ -613,10 +649,24 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     marginLeft: 8,
   },
+  reviewerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   reviewerName: {
     fontSize: 12,
     fontWeight: '600',
-    marginBottom: 2,
+  },
+  verifiedBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  verifiedText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '600',
   },
   reviewMeta: {
     flexDirection: 'row',

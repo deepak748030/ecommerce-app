@@ -712,3 +712,81 @@ export const notificationsApi = {
         });
     },
 };
+
+// Review Types
+export interface Review {
+    id: string;
+    userName: string;
+    userAvatar: string;
+    rating: number;
+    comment: string;
+    images?: string[];
+    date: string;
+    isVerifiedPurchase: boolean;
+}
+
+export interface ReviewsResponse {
+    reviews: Review[];
+    total: number;
+    page: number;
+    pages: number;
+    ratingDistribution: {
+        5: number;
+        4: number;
+        3: number;
+        2: number;
+        1: number;
+    };
+}
+
+export interface ReviewableProduct {
+    productId: string;
+    name: string;
+    image: string;
+}
+
+export interface CanReviewResponse {
+    canReview: boolean;
+    reason?: string;
+    reviewableProducts: ReviewableProduct[];
+    alreadyReviewed?: number;
+}
+
+// Reviews API
+export const reviewsApi = {
+    // Get reviews for a product (Public)
+    getProductReviews: async (productId: string, page: number = 1, limit: number = 10) => {
+        return apiRequest<ReviewsResponse>(`/reviews/product/${productId}?page=${page}&limit=${limit}`);
+    },
+
+    // Create a review (Protected)
+    create: async (data: {
+        productId: string;
+        orderId: string;
+        rating: number;
+        comment?: string;
+        images?: string[];
+    }) => {
+        return apiRequest<Review>('/reviews', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+
+    // Get user's reviews (Protected)
+    getMyReviews: async () => {
+        return apiRequest<{ count: number; reviews: any[] }>('/reviews/my-reviews');
+    },
+
+    // Check if user can review products in an order (Protected)
+    canReviewOrder: async (orderId: string) => {
+        return apiRequest<CanReviewResponse>(`/reviews/can-review/${orderId}`);
+    },
+
+    // Delete a review (Protected)
+    delete: async (id: string) => {
+        return apiRequest<{ message: string }>(`/reviews/${id}`, {
+            method: 'DELETE',
+        });
+    },
+};

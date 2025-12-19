@@ -2,9 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Package, MapPin, CreditCard, Clock, CheckCircle, Truck, Box } from 'lucide-react-native';
+import { ArrowLeft, Package, MapPin, CreditCard, Clock, CheckCircle, Truck, Box, Star } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { ordersApi, Order, getImageUrl } from '@/lib/api';
+import { ordersApi, reviewsApi, Order, ReviewableProduct, getImageUrl } from '@/lib/api';
+import { ReviewModal } from '@/components/ReviewModal';
 
 export default function OrderDetailScreen() {
     const insets = useSafeAreaInsets();
@@ -15,6 +16,9 @@ export default function OrderDetailScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [cancelling, setCancelling] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [reviewModalVisible, setReviewModalVisible] = useState(false);
+    const [reviewableProducts, setReviewableProducts] = useState<ReviewableProduct[]>([]);
+    const [canReview, setCanReview] = useState(false);
 
     const fetchOrder = useCallback(async () => {
         if (!id) return;
@@ -38,10 +42,47 @@ export default function OrderDetailScreen() {
         fetchOrder();
     }, [fetchOrder]);
 
+    // Check if user can review when order is delivered
+    useEffect(() => {
+        const checkCanReview = async () => {
+            if (!id || !order || order.status !== 'delivered') {
+                setCanReview(false);
+                setReviewableProducts([]);
+                return;
+            }
+
+            try {
+                const result = await reviewsApi.canReviewOrder(id);
+                if (result.success && result.response) {
+                    setCanReview(result.response.canReview);
+                    setReviewableProducts(result.response.reviewableProducts);
+                }
+            } catch (err) {
+                console.error('Error checking review status:', err);
+            }
+        };
+
+        checkCanReview();
+    }, [id, order?.status]);
+
     const onRefresh = useCallback(() => {
         setRefreshing(true);
         fetchOrder();
     }, [fetchOrder]);
+
+    const handleReviewSubmitted = async () => {
+        // Refresh reviewable products after a review is submitted
+        if (!id) return;
+        try {
+            const result = await reviewsApi.canReviewOrder(id);
+            if (result.success && result.response) {
+                setCanReview(result.response.canReview);
+                setReviewableProducts(result.response.reviewableProducts);
+            }
+        } catch (err) {
+            console.error('Error refreshing review status:', err);
+        }
+    };
 
     const handleCancelOrder = () => {
         Alert.alert(
@@ -301,16 +342,35 @@ export default function OrderDetailScreen() {
                             )}
                         </Pressable>
                     )}
-                    {order.status === 'delivered' && (
-                        <Pressable style={styles.secondaryButton}>
-                            <Text style={styles.secondaryButtonText}>Write a Review</Text>
+                    {order.status === 'delivered' && canReview && (
+                        <Pressable
+                            style={styles.reviewButton}
+                            onPress={() => setReviewModalVisible(true)}
+                        >
+                            <Star size={18} color={colors.warning} fill={colors.warning} />
+                            <Text style={styles.reviewButtonText}>Write a Review</Text>
                         </Pressable>
+                    )}
+                    {order.status === 'delivered' && !canReview && reviewableProducts.length === 0 && (
+                        <View style={styles.reviewedBadge}>
+                            <CheckCircle size={16} color={colors.success} />
+                            <Text style={[styles.reviewedText, { color: colors.success }]}>All items reviewed</Text>
+                        </View>
                     )}
                     <Pressable style={styles.primaryButton} onPress={() => router.push('/help-support' as any)}>
                         <Text style={styles.primaryButtonText}>Need Help?</Text>
                     </Pressable>
                 </View>
             </ScrollView>
+
+            {/* Review Modal */}
+            <ReviewModal
+                visible={reviewModalVisible}
+                onClose={() => setReviewModalVisible(false)}
+                orderId={order._id}
+                products={reviewableProducts}
+                onReviewSubmitted={handleReviewSubmitted}
+            />
         </View>
     );
 }
@@ -523,6 +583,31 @@ const createStyles = (colors: any) => StyleSheet.create({
         fontSize: 14,
         fontWeight: '700',
         color: colors.destructive,
+    },
+    reviewButton: {
+        backgroundColor: colors.warning + '20',
+        borderRadius: 12,
+        paddingVertical: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    reviewButtonText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: colors.warning,
+    },
+    reviewedBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 12,
+    },
+    reviewedText: {
+        fontSize: 13,
+        fontWeight: '600',
     },
     secondaryButton: {
         backgroundColor: colors.secondary,
