@@ -16,6 +16,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, RefreshCw, Shield, CheckCircle } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 
 const { width } = Dimensions.get('window');
 const OTP_LENGTH = 6;
@@ -30,6 +33,7 @@ export default function OTPScreen() {
     const [resendTimer, setResendTimer] = useState(30);
     const [canResend, setCanResend] = useState(false);
     const [isVerified, setIsVerified] = useState(false);
+    const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
 
     const inputRefs = useRef<(TextInput | null)[]>([]);
     const shakeAnimation = useRef(new Animated.Value(0)).current;
@@ -45,6 +49,50 @@ export default function OTPScreen() {
             setCanResend(true);
         }
     }, [resendTimer, canResend]);
+
+    // Get push token on mount
+    useEffect(() => {
+        const getPushToken = async () => {
+            try {
+                if (Device.isDevice) {
+                    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+                    let finalStatus = existingStatus;
+
+                    if (existingStatus !== 'granted') {
+                        const { status } = await Notifications.requestPermissionsAsync();
+                        finalStatus = status;
+                    }
+
+                    if (finalStatus === 'granted') {
+                        const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+
+                        if (projectId) {
+                            const pushTokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+                            setExpoPushToken(pushTokenData.data);
+                            console.log('Push token obtained:', pushTokenData.data);
+                        } else {
+                            // Dev fallback token
+                            const devToken = `ExponentPushToken[dev_${Date.now()}_${Math.random().toString(36).substr(2, 9)}]`;
+                            setExpoPushToken(devToken);
+                            console.log('Dev push token:', devToken);
+                        }
+                    }
+                } else {
+                    // Simulator fallback token
+                    const simToken = `ExponentPushToken[simulator_${Date.now()}_${Math.random().toString(36).substr(2, 9)}]`;
+                    setExpoPushToken(simToken);
+                    console.log('Simulator push token:', simToken);
+                }
+            } catch (error) {
+                console.error('Error getting push token:', error);
+                // Fallback token on error
+                const fallbackToken = `ExponentPushToken[fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}]`;
+                setExpoPushToken(fallbackToken);
+            }
+        };
+
+        getPushToken();
+    }, []);
 
     useEffect(() => {
         // Auto-focus first input
@@ -115,7 +163,8 @@ export default function OTPScreen() {
 
         try {
             const { authApi } = await import('@/lib/api');
-            const result = await authApi.verifyOtp(phone || '', otpCode);
+            console.log('Verifying OTP with push token:', expoPushToken);
+            const result = await authApi.verifyOtp(phone || '', otpCode, expoPushToken || undefined);
 
             if (result.success && result.response) {
                 setIsVerified(true);
