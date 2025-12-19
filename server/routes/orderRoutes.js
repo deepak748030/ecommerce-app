@@ -5,6 +5,7 @@ const {
     getOrders,
     getOrder,
     cancelOrder,
+    getTransactions,
 } = require('../controllers/orderController');
 const { verifyToken } = require('../middleware/auth');
 
@@ -13,6 +14,7 @@ router.use(verifyToken);
 
 router.post('/', createOrder);
 router.get('/', getOrders);
+router.get('/transactions', getTransactions);
 router.get('/:id', getOrder);
 router.put('/:id/cancel', cancelOrder);
 

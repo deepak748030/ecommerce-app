@@ -58,8 +58,8 @@ export default function OrderDetailScreen() {
                         try {
                             const result = await ordersApi.cancel(order._id);
                             if (result.success && result.response) {
-                                setOrder(result.response);
-                                Alert.alert('Success', 'Order cancelled successfully');
+                                setOrder(result.response.order);
+                                Alert.alert('Success', 'Order cancelled and refund initiated');
                             } else {
                                 Alert.alert('Error', result.message || 'Failed to cancel order');
                             }

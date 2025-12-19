@@ -1,30 +1,91 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { ArrowLeft, MapPin, Check, Package, Truck } from 'lucide-react-native';
-import { allProducts, Event } from '@/lib/mockData';
+import { productsApi, Product, getImageUrl, getToken } from '@/lib/api';
 import { useTheme } from '@/hooks/useTheme';
+import { useCart } from '@/hooks/useCart';
+import { useAddress } from '@/hooks/useAddress';
+
+interface ProductDisplay {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  mrp: number;
+  image: string;
+  location: string;
+  services: string[];
+}
 
 export default function BookingFlowScreen() {
   const { id } = useLocalSearchParams();
   const { colors } = useTheme();
-  const [product, setProduct] = useState<Event | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const { addToCart } = useCart();
+  const { selectedAddress } = useAddress();
+  const [product, setProduct] = useState<ProductDisplay | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [quantity] = useState(1);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const foundProduct = allProducts.find(e => e.id === id);
-    setProduct(foundProduct || null);
+    const fetchProduct = async () => {
+      if (!id || typeof id !== 'string') {
+        setError('Invalid product ID');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const response = await productsApi.getById(id);
+
+        if (response.success && response.response) {
+          const apiProduct = response.response;
+          setProduct({
+            id: apiProduct._id,
+            title: apiProduct.title,
+            description: apiProduct.description || '',
+            price: apiProduct.price,
+            mrp: apiProduct.mrp || apiProduct.price,
+            image: getImageUrl(apiProduct.image),
+            location: apiProduct.location || '',
+            services: apiProduct.services || [],
+          });
+        } else {
+          setError(response.message || 'Product not found');
+        }
+      } catch (err) {
+        console.error('Error fetching product:', err);
+        setError('Failed to load product');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProduct();
   }, [id]);
 
   const styles = createStyles(colors);
 
-  if (!product) {
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !product) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>Product not found</Text>
+          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>{error || 'Product not found'}</Text>
           <Pressable style={[styles.goBackButton, { backgroundColor: colors.primary }]} onPress={() => router.back()}>
             <Text style={[styles.goBackButtonText, { color: colors.primaryForeground }]}>Go Back</Text>
           </Pressable>
@@ -37,18 +98,45 @@ export default function BookingFlowScreen() {
     ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
     : 0;
 
-  const handleProceedToPayment = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      router.push({
-        pathname: '/payment',
-        params: {
-          eventId: product.id,
-          price: product.price.toString()
-        }
-      });
-    }, 500);
+  const handleProceedToPayment = async () => {
+    // Check authentication
+    const token = await getToken();
+    if (!token) {
+      Alert.alert(
+        'Login Required',
+        'Please login to continue with your order',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Login', onPress: () => router.push('/auth/phone') }
+        ]
+      );
+      return;
+    }
+
+    // Check if address is selected
+    if (!selectedAddress) {
+      Alert.alert(
+        'Address Required',
+        'Please add a delivery address to continue',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Add Address', onPress: () => router.push('/saved-addresses') }
+        ]
+      );
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      // Add item to cart and proceed to checkout
+      await addToCart(product.id, quantity);
+      router.push('/checkout');
+    } catch (error) {
+      console.error('Error:', error);
+      Alert.alert('Error', 'Failed to proceed. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -68,10 +156,12 @@ export default function BookingFlowScreen() {
             <Image source={{ uri: product.image }} style={styles.productImage} />
             <View style={styles.productInfo}>
               <Text style={[styles.productTitle, { color: colors.foreground }]} numberOfLines={2}>{product.title}</Text>
-              <View style={styles.locationRow}>
-                <MapPin size={12} color={colors.mutedForeground} />
-                <Text style={[styles.locationText, { color: colors.mutedForeground }]} numberOfLines={1}>{product.location}</Text>
-              </View>
+              {product.location && (
+                <View style={styles.locationRow}>
+                  <MapPin size={12} color={colors.mutedForeground} />
+                  <Text style={[styles.locationText, { color: colors.mutedForeground }]} numberOfLines={1}>{product.location}</Text>
+                </View>
+              )}
               <View style={styles.priceRow}>
                 <Text style={[styles.productPrice, { color: colors.foreground }]}>₹{product.price.toLocaleString()}</Text>
                 {product.mrp > product.price && (
@@ -157,14 +247,14 @@ export default function BookingFlowScreen() {
             <Text style={[styles.bottomTotal, { color: colors.foreground }]}>₹{product.price.toLocaleString()}</Text>
           </View>
           <Pressable
-            style={[styles.proceedButton, { backgroundColor: colors.primary }]}
+            style={[styles.proceedButton, { backgroundColor: colors.primary }, isProcessing && { opacity: 0.6 }]}
             onPress={handleProceedToPayment}
-            disabled={isLoading}
+            disabled={isProcessing}
           >
-            {isLoading ? (
+            {isProcessing ? (
               <ActivityIndicator size="small" color={colors.primaryForeground} />
             ) : (
-              <Text style={[styles.proceedButtonText, { color: colors.primaryForeground }]}>Place Order</Text>
+              <Text style={[styles.proceedButtonText, { color: colors.primaryForeground }]}>Proceed to Checkout</Text>
             )}
           </Pressable>
         </View>
@@ -176,6 +266,15 @@ export default function BookingFlowScreen() {
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
   },
   errorContainer: {
     flex: 1,
@@ -385,7 +484,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 10,
-    minWidth: 130,
+    minWidth: 160,
     alignItems: 'center',
   },
   proceedButtonText: {

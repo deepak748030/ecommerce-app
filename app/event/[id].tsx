@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Star, ShoppingCart, Minus, Plus, ChevronRight } from 'lucide-react-native';
@@ -7,6 +7,7 @@ import { mockReviews, getFavorites, toggleFavorite, Review } from '@/lib/mockDat
 import { productsApi, Product, getImageUrl } from '@/lib/api';
 import { ImageCarousel } from '@/components/ImageCarousel';
 import { useTheme } from '@/hooks/useTheme';
+import { useCart } from '@/hooks/useCart';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -32,12 +33,14 @@ interface ProductDisplay {
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams();
   const { colors } = useTheme();
+  const { addToCart } = useCart();
   const [favorites, setFavorites] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
   const [product, setProduct] = useState<ProductDisplay | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [addingToCart, setAddingToCart] = useState(false);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -147,12 +150,35 @@ export default function ProductDetailsScreen() {
   const increaseQuantity = () => setQuantity(prev => prev + 1);
   const decreaseQuantity = () => setQuantity(prev => Math.max(1, prev - 1));
 
-  const handleAddToCart = () => {
-    router.push('/cart');
+  const handleAddToCart = async () => {
+    if (!product) return;
+
+    setAddingToCart(true);
+    try {
+      await addToCart(product.id, quantity);
+      Alert.alert('Added to Cart', `${product.title} (x${quantity}) added to your cart!`, [
+        { text: 'Continue Shopping', style: 'cancel' },
+        { text: 'View Cart', onPress: () => router.push('/cart') }
+      ]);
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      Alert.alert('Error', 'Failed to add item to cart');
+    } finally {
+      setAddingToCart(false);
+    }
   };
 
-  const handleBuyNow = () => {
-    router.push(`/booking/${product.id}`);
+  const handleBuyNow = async () => {
+    if (!product) return;
+
+    // Add to cart first then go to checkout
+    try {
+      await addToCart(product.id, quantity);
+      router.push('/checkout');
+    } catch (error) {
+      console.error('Error:', error);
+      Alert.alert('Error', 'Failed to proceed. Please try again.');
+    }
   };
 
   // Calculate rating distribution (mock data for now)
@@ -343,8 +369,16 @@ export default function ProductDetailsScreen() {
             <Text style={[styles.totalPrice, { color: colors.foreground }]}>₹{(product.price * quantity).toLocaleString()}</Text>
           </View>
           <View style={styles.actionButtons}>
-            <Pressable style={[styles.cartBtn, { backgroundColor: colors.secondary, borderColor: colors.primary }]} onPress={handleAddToCart}>
-              <ShoppingCart size={18} color={colors.primary} />
+            <Pressable
+              style={[styles.cartBtn, { backgroundColor: colors.secondary, borderColor: colors.primary }, addingToCart && { opacity: 0.6 }]}
+              onPress={handleAddToCart}
+              disabled={addingToCart}
+            >
+              {addingToCart ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <ShoppingCart size={18} color={colors.primary} />
+              )}
             </Pressable>
             <Pressable style={[styles.buyBtn, { backgroundColor: colors.primary }]} onPress={handleBuyNow}>
               <Text style={[styles.buyBtnText, { color: colors.primaryForeground }]}>Buy Now</Text>

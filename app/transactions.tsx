@@ -3,14 +3,14 @@ import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, Refresh
 import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, IndianRupee, Wallet, Smartphone, CreditCard, Package } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { EmptyState } from '@/components/EmptyState';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ordersApi, Order } from '@/lib/api';
+import { ordersApi, Transaction } from '@/lib/api';
 
-interface Transaction {
+interface TransactionDisplay {
     id: string;
     title: string;
+    transactionId: string;
     orderNumber: string;
     amount: number;
     type: 'payment' | 'refund';
@@ -21,27 +21,31 @@ interface Transaction {
 
 export default function TransactionsScreen() {
     const { colors } = useTheme();
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [transactions, setTransactions] = useState<TransactionDisplay[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const insets = useSafeAreaInsets();
 
     const fetchTransactions = useCallback(async () => {
         try {
-            const result = await ordersApi.getAll();
+            const result = await ordersApi.getTransactions();
             if (result.success && result.response?.data) {
-                const orders = result.response.data;
-                const txns: Transaction[] = orders.map((order: Order) => ({
-                    id: order._id,
-                    title: order.items.length > 0 ? order.items[0].name : 'Order',
-                    orderNumber: order.orderNumber,
-                    amount: order.total,
-                    type: order.status === 'cancelled' ? 'refund' : 'payment',
-                    paymentMethod: order.paymentMethod,
-                    date: order.createdAt,
-                    status: order.status,
-                }));
-                setTransactions(txns);
+                const txns = result.response.data;
+                const displayTxns: TransactionDisplay[] = txns.map((txn: Transaction) => {
+                    const orderData = typeof txn.order === 'object' ? txn.order : null;
+                    return {
+                        id: txn._id,
+                        title: orderData?.items?.[0]?.name || txn.description || 'Transaction',
+                        transactionId: txn.transactionId,
+                        orderNumber: orderData?.orderNumber || '',
+                        amount: txn.amount,
+                        type: txn.type,
+                        paymentMethod: txn.paymentMethod,
+                        date: txn.createdAt,
+                        status: txn.status,
+                    };
+                });
+                setTransactions(displayTxns);
             }
         } catch (error) {
             console.error('Error fetching transactions:', error);
@@ -97,7 +101,7 @@ export default function TransactionsScreen() {
 
     const styles = createStyles(colors);
 
-    const renderTransaction = ({ item }: { item: Transaction }) => {
+    const renderTransaction = ({ item }: { item: TransactionDisplay }) => {
         const isRefund = item.type === 'refund';
 
         return (
@@ -109,6 +113,7 @@ export default function TransactionsScreen() {
                     <Text style={styles.eventTitle} numberOfLines={1}>
                         {item.title}
                     </Text>
+                    <Text style={styles.transactionId}>{item.transactionId}</Text>
                     <Text style={styles.orderNumber}>{item.orderNumber}</Text>
                     <Text style={styles.bookingDate}>
                         {formatDate(item.date)}
@@ -277,6 +282,10 @@ const createStyles = (colors: any) => StyleSheet.create({
         fontSize: 15,
         fontWeight: '600',
         color: colors.foreground,
+    },
+    transactionId: {
+        fontSize: 11,
+        color: colors.mutedForeground,
     },
     orderNumber: {
         fontSize: 12,

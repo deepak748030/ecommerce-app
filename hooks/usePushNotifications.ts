@@ -6,26 +6,31 @@ import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { authApi, getToken } from '@/lib/api';
 
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-    }),
-});
+// Only set notification handler on native platforms
+if (Platform.OS !== 'web') {
+    Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+            shouldShowBanner: true,
+            shouldShowList: true,
+        }),
+    });
 
-// Set notification category with reply action
-Notifications.setNotificationCategoryAsync('chat', [
-    {
-        identifier: 'reply',
-        buttonTitle: 'Reply',
-        textInput: {
-            submitButtonTitle: 'Send',
-            placeholder: 'Type your message...',
+    // Set notification category with reply action (only on native)
+    Notifications.setNotificationCategoryAsync('chat', [
+        {
+            identifier: 'reply',
+            buttonTitle: 'Reply',
+            textInput: {
+                submitButtonTitle: 'Send',
+                placeholder: 'Type your message...',
+            },
         },
-    },
-]);
+    ]).catch(() => {
+        // Silently fail on web
+    });
+}
 
 export interface PushNotificationState {
     expoPushToken: string | null;
@@ -68,6 +73,11 @@ export function usePushNotifications() {
     const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
     async function registerForPushNotificationsAsync(): Promise<string | null> {
+        // Push notifications are not supported on web
+        if (Platform.OS === 'web') {
+            return null;
+        }
+
         let token: string | null = null;
 
         if (Platform.OS === 'android') {
@@ -147,6 +157,11 @@ export function usePushNotifications() {
     }
 
     useEffect(() => {
+        // Skip push notifications setup on web
+        if (Platform.OS === 'web') {
+            return;
+        }
+
         registerForPushNotificationsAsync().then((token) => {
             if (token) {
                 setExpoPushToken(token);
@@ -156,12 +171,16 @@ export function usePushNotifications() {
         });
 
         // Check if app was opened from a notification
-        Notifications.getLastNotificationResponseAsync().then((response) => {
-            if (response) {
-                const data = response.notification.request.content.data;
-                handleNotificationNavigation(data);
-            }
-        });
+        Notifications.getLastNotificationResponseAsync()
+            .then((response) => {
+                if (response) {
+                    const data = response.notification.request.content.data;
+                    handleNotificationNavigation(data);
+                }
+            })
+            .catch(() => {
+                // Silently fail on web
+            });
 
         // Listen for notifications when app is in foreground
         notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
@@ -204,6 +223,8 @@ export async function sendChatNotification(
     eventId: string,
     vendorId: string
 ) {
+    if (Platform.OS === 'web') return;
+
     await Notifications.scheduleNotificationAsync({
         content: {
             title: senderName,
@@ -227,6 +248,8 @@ export async function sendLocalNotification(
     data?: Record<string, unknown>,
     categoryIdentifier?: string
 ) {
+    if (Platform.OS === 'web') return;
+
     await Notifications.scheduleNotificationAsync({
         content: {
             title,
@@ -241,6 +264,10 @@ export async function sendLocalNotification(
 
 // Function to handle notification response (reply action)
 export function setupNotificationResponseHandler(onReply: (vendorId: string, message: string) => void) {
+    if (Platform.OS === 'web') {
+        return { remove: () => { } };
+    }
+
     return Notifications.addNotificationResponseReceivedListener((response) => {
         if (response.actionIdentifier === 'reply') {
             const userText = response.userText;

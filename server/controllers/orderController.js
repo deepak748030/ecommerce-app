@@ -1,12 +1,13 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const Transaction = require('../models/Transaction');
 
-// @desc    Create new order
+// @desc    Create new order with payment
 // @route   POST /api/orders
 // @access  Private
 const createOrder = async (req, res) => {
     try {
-        const { items, shippingAddress, paymentMethod, promoCode } = req.body;
+        const { items, shippingAddress, paymentMethod, paymentDetails, promoCode } = req.body;
 
         if (!items || items.length === 0) {
             return res.status(400).json({
@@ -61,6 +62,7 @@ const createOrder = async (req, res) => {
             { status: 'Delivered', date: null, completed: false },
         ];
 
+        // Create the order
         const order = await Order.create({
             user: req.user._id,
             items: orderItems,
@@ -80,10 +82,25 @@ const createOrder = async (req, res) => {
         order.timeline[1] = { status: 'Order Confirmed', date: new Date(), completed: true };
         await order.save();
 
+        // Create transaction record for the payment
+        const transaction = await Transaction.create({
+            user: req.user._id,
+            order: order._id,
+            amount: total,
+            paymentMethod: paymentMethod,
+            paymentDetails: paymentDetails || {},
+            status: 'completed',
+            type: 'payment',
+            description: `Payment for order ${order.orderNumber}`,
+        });
+
         res.status(201).json({
             success: true,
             message: 'Order placed successfully',
-            response: order,
+            response: {
+                order,
+                transaction,
+            },
         });
     } catch (error) {
         console.error('Create order error:', error);
@@ -119,7 +136,7 @@ const getOrders = async (req, res) => {
     }
 };
 
-// @desc    Get single order
+// @desc    Get single order with transaction
 // @route   GET /api/orders/:id
 // @access  Private
 const getOrder = async (req, res) => {
@@ -136,9 +153,15 @@ const getOrder = async (req, res) => {
             });
         }
 
+        // Get associated transactions
+        const transactions = await Transaction.find({ order: order._id }).sort({ createdAt: -1 });
+
         res.json({
             success: true,
-            response: order,
+            response: {
+                ...order.toObject(),
+                transactions,
+            },
         });
     } catch (error) {
         console.error('Get order error:', error);
@@ -149,7 +172,7 @@ const getOrder = async (req, res) => {
     }
 };
 
-// @desc    Cancel order
+// @desc    Cancel order and create refund transaction
 // @route   PUT /api/orders/:id/cancel
 // @access  Private
 const cancelOrder = async (req, res) => {
@@ -173,16 +196,67 @@ const cancelOrder = async (req, res) => {
             });
         }
 
+        if (order.status === 'cancelled') {
+            return res.status(400).json({
+                success: false,
+                message: 'Order is already cancelled',
+            });
+        }
+
         order.status = 'cancelled';
         await order.save();
 
+        // Create refund transaction
+        const refundTransaction = await Transaction.create({
+            user: req.user._id,
+            order: order._id,
+            amount: order.total,
+            paymentMethod: order.paymentMethod,
+            status: 'completed',
+            type: 'refund',
+            description: `Refund for cancelled order ${order.orderNumber}`,
+            refundReason: req.body.reason || 'Order cancelled by user',
+            refundedAt: new Date(),
+        });
+
         res.json({
             success: true,
-            message: 'Order cancelled successfully',
-            response: order,
+            message: 'Order cancelled and refund initiated',
+            response: {
+                order,
+                refundTransaction,
+            },
         });
     } catch (error) {
         console.error('Cancel order error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+        });
+    }
+};
+
+// @desc    Get user transactions (from orders)
+// @route   GET /api/orders/transactions
+// @access  Private
+const getTransactions = async (req, res) => {
+    try {
+        const transactions = await Transaction.find({ user: req.user._id })
+            .sort({ createdAt: -1 })
+            .populate({
+                path: 'order',
+                select: 'orderNumber items total status',
+            });
+
+        res.json({
+            success: true,
+            response: {
+                count: transactions.length,
+                data: transactions,
+            },
+        });
+    } catch (error) {
+        console.error('Get transactions error:', error);
         res.status(500).json({
             success: false,
             message: 'Server error',
@@ -195,4 +269,5 @@ module.exports = {
     getOrders,
     getOrder,
     cancelOrder,
+    getTransactions,
 };

@@ -394,6 +394,12 @@ export interface Order {
     updatedAt: string;
 }
 
+// Order Response with Transaction
+export interface OrderWithTransaction {
+    order: Order;
+    transaction: Transaction;
+}
+
 // Orders API (All Protected)
 export const ordersApi = {
     create: async (data: {
@@ -407,9 +413,14 @@ export const ordersApi = {
             pincode: string;
         };
         paymentMethod: string;
+        paymentDetails?: {
+            upiId?: string;
+            cardLast4?: string;
+            walletName?: string;
+        };
         promoCode?: string;
     }) => {
-        return apiRequest<Order>('/orders', {
+        return apiRequest<OrderWithTransaction>('/orders', {
             method: 'POST',
             body: JSON.stringify(data),
         });
@@ -420,15 +431,48 @@ export const ordersApi = {
     },
 
     getById: async (id: string) => {
-        return apiRequest<Order>(`/orders/${id}`);
+        return apiRequest<Order & { transactions: Transaction[] }>(`/orders/${id}`);
     },
 
-    cancel: async (id: string) => {
-        return apiRequest<Order>(`/orders/${id}/cancel`, {
+    cancel: async (id: string, reason?: string) => {
+        return apiRequest<{ order: Order; refundTransaction: Transaction }>(`/orders/${id}/cancel`, {
             method: 'PUT',
+            body: JSON.stringify({ reason }),
         });
     },
+
+    getTransactions: async () => {
+        return apiRequest<{ count: number; data: Transaction[] }>('/orders/transactions');
+    },
 };
+
+// Transaction Types
+export interface Transaction {
+    _id: string;
+    transactionId: string;
+    user: string;
+    order: {
+        _id: string;
+        orderNumber: string;
+        items: OrderItem[];
+        total: number;
+        status: string;
+    } | string;
+    amount: number;
+    paymentMethod: string;
+    paymentDetails?: {
+        upiId?: string;
+        cardLast4?: string;
+        walletName?: string;
+    };
+    status: 'pending' | 'processing' | 'completed' | 'failed' | 'refunded';
+    type: 'payment' | 'refund';
+    description: string;
+    refundReason?: string;
+    refundedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+}
 
 // Helper to get image URL - supports base64, URLs, and relative paths
 export const getImageUrl = (image: string | undefined | null): string => {

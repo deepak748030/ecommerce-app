@@ -105,7 +105,7 @@ export default function PaymentScreen() {
       const result = await ordersApi.create(orderData);
 
       if (result.success && result.response) {
-        setOrderId(result.response._id);
+        setOrderId(result.response.order._id);
         await clearCart();
         setShowSuccess(true);
       } else {
