@@ -21,4 +21,3 @@ router.put('/:id', verifyToken, updateProduct);
 router.delete('/:id', verifyToken, deleteProduct);
 
 module.exports = router;
-a
