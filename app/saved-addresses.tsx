@@ -1,60 +1,41 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft, MapPin, Home, Briefcase, Plus, Edit2, Trash2, X, Check } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-
-interface Address {
-    id: string;
-    type: string;
-    name: string;
-    address: string;
-    city: string;
-    pincode: string;
-    phone: string;
-    isDefault: boolean;
-}
-
-const initialAddresses: Address[] = [
-    {
-        id: '1',
-        type: 'Home',
-        name: 'John Doe',
-        address: '123, Park Street, Andheri West',
-        city: 'Mumbai',
-        pincode: '400058',
-        phone: '+91 9876543210',
-        isDefault: true,
-    },
-    {
-        id: '2',
-        type: 'Office',
-        name: 'John Doe',
-        address: '456, Tech Park, Powai',
-        city: 'Mumbai',
-        pincode: '400076',
-        phone: '+91 9876543210',
-        isDefault: false,
-    },
-];
+import { useAddress, Address } from '@/hooks/useAddress';
+import { getToken } from '@/lib/api';
 
 export default function SavedAddressesScreen() {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const [addresses, setAddresses] = useState<Address[]>(initialAddresses);
+    const { addresses, loading, addAddress, updateAddress, deleteAddress, setDefaultAddress, setSelectedAddress, refreshAddresses } = useAddress();
     const [showModal, setShowModal] = useState(false);
     const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+    const [saving, setSaving] = useState(false);
     const [formData, setFormData] = useState({
         type: 'Home',
         name: '',
         address: '',
         city: '',
+        state: '',
         pincode: '',
         phone: '',
     });
 
     const styles = createStyles(colors);
+
+    useEffect(() => {
+        const checkAuth = async () => {
+            const token = await getToken();
+            if (!token) {
+                Alert.alert('Login Required', 'Please login to manage addresses');
+                router.replace('/auth/phone');
+            }
+        };
+        checkAuth();
+    }, []);
 
     const getAddressIcon = (type: string) => {
         switch (type) {
@@ -66,7 +47,7 @@ export default function SavedAddressesScreen() {
 
     const handleAddNew = () => {
         setEditingAddress(null);
-        setFormData({ type: 'Home', name: '', address: '', city: '', pincode: '', phone: '' });
+        setFormData({ type: 'Home', name: '', address: '', city: '', state: '', pincode: '', phone: '' });
         setShowModal(true);
     };
 
@@ -77,44 +58,93 @@ export default function SavedAddressesScreen() {
             name: address.name,
             address: address.address,
             city: address.city,
+            state: address.state || '',
             pincode: address.pincode,
             phone: address.phone,
         });
         setShowModal(true);
     };
 
-    const handleDelete = (id: string) => {
-        setAddresses(prev => prev.filter(addr => addr.id !== id));
+    const handleDelete = async (id: string) => {
+        Alert.alert(
+            'Delete Address',
+            'Are you sure you want to delete this address?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await deleteAddress(id);
+                        } catch (error) {
+                            Alert.alert('Error', 'Failed to delete address');
+                        }
+                    },
+                },
+            ]
+        );
     };
 
-    const handleSetDefault = (id: string) => {
-        setAddresses(prev => prev.map(addr => ({
-            ...addr,
-            isDefault: addr.id === id,
-        })));
+    const handleSetDefault = async (id: string) => {
+        try {
+            await setDefaultAddress(id);
+        } catch (error) {
+            Alert.alert('Error', 'Failed to set default address');
+        }
     };
 
-    const handleSave = () => {
+    const handleSelectAddress = async (address: Address) => {
+        await setSelectedAddress(address);
+        router.back();
+    };
+
+    const handleSave = async () => {
         if (!formData.name || !formData.address || !formData.city || !formData.pincode || !formData.phone) {
+            Alert.alert('Missing Fields', 'Please fill all required fields');
             return;
         }
 
-        if (editingAddress) {
-            setAddresses(prev => prev.map(addr =>
-                addr.id === editingAddress.id
-                    ? { ...addr, ...formData }
-                    : addr
-            ));
-        } else {
-            const newAddress: Address = {
-                id: Date.now().toString(),
-                ...formData,
-                isDefault: addresses.length === 0,
-            };
-            setAddresses(prev => [...prev, newAddress]);
+        setSaving(true);
+        try {
+            if (editingAddress) {
+                await updateAddress(editingAddress.id, {
+                    type: formData.type,
+                    name: formData.name,
+                    address: formData.address,
+                    city: formData.city,
+                    state: formData.state,
+                    pincode: formData.pincode,
+                    phone: formData.phone,
+                });
+            } else {
+                await addAddress({
+                    type: formData.type,
+                    name: formData.name,
+                    address: formData.address,
+                    city: formData.city,
+                    state: formData.state,
+                    pincode: formData.pincode,
+                    phone: formData.phone,
+                    isDefault: addresses.length === 0,
+                });
+            }
+            setShowModal(false);
+            refreshAddresses();
+        } catch (error) {
+            Alert.alert('Error', 'Failed to save address');
+        } finally {
+            setSaving(false);
         }
-        setShowModal(false);
     };
+
+    if (loading) {
+        return (
+            <View style={[styles.container, styles.loadingContainer]}>
+                <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -135,7 +165,7 @@ export default function SavedAddressesScreen() {
                 {addresses.map((address) => {
                     const IconComponent = getAddressIcon(address.type);
                     return (
-                        <View key={address.id} style={styles.addressCard}>
+                        <Pressable key={address.id} style={styles.addressCard} onPress={() => handleSelectAddress(address)}>
                             <View style={styles.addressHeader}>
                                 <View style={styles.addressTypeContainer}>
                                     <View style={styles.addressIcon}>
@@ -160,7 +190,7 @@ export default function SavedAddressesScreen() {
                             <View style={styles.addressBody}>
                                 <Text style={styles.addressName}>{address.name}</Text>
                                 <Text style={styles.addressText}>{address.address}</Text>
-                                <Text style={styles.addressText}>{address.city} - {address.pincode}</Text>
+                                <Text style={styles.addressText}>{address.city}{address.state ? `, ${address.state}` : ''} - {address.pincode}</Text>
                                 <Text style={styles.addressPhone}>{address.phone}</Text>
                             </View>
                             {!address.isDefault && (
@@ -168,7 +198,7 @@ export default function SavedAddressesScreen() {
                                     <Text style={styles.setDefaultText}>Set as Default</Text>
                                 </Pressable>
                             )}
-                        </View>
+                        </Pressable>
                     );
                 })}
 
@@ -215,7 +245,7 @@ export default function SavedAddressesScreen() {
                                 ))}
                             </View>
 
-                            <Text style={styles.inputLabel}>Full Name</Text>
+                            <Text style={styles.inputLabel}>Full Name *</Text>
                             <TextInput
                                 style={styles.input}
                                 placeholder="Enter full name"
@@ -224,7 +254,7 @@ export default function SavedAddressesScreen() {
                                 onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
                             />
 
-                            <Text style={styles.inputLabel}>Address</Text>
+                            <Text style={styles.inputLabel}>Address *</Text>
                             <TextInput
                                 style={[styles.input, styles.textArea]}
                                 placeholder="Enter full address"
@@ -235,7 +265,7 @@ export default function SavedAddressesScreen() {
                                 numberOfLines={3}
                             />
 
-                            <Text style={styles.inputLabel}>City</Text>
+                            <Text style={styles.inputLabel}>City *</Text>
                             <TextInput
                                 style={styles.input}
                                 placeholder="Enter city"
@@ -244,7 +274,16 @@ export default function SavedAddressesScreen() {
                                 onChangeText={(text) => setFormData(prev => ({ ...prev, city: text }))}
                             />
 
-                            <Text style={styles.inputLabel}>Pincode</Text>
+                            <Text style={styles.inputLabel}>State</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Enter state"
+                                placeholderTextColor={colors.mutedForeground}
+                                value={formData.state}
+                                onChangeText={(text) => setFormData(prev => ({ ...prev, state: text }))}
+                            />
+
+                            <Text style={styles.inputLabel}>Pincode *</Text>
                             <TextInput
                                 style={styles.input}
                                 placeholder="Enter pincode"
@@ -254,7 +293,7 @@ export default function SavedAddressesScreen() {
                                 keyboardType="numeric"
                             />
 
-                            <Text style={styles.inputLabel}>Phone Number</Text>
+                            <Text style={styles.inputLabel}>Phone Number *</Text>
                             <TextInput
                                 style={styles.input}
                                 placeholder="Enter phone number"
@@ -265,9 +304,19 @@ export default function SavedAddressesScreen() {
                             />
                         </ScrollView>
 
-                        <Pressable style={styles.saveButton} onPress={handleSave}>
-                            <Check size={20} color={colors.white} />
-                            <Text style={styles.saveButtonText}>Save Address</Text>
+                        <Pressable
+                            style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                            onPress={handleSave}
+                            disabled={saving}
+                        >
+                            {saving ? (
+                                <ActivityIndicator size="small" color={colors.white} />
+                            ) : (
+                                <>
+                                    <Check size={20} color={colors.white} />
+                                    <Text style={styles.saveButtonText}>Save Address</Text>
+                                </>
+                            )}
                         </Pressable>
                     </View>
                 </View>
@@ -280,6 +329,10 @@ const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
+    },
+    loadingContainer: {
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     header: {
         backgroundColor: colors.background,
@@ -502,13 +555,17 @@ const createStyles = (colors: any) => StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: colors.primary,
-        margin: 16,
+        marginHorizontal: 16,
+        marginBottom: 16,
         paddingVertical: 14,
         borderRadius: 12,
         gap: 8,
     },
+    saveButtonDisabled: {
+        opacity: 0.6,
+    },
     saveButtonText: {
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: '700',
         color: colors.white,
     },

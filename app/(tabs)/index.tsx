@@ -5,7 +5,7 @@ import { useTheme } from '@/hooks/useTheme';
 import TopBar from '@/components/TopBar';
 import EventCard from '@/components/EventCard';
 import { LinearGradient } from 'expo-linear-gradient';
-import { categoriesApi, productsApi, Product, Category, getImageUrl } from '@/lib/api';
+import { categoriesApi, productsApi, bannersApi, Product, Category, Banner, getImageUrl } from '@/lib/api';
 import { router } from 'expo-router';
 
 const { width } = Dimensions.get('window');
@@ -13,33 +13,43 @@ const BANNER_WIDTH = width - 32;
 const CARD_WIDTH = (width - 20) / 2;
 const SCROLL_THRESHOLD = 50;
 
-const banners = [
+// Default banners in case API fails
+const defaultBanners = [
   {
-    id: '1',
+    _id: '1',
     title: 'Fresh Fruits',
     subtitle: 'Farm fresh fruits delivered daily to your door',
     badge: '🍎 FRESH',
     image: '🍊',
     gradient: ['#22C55E', '#16A34A'],
-    searchType: 'Fruits',
+    linkType: 'search' as const,
+    linkValue: 'Fruits',
+    isActive: true,
+    order: 0,
   },
   {
-    id: '2',
+    _id: '2',
     title: 'Fashion Deals',
     subtitle: 'Latest trends at unbeatable prices',
     badge: '✨ STYLE',
     image: '👗',
     gradient: ['#8B5CF6', '#7C3AED'],
-    searchType: 'Fashion',
+    linkType: 'search' as const,
+    linkValue: 'Fashion',
+    isActive: true,
+    order: 1,
   },
   {
-    id: '3',
+    _id: '3',
     title: 'Event Planning',
     subtitle: 'Weddings, birthdays & corporate events',
     badge: '🎉 EVENTS',
     image: '🎊',
     gradient: ['#FF6B6B', '#EE5A5A'],
-    searchType: 'Weddings',
+    linkType: 'search' as const,
+    linkValue: 'Weddings',
+    isActive: true,
+    order: 2,
   },
 ];
 
@@ -50,6 +60,7 @@ export default function HomeScreen() {
   const bannerScrollRef = useRef<ScrollView>(null);
 
   // API data states
+  const [banners, setBanners] = useState<Banner[]>(defaultBanners);
   const [categories, setCategories] = useState<Category[]>([]);
   const [trendingProducts, setTrendingProducts] = useState<Product[]>([]);
   const [fashionProducts, setFashionProducts] = useState<Product[]>([]);
@@ -63,11 +74,16 @@ export default function HomeScreen() {
 
   const fetchData = useCallback(async () => {
     try {
-      // Fetch categories and products in parallel
-      const [categoriesRes, productsRes] = await Promise.all([
+      // Fetch banners, categories and products in parallel
+      const [bannersRes, categoriesRes, productsRes] = await Promise.all([
+        bannersApi.getAll(),
         categoriesApi.getAll(),
         productsApi.getAll({ limit: 20 }),
       ]);
+
+      if (bannersRes.success && bannersRes.response?.data && bannersRes.response.data.length > 0) {
+        setBanners(bannersRes.response.data);
+      }
 
       if (categoriesRes.success && categoriesRes.response?.data) {
         setCategories(categoriesRes.response.data);
@@ -114,8 +130,14 @@ export default function HomeScreen() {
     setWishlist(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
-  const handleBannerPress = (searchType: string) => {
-    router.push({ pathname: '/search', params: { category: searchType } });
+  const handleBannerPress = (banner: Banner) => {
+    if (banner.linkType === 'category') {
+      router.push({ pathname: '/category/[id]', params: { id: banner.linkValue } });
+    } else if (banner.linkType === 'product') {
+      router.push({ pathname: '/event/[id]', params: { id: banner.linkValue } });
+    } else if (banner.linkType === 'search') {
+      router.push({ pathname: '/search', params: { category: banner.linkValue } });
+    }
   };
 
   const handleCategoryPress = (category: Category) => {
@@ -191,7 +213,7 @@ export default function HomeScreen() {
           decelerationRate="fast"
         >
           {banners.map((banner, index) => (
-            <Pressable key={banner.id} onPress={() => handleBannerPress(banner.searchType)}>
+            <Pressable key={banner._id} onPress={() => handleBannerPress(banner)}>
               <LinearGradient
                 colors={isDark ? ['#1E3A2F', banner.gradient[1]] as const : [banner.gradient[0], banner.gradient[1]] as const}
                 style={[styles.banner, index === banners.length - 1 && { marginRight: 0 }]}
@@ -211,7 +233,11 @@ export default function HomeScreen() {
                     </View>
                   </View>
                   <View style={styles.bannerImageContainer}>
-                    <Text style={styles.bannerImage}>{banner.image}</Text>
+                    {banner.image.startsWith('http') ? (
+                      <Image source={{ uri: banner.image }} style={styles.bannerImageReal} />
+                    ) : (
+                      <Text style={styles.bannerImage}>{banner.image}</Text>
+                    )}
                   </View>
                 </View>
               </LinearGradient>
@@ -410,9 +436,15 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   bannerImage: {
     fontSize: 42,
+  },
+  bannerImageReal: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
   bannerDots: {
     flexDirection: 'row',
@@ -493,14 +525,12 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     width: 170,
   },
   gridContainer: {
-
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     gap: 8,
-    marginBottom: 20,
   },
   gridProductCard: {
-    width: CARD_WIDTH,
+    width: CARD_WIDTH - 4,
   },
 });

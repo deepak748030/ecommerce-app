@@ -493,3 +493,108 @@ export const getImageUrl = (image: string | undefined | null): string => {
     // Otherwise treat as relative path (placeholder for now)
     return image;
 };
+
+// Banner Types
+export interface Banner {
+    _id: string;
+    title: string;
+    subtitle: string;
+    image: string;
+    badge: string;
+    gradient: string[];
+    linkType: 'category' | 'product' | 'search' | 'external';
+    linkValue: string;
+    isActive: boolean;
+    order: number;
+}
+
+// Banners API (Public GET, Admin POST/PUT/DELETE)
+export const bannersApi = {
+    getAll: async () => {
+        return apiRequest<{ count: number; data: Banner[] }>('/banners');
+    },
+
+    getById: async (id: string) => {
+        return apiRequest<Banner>(`/banners/${id}`);
+    },
+
+    create: async (data: Partial<Banner>) => {
+        return apiRequest<Banner>('/banners', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+
+    update: async (id: string, data: Partial<Banner>) => {
+        return apiRequest<Banner>(`/banners/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+
+    delete: async (id: string) => {
+        return apiRequest<{ id: string }>(`/banners/${id}`, {
+            method: 'DELETE',
+        });
+    },
+};
+
+// Address Types
+export interface Address {
+    _id: string;
+    user: string;
+    type: 'Home' | 'Office' | 'Other';
+    name: string;
+    phone: string;
+    address: string;
+    city: string;
+    state: string;
+    pincode: string;
+    isDefault: boolean;
+}
+
+// Addresses API (All Protected)
+export const addressesApi = {
+    getAll: async () => {
+        return apiRequest<{ count: number; data: Address[] }>('/addresses');
+    },
+
+    getById: async (id: string) => {
+        return apiRequest<Address>(`/addresses/${id}`);
+    },
+
+    create: async (data: {
+        type: string;
+        name: string;
+        phone: string;
+        address: string;
+        city: string;
+        state?: string;
+        pincode: string;
+        isDefault?: boolean;
+    }) => {
+        return apiRequest<Address>('/addresses', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+
+    update: async (id: string, data: Partial<Address>) => {
+        return apiRequest<Address>(`/addresses/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+
+    delete: async (id: string) => {
+        return apiRequest<{ id: string }>(`/addresses/${id}`, {
+            method: 'DELETE',
+        });
+    },
+
+    setDefault: async (id: string) => {
+        return apiRequest<Address>(`/addresses/${id}/default`, {
+            method: 'PUT',
+        });
+    },
+};

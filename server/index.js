@@ -9,6 +9,8 @@ const seedRoutes = require('./routes/seedRoutes');
 const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const bannerRoutes = require('./routes/bannerRoutes');
+const addressRoutes = require('./routes/addressRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -48,6 +50,8 @@ app.use('/api/seed', seedRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/banners', bannerRoutes);
+app.use('/api/addresses', addressRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
