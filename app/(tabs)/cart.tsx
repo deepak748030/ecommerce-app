@@ -110,12 +110,6 @@ export default function CartScreen() {
                             </View>
                         ))}
 
-                        {/* Coupon Section */}
-                        <Pressable style={styles.couponSection}>
-                            <Tag size={20} color={colors.primary} />
-                            <Text style={styles.couponText}>Apply Coupon Code</Text>
-                            <ArrowRight size={18} color={colors.mutedForeground} />
-                        </Pressable>
 
                         {/* Order Summary */}
                         <View style={styles.summaryCard}>

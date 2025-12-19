@@ -234,6 +234,33 @@ export const authApi = {
 
         return result;
     },
+
+    // GET /auth/notification-settings - Get notification settings (Protected)
+    getNotificationSettings: async () => {
+        return apiRequest<{
+            pushEnabled: boolean;
+            orderUpdates: boolean;
+            promotions: boolean;
+        }>('/auth/notification-settings', {
+            method: 'GET',
+        });
+    },
+
+    // PUT /auth/notification-settings - Update notification settings (Protected)
+    updateNotificationSettings: async (settings: {
+        pushEnabled?: boolean;
+        orderUpdates?: boolean;
+        promotions?: boolean;
+    }) => {
+        return apiRequest<{
+            pushEnabled: boolean;
+            orderUpdates: boolean;
+            promotions: boolean;
+        }>('/auth/notification-settings', {
+            method: 'PUT',
+            body: JSON.stringify(settings),
+        });
+    },
 };
 
 // Product Types
