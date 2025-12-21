@@ -316,7 +316,7 @@ export default function VendorScreen() {
             {/* Tab Content */}
             <View style={styles.tabContent}>
                 {activeTab === 'analytics' && (
-                    <VendorAnalyticsTab analytics={analytics} loading={analyticsLoading} />
+                    <VendorAnalyticsTab analytics={analytics} loading={analyticsLoading} onRefresh={loadAnalytics} />
                 )}
                 {activeTab === 'products' && (
                     <VendorProducts

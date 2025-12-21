@@ -139,6 +139,7 @@ const creditVendorWallet = async (vendorId, amount, orderId, description) => {
 // @param   orderId - Related order ID
 const releasePendingBalance = async (vendorId, amount, orderId) => {
     try {
+        // Use findOneAndUpdate for atomic operation
         const vendor = await User.findById(vendorId);
         if (!vendor) {
             console.error('Vendor not found:', vendorId);
@@ -155,29 +156,35 @@ const releasePendingBalance = async (vendorId, amount, orderId) => {
             };
         }
 
-        // Move from pending to available balance
+        // Calculate amount to release
         const amountToRelease = Math.min(amount, vendor.wallet.pendingBalance);
-        vendor.wallet.pendingBalance = Math.max(0, vendor.wallet.pendingBalance - amountToRelease);
-        vendor.wallet.balance += amountToRelease;
-        vendor.wallet.totalEarnings += amountToRelease;
 
-        // Mark the wallet as modified to ensure save
-        vendor.markModified('wallet');
-        await vendor.save();
+        // Update wallet balances atomically
+        const updatedVendor = await User.findByIdAndUpdate(
+            vendorId,
+            {
+                $inc: {
+                    'wallet.balance': amountToRelease,
+                    'wallet.pendingBalance': -amountToRelease,
+                    'wallet.totalEarnings': amountToRelease,
+                },
+            },
+            { new: true }
+        );
 
         // Update the transaction status for this order
-        const updatedTransaction = await WalletTransaction.findOneAndUpdate(
+        await WalletTransaction.findOneAndUpdate(
             { vendor: vendorId, order: orderId, type: 'credit' },
             {
                 status: 'completed',
-                balanceAfter: vendor.wallet.balance,
+                balanceAfter: updatedVendor.wallet.balance,
                 description: 'Order delivered - payment released',
             },
             { new: true }
         );
 
-        console.log(`Pending balance released: Vendor ${vendorId}, Amount ₹${amountToRelease}, New Balance: ₹${vendor.wallet.balance}`);
-        return vendor.wallet;
+        console.log(`Pending balance released: Vendor ${vendorId}, Amount ₹${amountToRelease}, New Balance: ₹${updatedVendor.wallet.balance}`);
+        return updatedVendor.wallet;
     } catch (error) {
         console.error('Release pending balance error:', error);
         return null;
@@ -283,6 +290,86 @@ const getWalletSummary = async (req, res) => {
     }
 };
 
+// @desc    Request withdrawal
+// @route   POST /api/wallet/withdraw
+// @access  Private
+const requestWithdrawal = async (req, res) => {
+    try {
+        const { amount, upiId, accountDetails } = req.body;
+
+        if (!amount || amount <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid withdrawal amount',
+            });
+        }
+
+        const user = await User.findById(req.user._id);
+
+        if (!user || !user.wallet) {
+            return res.status(404).json({
+                success: false,
+                message: 'Wallet not found',
+            });
+        }
+
+        if (user.wallet.balance < amount) {
+            return res.status(400).json({
+                success: false,
+                message: 'Insufficient balance',
+            });
+        }
+
+        // Minimum withdrawal amount
+        if (amount < 100) {
+            return res.status(400).json({
+                success: false,
+                message: 'Minimum withdrawal amount is ₹100',
+            });
+        }
+
+        // Deduct from balance and add to withdrawn
+        await User.findByIdAndUpdate(
+            req.user._id,
+            {
+                $inc: {
+                    'wallet.balance': -amount,
+                    'wallet.totalWithdrawn': amount,
+                },
+            }
+        );
+
+        // Create withdrawal transaction
+        const transaction = await WalletTransaction.create({
+            vendor: req.user._id,
+            amount: amount,
+            type: 'withdrawal',
+            status: 'pending',
+            description: `Withdrawal request - ${upiId || 'Bank Transfer'}`,
+            balanceAfter: user.wallet.balance - amount,
+        });
+
+        const updatedUser = await User.findById(req.user._id);
+
+        res.json({
+            success: true,
+            message: 'Withdrawal request submitted successfully',
+            response: {
+                transaction,
+                wallet: {
+                    balance: updatedUser.wallet.balance,
+                    pendingBalance: updatedUser.wallet.pendingBalance,
+                    totalEarnings: updatedUser.wallet.totalEarnings,
+                    totalWithdrawn: updatedUser.wallet.totalWithdrawn,
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Request withdrawal error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 module.exports = {
     getWalletBalance,
     getWalletTransactions,
@@ -290,4 +377,5 @@ module.exports = {
     creditVendorWallet,
     releasePendingBalance,
     debitVendorWallet,
+    requestWithdrawal,
 };

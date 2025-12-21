@@ -1,10 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     ScrollView,
     Image,
+    TouchableOpacity,
+    Modal,
+    TextInput,
+    Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import {
@@ -14,18 +19,25 @@ import {
     Package,
     Wallet,
     Clock,
+    ArrowUpRight,
+    X,
 } from 'lucide-react-native';
-import { VendorAnalytics as VendorAnalyticsType, getImageUrl } from '@/lib/api';
+import { VendorAnalytics as VendorAnalyticsType, getImageUrl, vendorApi } from '@/lib/api';
 import { VendorAnalyticsSkeleton } from '@/components/Skeleton';
 
 interface Props {
     analytics: VendorAnalyticsType | null;
     loading: boolean;
+    onRefresh?: () => void;
 }
 
-export function VendorAnalytics({ analytics, loading }: Props) {
+export function VendorAnalytics({ analytics, loading, onRefresh }: Props) {
     const { colors } = useTheme();
     const styles = createStyles(colors);
+    const [withdrawModalVisible, setWithdrawModalVisible] = useState(false);
+    const [withdrawAmount, setWithdrawAmount] = useState('');
+    const [upiId, setUpiId] = useState('');
+    const [withdrawing, setWithdrawing] = useState(false);
 
     const getStatusColor = (status: string) => {
         switch (status.toLowerCase()) {
@@ -44,6 +56,44 @@ export function VendorAnalytics({ analytics, loading }: Props) {
         return status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     };
 
+    const handleWithdraw = async () => {
+        const amount = parseFloat(withdrawAmount);
+        if (isNaN(amount) || amount <= 0) {
+            Alert.alert('Error', 'Please enter a valid amount');
+            return;
+        }
+        if (amount < 100) {
+            Alert.alert('Error', 'Minimum withdrawal amount is ₹100');
+            return;
+        }
+        if (!upiId.trim()) {
+            Alert.alert('Error', 'Please enter your UPI ID');
+            return;
+        }
+        if (!analytics?.wallet || amount > analytics.wallet.balance) {
+            Alert.alert('Error', 'Insufficient balance');
+            return;
+        }
+
+        setWithdrawing(true);
+        try {
+            const result = await vendorApi.requestWithdrawal({ amount, upiId: upiId.trim() });
+            if (result.success) {
+                Alert.alert('Success', `Withdrawal request of ₹${amount} submitted successfully!`);
+                setWithdrawModalVisible(false);
+                setWithdrawAmount('');
+                setUpiId('');
+                onRefresh?.();
+            } else {
+                Alert.alert('Error', result.message || 'Failed to process withdrawal');
+            }
+        } catch (error) {
+            Alert.alert('Error', 'Something went wrong');
+        } finally {
+            setWithdrawing(false);
+        }
+    };
+
     if (loading) {
         return <VendorAnalyticsSkeleton />;
     }
@@ -58,33 +108,101 @@ export function VendorAnalytics({ analytics, loading }: Props) {
         );
     }
 
-    const wallet = analytics.wallet || { balance: 0, pendingBalance: 0, totalEarnings: 0, currencySymbol: '₹' };
+    const wallet = analytics.wallet || { balance: 0, pendingBalance: 0, totalEarnings: 0, totalWithdrawn: 0, currencySymbol: '₹' };
 
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {/* Wallet Card */}
             <View style={[styles.walletCard, { backgroundColor: colors.primary }]}>
                 <View style={styles.walletHeader}>
-                    <View style={styles.walletIcon}>
-                        <Wallet size={20} color={colors.primaryForeground} />
+                    <View style={styles.walletHeaderLeft}>
+                        <View style={styles.walletIcon}>
+                            <Wallet size={18} color={colors.primaryForeground} />
+                        </View>
+                        <Text style={styles.walletTitle}>Wallet Balance</Text>
                     </View>
-                    <Text style={styles.walletTitle}>Wallet Balance</Text>
+                    {wallet.balance >= 100 && (
+                        <TouchableOpacity
+                            style={styles.withdrawBtn}
+                            onPress={() => setWithdrawModalVisible(true)}
+                        >
+                            <ArrowUpRight size={14} color={colors.primary} />
+                            <Text style={styles.withdrawBtnText}>Withdraw</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
                 <Text style={styles.walletBalance}>₹{wallet.balance.toLocaleString('en-IN')}</Text>
                 <View style={styles.walletRow}>
                     <View style={styles.walletItem}>
-                        <Clock size={14} color={colors.primaryForeground} style={{ opacity: 0.8 }} />
+                        <Clock size={12} color={colors.primaryForeground} style={{ opacity: 0.8 }} />
                         <Text style={styles.walletLabel}>Pending</Text>
                         <Text style={styles.walletValue}>₹{wallet.pendingBalance.toLocaleString('en-IN')}</Text>
                     </View>
                     <View style={styles.walletDivider} />
                     <View style={styles.walletItem}>
-                        <TrendingUp size={14} color={colors.primaryForeground} style={{ opacity: 0.8 }} />
-                        <Text style={styles.walletLabel}>Total Earned</Text>
+                        <TrendingUp size={12} color={colors.primaryForeground} style={{ opacity: 0.8 }} />
+                        <Text style={styles.walletLabel}>Earned</Text>
                         <Text style={styles.walletValue}>₹{wallet.totalEarnings.toLocaleString('en-IN')}</Text>
                     </View>
                 </View>
             </View>
+
+            {/* Withdraw Modal */}
+            <Modal
+                visible={withdrawModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setWithdrawModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Withdraw Funds</Text>
+                            <TouchableOpacity onPress={() => setWithdrawModalVisible(false)}>
+                                <X size={24} color={colors.mutedForeground} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={[styles.modalLabel, { color: colors.mutedForeground }]}>
+                            Available: ₹{wallet.balance.toLocaleString('en-IN')}
+                        </Text>
+
+                        <Text style={[styles.inputLabel, { color: colors.foreground }]}>Amount (₹)</Text>
+                        <TextInput
+                            style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
+                            placeholder="Enter amount (min ₹100)"
+                            placeholderTextColor={colors.mutedForeground}
+                            value={withdrawAmount}
+                            onChangeText={setWithdrawAmount}
+                            keyboardType="numeric"
+                        />
+
+                        <Text style={[styles.inputLabel, { color: colors.foreground }]}>UPI ID</Text>
+                        <TextInput
+                            style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
+                            placeholder="yourname@upi"
+                            placeholderTextColor={colors.mutedForeground}
+                            value={upiId}
+                            onChangeText={setUpiId}
+                            autoCapitalize="none"
+                        />
+
+                        <TouchableOpacity
+                            style={[styles.submitBtn, { backgroundColor: colors.primary }]}
+                            onPress={handleWithdraw}
+                            disabled={withdrawing}
+                        >
+                            {withdrawing ? (
+                                <ActivityIndicator color={colors.primaryForeground} />
+                            ) : (
+                                <Text style={[styles.submitBtnText, { color: colors.primaryForeground }]}>
+                                    Request Withdrawal
+                                </Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
 
             {/* Stats Cards */}
             <View style={styles.statsGrid}>
@@ -373,12 +491,17 @@ const createStyles = (colors: any) => StyleSheet.create({
     walletHeader: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         marginBottom: 6,
     },
+    walletHeaderLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
     walletIcon: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
+        width: 26,
+        height: 26,
+        borderRadius: 13,
         backgroundColor: 'rgba(255,255,255,0.2)',
         alignItems: 'center',
         justifyContent: 'center',
@@ -390,11 +513,25 @@ const createStyles = (colors: any) => StyleSheet.create({
         color: colors.primaryForeground,
         opacity: 0.9,
     },
+    withdrawBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.primaryForeground,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 12,
+        gap: 4,
+    },
+    withdrawBtnText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: colors.primary,
+    },
     walletBalance: {
-        fontSize: 26,
+        fontSize: 24,
         fontWeight: '800',
         color: colors.primaryForeground,
-        marginBottom: 8,
+        marginBottom: 6,
     },
     walletRow: {
         flexDirection: 'row',
@@ -407,19 +544,66 @@ const createStyles = (colors: any) => StyleSheet.create({
         gap: 4,
     },
     walletLabel: {
-        fontSize: 11,
+        fontSize: 10,
         color: colors.primaryForeground,
         opacity: 0.8,
     },
     walletValue: {
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '700',
         color: colors.primaryForeground,
     },
     walletDivider: {
         width: 1,
-        height: 20,
+        height: 16,
         backgroundColor: 'rgba(255,255,255,0.3)',
-        marginHorizontal: 10,
+        marginHorizontal: 8,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        padding: 20,
+        paddingBottom: 40,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    modalLabel: {
+        fontSize: 13,
+        marginBottom: 16,
+    },
+    inputLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        marginBottom: 6,
+    },
+    input: {
+        borderWidth: 1,
+        borderRadius: 10,
+        padding: 12,
+        fontSize: 14,
+        marginBottom: 14,
+    },
+    submitBtn: {
+        padding: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+        marginTop: 8,
+    },
+    submitBtnText: {
+        fontSize: 15,
+        fontWeight: '700',
     },
 });

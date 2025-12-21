@@ -929,4 +929,20 @@ export const vendorApi = {
     getAnalytics: async () => {
         return apiRequest<VendorAnalytics>('/vendor/analytics');
     },
+
+    // Request wallet withdrawal
+    requestWithdrawal: async (data: { amount: number; upiId?: string; accountDetails?: string }) => {
+        return apiRequest<{
+            transaction: any;
+            wallet: {
+                balance: number;
+                pendingBalance: number;
+                totalEarnings: number;
+                totalWithdrawn: number;
+            };
+        }>('/wallet/withdraw', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
 };
