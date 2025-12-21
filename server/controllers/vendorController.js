@@ -4,6 +4,7 @@ const Category = require('../models/Category');
 const User = require('../models/User');
 const { sendOrderStatusNotification } = require('../services/notificationService');
 const { createNotification } = require('./notificationController');
+const { releasePendingBalance } = require('./walletController');
 
 // @desc    Get vendor's own products
 // @route   GET /api/vendor/products
@@ -356,7 +357,9 @@ const updateVendorOrderStatus = async (req, res) => {
         }
 
         // Find the order and check if it contains vendor's products
-        const order = await Order.findById(req.params.id).populate('user', 'expoPushToken name');
+        const order = await Order.findById(req.params.id)
+            .populate('user', 'expoPushToken name')
+            .populate('items.product', 'createdBy price');
 
         if (!order) {
             return res.status(404).json({
@@ -366,9 +369,11 @@ const updateVendorOrderStatus = async (req, res) => {
         }
 
         // Check if order contains any of vendor's products
-        const hasVendorProduct = order.items.some(item =>
-            vendorProductIds.includes(item.product.toString())
-        );
+        const hasVendorProduct = order.items.some(item => {
+            // item.product may be populated doc or ObjectId
+            const productId = item.product?._id ? item.product._id.toString() : item.product.toString();
+            return vendorProductIds.includes(productId);
+        });
 
         if (!hasVendorProduct) {
             return res.status(403).json({
@@ -410,6 +415,24 @@ const updateVendorOrderStatus = async (req, res) => {
 
         if (status === 'delivered') {
             order.deliveredAt = new Date();
+
+            // Release ONLY this vendor's pending amount for this order (online payments)
+            if (order.paymentMethod !== 'cod') {
+                let vendorReleaseAmount = 0;
+
+                for (const item of order.items) {
+                    const createdBy = item.product?.createdBy?.toString();
+                    if (createdBy === req.user._id.toString()) {
+                        const price = item.product?.price ?? item.price;
+                        const itemTotal = price * item.quantity;
+                        vendorReleaseAmount += Math.round(itemTotal * 0.9);
+                    }
+                }
+
+                if (vendorReleaseAmount > 0) {
+                    await releasePendingBalance(req.user._id, vendorReleaseAmount, order._id);
+                }
+            }
         }
 
         await order.save();
