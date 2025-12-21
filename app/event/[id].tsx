@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Star, ShoppingCart, Minus, Plus, ChevronRight } from 'lucide-react-native';
+import { Star, ShoppingCart, Minus, Plus, ChevronRight, ArrowLeft, Heart } from 'lucide-react-native';
 import { getFavorites, toggleFavorite } from '@/lib/mockData';
 import { productsApi, reviewsApi, Product, Review, getImageUrl } from '@/lib/api';
 import { ImageCarousel } from '@/components/ImageCarousel';
 import { useTheme } from '@/hooks/useTheme';
 import { useCart } from '@/hooks/useCart';
 import { ActionModal } from '@/components/ActionModal';
+import { ProductDetailsSkeleton } from '@/components/Skeleton';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -139,11 +140,13 @@ export default function ProductDetailsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.errorContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.errorText, { marginTop: 12 }]}>Loading product...</Text>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <View style={styles.skeletonHeader}>
+          <Pressable style={styles.skeletonBackBtn} onPress={() => router.back()}>
+            <ArrowLeft size={22} color={colors.foreground} />
+          </Pressable>
         </View>
+        <ProductDetailsSkeleton />
       </SafeAreaView>
     );
   }
@@ -496,6 +499,20 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: colors.primaryForeground,
     fontWeight: '600',
     fontSize: 13,
+  },
+  skeletonHeader: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    zIndex: 10,
+  },
+  skeletonBackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   categoryBadge: {
     alignSelf: 'flex-start',

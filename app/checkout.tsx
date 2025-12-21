@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, TextInput, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, MapPin, CreditCard, Wallet, Smartphone, ChevronRight, ShieldCheck, Plus, Package, Tag, X, Check } from 'lucide-react-native';
+import { ArrowLeft, MapPin, CreditCard, Wallet, Smartphone, Plus, Package, Tag, X, Check, ShieldCheck, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useCart } from '@/hooks/useCart';
-import { useAddress, Address } from '@/hooks/useAddress';
+import { useAddress } from '@/hooks/useAddress';
 import { ordersApi, couponsApi, getToken, Coupon } from '@/lib/api';
 import { Banknote } from 'lucide-react-native';
 import { SuccessModal } from '@/components/SuccessModal';
 import { ActionModal } from '@/components/ActionModal';
+import { CheckoutSkeleton } from '@/components/Skeleton';
 
 const paymentMethods = [
     { id: 'cod', name: 'Cash on Delivery', icon: Banknote, description: 'Pay when you receive' },
@@ -217,8 +218,14 @@ export default function CheckoutScreen() {
 
     if (loading || isAuthenticated === null) {
         return (
-            <View style={[styles.container, styles.loadingContainer]}>
-                <ActivityIndicator size="large" color={colors.primary} />
+            <View style={styles.container}>
+                <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
+                    <Pressable style={styles.backButton} onPress={() => router.back()}>
+                        <ArrowLeft size={22} color={colors.foreground} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>Checkout</Text>
+                </View>
+                <CheckoutSkeleton />
             </View>
         );
     }

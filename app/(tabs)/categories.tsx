@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { Search, ChevronRight, Sparkles } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { categoriesApi, Category, getImageUrl } from '@/lib/api';
+import { CategoryCardSkeleton } from '@/components/Skeleton';
 
 export default function CategoriesScreen() {
     const insets = useSafeAreaInsets();
@@ -44,14 +45,13 @@ export default function CategoriesScreen() {
 
     const styles = createStyles(colors);
 
-    if (loading) {
-        return (
-            <View style={[styles.container, styles.loadingContainer]}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={styles.loadingText}>Loading categories...</Text>
-            </View>
-        );
-    }
+    const renderSkeletons = () => (
+        <View style={styles.categoriesGrid}>
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+                <CategoryCardSkeleton key={i} />
+            ))}
+        </View>
+    );
 
     return (
         <View style={styles.container}>
@@ -90,29 +90,33 @@ export default function CategoriesScreen() {
                 </Pressable>
 
                 {/* Categories Grid */}
-                <View style={styles.categoriesGrid}>
-                    {categories.map((category) => (
-                        <Pressable
-                            key={category._id}
-                            style={[
-                                styles.categoryCard,
-                                selectedCategory === category._id && styles.selectedCategoryCard
-                            ]}
-                            onPress={() => handleCategoryPress(category)}
-                        >
-                            <View style={[styles.categoryIconBg, { backgroundColor: category.color || '#E0E7FF' }]}>
-                                <Image source={{ uri: getImageUrl(category.image) }} style={styles.categoryImage} />
-                            </View>
-                            <View style={styles.categoryInfo}>
-                                <Text style={styles.categoryName} numberOfLines={1}>{category.name}</Text>
-                                <Text style={styles.categoryItems}>{category.itemsCount || 0} items</Text>
-                            </View>
-                            <ChevronRight size={18} color={colors.mutedForeground} />
-                        </Pressable>
-                    ))}
-                </View>
+                {loading ? (
+                    renderSkeletons()
+                ) : (
+                    <View style={styles.categoriesGrid}>
+                        {categories.map((category) => (
+                            <Pressable
+                                key={category._id}
+                                style={[
+                                    styles.categoryCard,
+                                    selectedCategory === category._id && styles.selectedCategoryCard
+                                ]}
+                                onPress={() => handleCategoryPress(category)}
+                            >
+                                <View style={[styles.categoryIconBg, { backgroundColor: category.color || '#E0E7FF' }]}>
+                                    <Image source={{ uri: getImageUrl(category.image) }} style={styles.categoryImage} />
+                                </View>
+                                <View style={styles.categoryInfo}>
+                                    <Text style={styles.categoryName} numberOfLines={1}>{category.name}</Text>
+                                    <Text style={styles.categoryItems}>{category.itemsCount || 0} items</Text>
+                                </View>
+                                <ChevronRight size={18} color={colors.mutedForeground} />
+                            </Pressable>
+                        ))}
+                    </View>
+                )}
 
-                {categories.length === 0 && (
+                {!loading && categories.length === 0 && (
                     <View style={styles.emptyState}>
                         <Text style={styles.emptyText}>No categories found</Text>
                     </View>
@@ -126,15 +130,6 @@ const createStyles = (colors: any) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
-    },
-    loadingContainer: {
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingText: {
-        marginTop: 12,
-        fontSize: 14,
-        color: colors.mutedForeground,
     },
     header: {
         paddingHorizontal: 16,

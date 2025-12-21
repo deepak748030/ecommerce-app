@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Image, RefreshControl, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft, Package, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { ordersApi, Order, getImageUrl } from '@/lib/api';
+import { OrderCardSkeleton } from '@/components/Skeleton';
 
 export default function MyOrdersScreen() {
     const insets = useSafeAreaInsets();
@@ -69,21 +70,41 @@ export default function MyOrdersScreen() {
         });
     };
 
-    if (loading) {
-        return (
-            <View style={styles.container}>
-                <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
-                    <Pressable style={styles.backButton} onPress={() => router.back()}>
-                        <ArrowLeft size={22} color={colors.foreground} />
-                    </Pressable>
-                    <Text style={styles.headerTitle}>My Orders</Text>
-                </View>
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={colors.primary} />
+    const renderOrder = ({ item }: { item: Order }) => (
+        <Pressable
+            style={styles.orderCard}
+            onPress={() => router.push(`/order/${item._id}` as any)}
+        >
+            <Image
+                source={{ uri: getImageUrl(item.items[0]?.image) }}
+                style={styles.orderImage}
+            />
+            <View style={styles.orderInfo}>
+                <Text style={styles.orderNumber}>{item.orderNumber}</Text>
+                <Text style={styles.orderDate}>{formatDate(item.createdAt)}</Text>
+                <View style={styles.orderMeta}>
+                    <Text style={styles.orderItems}>{item.items.length} items</Text>
+                    <Text style={styles.orderTotal}>₹{item.total.toLocaleString()}</Text>
                 </View>
             </View>
-        );
-    }
+            <View style={styles.orderRight}>
+                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
+                    <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+                        {formatStatus(item.status)}
+                    </Text>
+                </View>
+                <ChevronRight size={18} color={colors.mutedForeground} />
+            </View>
+        </Pressable>
+    );
+
+    const renderSkeletons = () => (
+        <View style={styles.skeletonContainer}>
+            {[1, 2, 3, 4, 5].map((i) => (
+                <OrderCardSkeleton key={i} />
+            ))}
+        </View>
+    );
 
     return (
         <View style={styles.container}>
@@ -94,59 +115,36 @@ export default function MyOrdersScreen() {
                 <Text style={styles.headerTitle}>My Orders</Text>
             </View>
 
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-                }
-            >
-                {error && (
-                    <View style={styles.errorContainer}>
-                        <Text style={styles.errorText}>{error}</Text>
-                        <Pressable style={styles.retryButton} onPress={fetchOrders}>
-                            <Text style={styles.retryButtonText}>Retry</Text>
-                        </Pressable>
-                    </View>
-                )}
-
-                {orders.map((order) => (
-                    <Pressable
-                        key={order._id}
-                        style={styles.orderCard}
-                        onPress={() => router.push(`/order/${order._id}` as any)}
-                    >
-                        <Image
-                            source={{ uri: getImageUrl(order.items[0]?.image) }}
-                            style={styles.orderImage}
-                        />
-                        <View style={styles.orderInfo}>
-                            <Text style={styles.orderNumber}>{order.orderNumber}</Text>
-                            <Text style={styles.orderDate}>{formatDate(order.createdAt)}</Text>
-                            <View style={styles.orderMeta}>
-                                <Text style={styles.orderItems}>{order.items.length} items</Text>
-                                <Text style={styles.orderTotal}>₹{order.total.toLocaleString()}</Text>
-                            </View>
+            {loading ? (
+                <View style={styles.scrollContent}>
+                    {renderSkeletons()}
+                </View>
+            ) : (
+                <FlatList
+                    data={orders}
+                    renderItem={renderOrder}
+                    keyExtractor={(item) => item._id}
+                    contentContainerStyle={styles.scrollContent}
+                    refreshControl={
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                    }
+                    ListHeaderComponent={error ? (
+                        <View style={styles.errorContainer}>
+                            <Text style={styles.errorText}>{error}</Text>
+                            <Pressable style={styles.retryButton} onPress={fetchOrders}>
+                                <Text style={styles.retryButtonText}>Retry</Text>
+                            </Pressable>
                         </View>
-                        <View style={styles.orderRight}>
-                            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + '20' }]}>
-                                <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>
-                                    {formatStatus(order.status)}
-                                </Text>
-                            </View>
-                            <ChevronRight size={18} color={colors.mutedForeground} />
+                    ) : null}
+                    ListEmptyComponent={!error ? (
+                        <View style={styles.emptyState}>
+                            <Package size={60} color={colors.mutedForeground} />
+                            <Text style={styles.emptyTitle}>No orders yet</Text>
+                            <Text style={styles.emptySubtitle}>Start shopping to see your orders here</Text>
                         </View>
-                    </Pressable>
-                ))}
-
-                {orders.length === 0 && !error && (
-                    <View style={styles.emptyState}>
-                        <Package size={60} color={colors.mutedForeground} />
-                        <Text style={styles.emptyTitle}>No orders yet</Text>
-                        <Text style={styles.emptySubtitle}>Start shopping to see your orders here</Text>
-                    </View>
-                )}
-            </ScrollView>
+                    ) : null}
+                />
+            )}
         </View>
     );
 }
@@ -174,18 +172,13 @@ const createStyles = (colors: any) => StyleSheet.create({
         fontWeight: '700',
         color: colors.foreground,
     },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    scrollView: {
-        flex: 1,
-    },
     scrollContent: {
         paddingHorizontal: 6,
         paddingVertical: 12,
         paddingBottom: 40,
+    },
+    skeletonContainer: {
+        gap: 8,
     },
     errorContainer: {
         backgroundColor: colors.destructive + '20',

@@ -849,6 +849,14 @@ export interface VendorAnalytics {
         orders: number;
         revenue: number;
     }[];
+    wallet: {
+        balance: number;
+        pendingBalance: number;
+        totalEarnings: number;
+        totalWithdrawn: number;
+        currency: string;
+        currencySymbol: string;
+    };
 }
 
 // Vendor API (All Protected)

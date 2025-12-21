@@ -4,6 +4,7 @@ const Transaction = require('../models/Transaction');
 const User = require('../models/User');
 const { sendOrderStatusNotification } = require('../services/notificationService');
 const { createNotification } = require('./notificationController');
+const { creditVendorWallet, debitVendorWallet, releasePendingBalance } = require('./walletController');
 
 // @desc    Create new order with payment
 // @route   POST /api/orders
@@ -22,9 +23,10 @@ const createOrder = async (req, res) => {
         // Fetch product details and calculate totals
         let subtotal = 0;
         const orderItems = [];
+        const vendorEarnings = {}; // Track earnings per vendor
 
         for (const item of items) {
-            const product = await Product.findById(item.productId);
+            const product = await Product.findById(item.productId).populate('createdBy', '_id');
             if (!product) {
                 return res.status(404).json({
                     success: false,
@@ -42,6 +44,15 @@ const createOrder = async (req, res) => {
                 quantity: item.quantity,
                 image: product.image,
             });
+
+            // Track vendor earnings (if product has a creator/vendor)
+            if (product.createdBy) {
+                const vendorId = product.createdBy._id ? product.createdBy._id.toString() : product.createdBy.toString();
+                if (!vendorEarnings[vendorId]) {
+                    vendorEarnings[vendorId] = 0;
+                }
+                vendorEarnings[vendorId] += itemTotal;
+            }
         }
 
         // Calculate discount (10% for now)
@@ -92,6 +103,20 @@ const createOrder = async (req, res) => {
             type: 'payment',
             description: `Payment for order ${order.orderNumber}`,
         });
+
+        // Credit vendor wallets for online payments (not COD)
+        if (paymentMethod !== 'cod') {
+            for (const [vendorId, amount] of Object.entries(vendorEarnings)) {
+                // Calculate vendor's share (90% after platform fee)
+                const vendorShare = Math.round(amount * 0.9);
+                await creditVendorWallet(
+                    vendorId,
+                    vendorShare,
+                    order._id,
+                    `Order #${order.orderNumber} - Payment received`
+                );
+            }
+        }
 
         // Create in-app notification for order placed
         await createNotification(req.user._id, {
@@ -193,7 +218,7 @@ const cancelOrder = async (req, res) => {
         const order = await Order.findOne({
             _id: req.params.id,
             user: req.user._id,
-        });
+        }).populate('items.product', 'createdBy price');
 
         if (!order) {
             return res.status(404).json({
@@ -231,6 +256,34 @@ const cancelOrder = async (req, res) => {
             refundReason: req.body.reason || 'Order cancelled by user',
             refundedAt: new Date(),
         });
+
+        // Debit vendor wallets on cancellation (for online payments)
+        if (order.paymentMethod !== 'cod') {
+            // Group items by vendor and calculate amounts to debit
+            const vendorDebits = {};
+            for (const item of order.items) {
+                if (item.product && item.product.createdBy) {
+                    const vendorId = item.product.createdBy.toString();
+                    const itemTotal = item.price * item.quantity;
+                    const vendorShare = Math.round(itemTotal * 0.9); // Same 90% as credit
+
+                    if (!vendorDebits[vendorId]) {
+                        vendorDebits[vendorId] = 0;
+                    }
+                    vendorDebits[vendorId] += vendorShare;
+                }
+            }
+
+            // Debit each vendor
+            for (const [vendorId, amount] of Object.entries(vendorDebits)) {
+                await debitVendorWallet(
+                    vendorId,
+                    amount,
+                    order._id,
+                    `Order #${order.orderNumber} cancelled - refund deducted`
+                );
+            }
+        }
 
         // Create in-app notification for cancellation
         await createNotification(req.user._id, {
@@ -314,7 +367,9 @@ const updateOrderStatus = async (req, res) => {
             });
         }
 
-        const order = await Order.findById(req.params.id).populate('user', 'expoPushToken');
+        const order = await Order.findById(req.params.id)
+            .populate('user', 'expoPushToken')
+            .populate('items.product', 'createdBy price');
 
         if (!order) {
             return res.status(404).json({
@@ -366,9 +421,30 @@ const updateOrderStatus = async (req, res) => {
             }
         }
 
-        // Set delivered date
+        // Set delivered date and release vendor pending balance
         if (status === 'delivered') {
             order.deliveredAt = new Date();
+
+            // Release pending balance to vendors (for online payments)
+            if (order.paymentMethod !== 'cod') {
+                const vendorReleases = {};
+                for (const item of order.items) {
+                    if (item.product && item.product.createdBy) {
+                        const vendorId = item.product.createdBy.toString();
+                        const itemTotal = item.price * item.quantity;
+                        const vendorShare = Math.round(itemTotal * 0.9);
+
+                        if (!vendorReleases[vendorId]) {
+                            vendorReleases[vendorId] = 0;
+                        }
+                        vendorReleases[vendorId] += vendorShare;
+                    }
+                }
+
+                for (const [vendorId, amount] of Object.entries(vendorReleases)) {
+                    await releasePendingBalance(vendorId, amount, order._id);
+                }
+            }
         }
 
         await order.save();

@@ -461,9 +461,20 @@ const updateVendorOrderStatus = async (req, res) => {
 // @access  Private
 const getVendorAnalytics = async (req, res) => {
     try {
+        // Get vendor user with wallet
+        const vendorUser = await User.findById(req.user._id);
+
         // Get vendor's products
         const vendorProducts = await Product.find({ createdBy: req.user._id });
         const vendorProductIds = vendorProducts.map(p => p._id);
+
+        // Initialize wallet data
+        const walletData = vendorUser?.wallet || {
+            balance: 0,
+            pendingBalance: 0,
+            totalEarnings: 0,
+            totalWithdrawn: 0,
+        };
 
         if (vendorProductIds.length === 0) {
             return res.json({
@@ -481,6 +492,14 @@ const getVendorAnalytics = async (req, res) => {
                     recentOrders: [],
                     revenueByStatus: {},
                     ordersByMonth: [],
+                    wallet: {
+                        balance: walletData.balance,
+                        pendingBalance: walletData.pendingBalance,
+                        totalEarnings: walletData.totalEarnings,
+                        totalWithdrawn: walletData.totalWithdrawn,
+                        currency: 'INR',
+                        currencySymbol: '₹',
+                    },
                 },
             });
         }
@@ -608,6 +627,14 @@ const getVendorAnalytics = async (req, res) => {
                 recentOrders: formattedRecentOrders,
                 revenueByStatus,
                 ordersByMonth: ordersByMonthArray,
+                wallet: {
+                    balance: walletData.balance,
+                    pendingBalance: walletData.pendingBalance,
+                    totalEarnings: walletData.totalEarnings,
+                    totalWithdrawn: walletData.totalWithdrawn,
+                    currency: 'INR',
+                    currencySymbol: '₹',
+                },
             },
         });
     } catch (error) {

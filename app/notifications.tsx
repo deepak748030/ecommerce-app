@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   Pressable,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { Bell, Package, Tag, Info, Check, CheckCheck, Trash2 } from 'lucide-react-native';
@@ -14,6 +13,7 @@ import { notificationsApi, AppNotification, getToken } from '@/lib/api';
 import TopBar from '@/components/TopBar';
 import { router } from 'expo-router';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { NotificationSkeleton } from '@/components/Skeleton';
 
 export default function NotificationsScreen() {
   const { colors } = useTheme();
@@ -195,13 +195,19 @@ export default function NotificationsScreen() {
     );
   };
 
+  const renderSkeletons = () => (
+    <View>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <NotificationSkeleton key={i} />
+      ))}
+    </View>
+  );
+
   if (loading) {
     return (
       <View style={styles.container}>
         <TopBar showSearchBar={false} showBackButton={true} title="Notifications" />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+        {renderSkeletons()}
       </View>
     );
   }
@@ -299,11 +305,6 @@ const createStyles = (colors: any) =>
     container: {
       flex: 1,
       backgroundColor: colors.background,
-    },
-    loadingContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
     },
     emptyContainer: {
       flex: 1,

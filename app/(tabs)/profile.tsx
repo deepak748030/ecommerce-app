@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { router, useFocusEffect } from 'expo-router';
@@ -10,6 +10,7 @@ import { ConfirmationModal } from '@/components/ConfirmationModal';
 import { ActionModal } from '@/components/ActionModal';
 import { authApi, getStoredUser, getToken, AuthUser } from '@/lib/api';
 import { useRequireAuth } from '@/hooks/useAuth';
+import { ProfileSkeleton } from '@/components/Skeleton';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -153,9 +154,9 @@ export default function ProfileScreen() {
 
   if (authLoading || isLoading) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Loading profile...</Text>
+      <View style={styles.container}>
+        <View style={[styles.header, { paddingTop: insets.top + 0 }]} />
+        <ProfileSkeleton />
       </View>
     );
   }

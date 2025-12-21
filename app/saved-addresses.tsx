@@ -6,6 +6,7 @@ import { ArrowLeft, MapPin, Home, Briefcase, Plus, Edit2, Trash2, X, Check } fro
 import { useTheme } from '@/hooks/useTheme';
 import { useAddress, Address } from '@/hooks/useAddress';
 import { getToken } from '@/lib/api';
+import { AddressSkeleton } from '@/components/Skeleton';
 
 export default function SavedAddressesScreen() {
     const insets = useSafeAreaInsets();
@@ -140,8 +141,14 @@ export default function SavedAddressesScreen() {
 
     if (loading) {
         return (
-            <View style={[styles.container, styles.loadingContainer]}>
-                <ActivityIndicator size="large" color={colors.primary} />
+            <View style={styles.container}>
+                <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
+                    <Pressable style={styles.backButton} onPress={() => router.back()}>
+                        <ArrowLeft size={22} color={colors.foreground} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>Saved Addresses</Text>
+                </View>
+                <AddressSkeleton />
             </View>
         );
     }

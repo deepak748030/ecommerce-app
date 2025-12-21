@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useCart } from '@/hooks/useCart';
 import { router } from 'expo-router';
-import { Trash2, Plus, Minus, ShoppingBag, Truck, Tag, ArrowRight } from 'lucide-react-native';
+import { Trash2, Plus, Minus, ShoppingBag, Truck, ArrowRight } from 'lucide-react-native';
+import { CartItemSkeleton } from '@/components/Skeleton';
 
 const { width } = Dimensions.get('window');
 
@@ -39,8 +40,18 @@ export default function CartScreen() {
 
     if (loading) {
         return (
-            <View style={[styles.container, styles.loadingContainer]}>
-                <ActivityIndicator size="large" color={colors.primary} />
+            <View style={styles.container}>
+                <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
+                    <Text style={styles.title}>My Cart</Text>
+                    <View style={styles.badge}>
+                        <Text style={styles.badgeText}>0</Text>
+                    </View>
+                </View>
+                <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+                    {[1, 2, 3].map((i) => (
+                        <CartItemSkeleton key={i} />
+                    ))}
+                </ScrollView>
             </View>
         );
     }

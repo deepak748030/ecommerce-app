@@ -1,16 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, FileQuestionMark as FileQuestion, MessageCircle, Mail, Phone, ChevronRight, ChevronDown, Sun, Moon } from 'lucide-react-native';
+import { ArrowLeft, FileQuestionMark as FileQuestion, MessageCircle, Mail, Phone, ChevronRight, ChevronDown } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { HelpSupportSkeleton } from '@/components/Skeleton';
 
 export default function HelpSupportScreen() {
   const insets = useSafeAreaInsets();
-  const { colors, isDark, toggleTheme } = useTheme();
+  const { colors, isDark } = useTheme();
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const styles = createStyles(colors, isDark);
+
+  useEffect(() => {
+    // Simulate loading
+    const timer = setTimeout(() => setLoading(false), 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const contactOptions = [
     {
@@ -63,6 +71,20 @@ export default function HelpSupportScreen() {
   const toggleFaq = (index: number) => {
     setExpandedFaq(expandedFaq === index ? null : index);
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <ArrowLeft size={22} color={colors.foreground} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Help & Support</Text>
+        </View>
+        <HelpSupportSkeleton />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

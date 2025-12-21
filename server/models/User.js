@@ -46,6 +46,25 @@ const userSchema = new mongoose.Schema({
             default: false,
         },
     },
+    // Vendor Wallet
+    wallet: {
+        balance: {
+            type: Number,
+            default: 0,
+        },
+        pendingBalance: {
+            type: Number,
+            default: 0,
+        },
+        totalEarnings: {
+            type: Number,
+            default: 0,
+        },
+        totalWithdrawn: {
+            type: Number,
+            default: 0,
+        },
+    },
     memberSince: {
         type: Date,
         default: Date.now,

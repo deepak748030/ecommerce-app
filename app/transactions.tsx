@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, IndianRupee, Wallet, Smartphone, CreditCard, Package } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ordersApi, Transaction } from '@/lib/api';
+import { TransactionSkeleton } from '@/components/Skeleton';
 
 interface TransactionDisplay {
     id: string;
@@ -144,22 +145,13 @@ export default function TransactionsScreen() {
         );
     };
 
-    if (loading) {
-        return (
-            <View style={[styles.container, { paddingTop: insets.top }]}>
-                <View style={styles.header}>
-                    <Pressable onPress={() => router.back()} style={styles.backButton}>
-                        <ArrowLeft size={24} color={colors.foreground} />
-                    </Pressable>
-                    <Text style={styles.headerTitle}>Transaction History</Text>
-                    <View style={styles.placeholder} />
-                </View>
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={colors.primary} />
-                </View>
-            </View>
-        );
-    }
+    const renderSkeletons = () => (
+        <View style={styles.skeletonContainer}>
+            {[1, 2, 3, 4, 5].map((i) => (
+                <TransactionSkeleton key={i} />
+            ))}
+        </View>
+    );
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -172,7 +164,11 @@ export default function TransactionsScreen() {
                 <View style={styles.placeholder} />
             </View>
 
-            {transactions.length === 0 ? (
+            {loading ? (
+                <View style={styles.listContent}>
+                    {renderSkeletons()}
+                </View>
+            ) : transactions.length === 0 ? (
                 <View style={styles.emptyContainer}>
                     <Package size={60} color={colors.mutedForeground} />
                     <Text style={styles.emptyTitle}>No transactions yet</Text>
@@ -223,10 +219,8 @@ const createStyles = (colors: any) => StyleSheet.create({
     placeholder: {
         width: 32,
     },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
+    skeletonContainer: {
+        gap: 8,
     },
     emptyContainer: {
         flex: 1,

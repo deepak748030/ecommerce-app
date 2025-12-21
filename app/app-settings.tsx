@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
 import { ActionModal } from '@/components/ActionModal';
+import { AppSettingsSkeleton } from '@/components/Skeleton';
 
 const CACHE_KEY = 'app_cache_data';
 
@@ -187,9 +188,7 @@ export default function AppSettingsScreen() {
                     </Pressable>
                     <Text style={styles.headerTitle}>App Settings</Text>
                 </View>
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={colors.primary} />
-                </View>
+                <AppSettingsSkeleton />
             </View>
         );
     }

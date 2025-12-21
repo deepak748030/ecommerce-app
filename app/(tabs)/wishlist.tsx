@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
-import { Heart, ShoppingBag } from 'lucide-react-native';
+import { Heart } from 'lucide-react-native';
 import EventCard from '@/components/EventCard';
 import { Product, productsApi } from '@/lib/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
+import { WishlistSkeleton } from '@/components/Skeleton';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 20) / 2;
@@ -71,8 +72,15 @@ export default function WishlistScreen() {
 
     if (loading) {
         return (
-            <View style={[styles.container, styles.loadingContainer]}>
-                <ActivityIndicator size="large" color={colors.primary} />
+            <View style={styles.container}>
+                <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
+                    <Text style={styles.title}>Wishlist</Text>
+                    <View style={styles.badge}>
+                        <Heart size={12} color={colors.white} fill={colors.white} />
+                        <Text style={styles.badgeText}>0</Text>
+                    </View>
+                </View>
+                <WishlistSkeleton />
             </View>
         );
     }

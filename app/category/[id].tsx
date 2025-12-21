@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Image, Dimensions, RefreshControl, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useLocalSearchParams, router } from 'expo-router';
 import { ArrowLeft, Star, Heart, SlidersHorizontal, Search } from 'lucide-react-native';
 import { productsApi, categoriesApi, Product, Category, getImageUrl } from '@/lib/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ProductCardSkeleton } from '@/components/Skeleton';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 25) / 2;
 const FAVORITES_KEY = 'favorites';
+const PAGE_LIMIT = 10;
 
 export default function CategoryProductsScreen() {
     const insets = useSafeAreaInsets();
@@ -20,29 +22,39 @@ export default function CategoryProductsScreen() {
     const [category, setCategory] = useState<Category | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [page, setPage] = useState(1);
     const [favorites, setFavorites] = useState<string[]>([]);
 
-    const fetchData = useCallback(async () => {
+    const fetchData = useCallback(async (pageNum: number = 1, refresh: boolean = false) => {
         if (!id) return;
 
         try {
-            const [productsRes, categoryRes] = await Promise.all([
-                productsApi.getByCategory(id),
-                categoriesApi.getById(id),
-            ]);
-
-            if (productsRes.success && productsRes.response?.data) {
-                setProducts(productsRes.response.data);
+            if (pageNum === 1) {
+                const categoryRes = await categoriesApi.getById(id);
+                if (categoryRes.success && categoryRes.response) {
+                    setCategory(categoryRes.response);
+                }
             }
 
-            if (categoryRes.success && categoryRes.response) {
-                setCategory(categoryRes.response);
+            const productsRes = await productsApi.getByCategory(id);
+
+            if (productsRes.success && productsRes.response?.data) {
+                const newProducts = productsRes.response.data;
+                if (refresh || pageNum === 1) {
+                    setProducts(newProducts);
+                } else {
+                    setProducts(prev => [...prev, ...newProducts]);
+                }
+                setHasMore(newProducts.length >= PAGE_LIMIT);
             }
         } catch (error) {
             console.error('Error fetching data:', error);
         } finally {
             setLoading(false);
             setRefreshing(false);
+            setLoadingMore(false);
         }
     }, [id]);
 
@@ -67,8 +79,18 @@ export default function CategoryProductsScreen() {
 
     const onRefresh = useCallback(() => {
         setRefreshing(true);
-        fetchData();
+        setPage(1);
+        fetchData(1, true);
     }, [fetchData]);
+
+    const loadMore = useCallback(() => {
+        if (!loadingMore && hasMore && !loading) {
+            setLoadingMore(true);
+            const nextPage = page + 1;
+            setPage(nextPage);
+            fetchData(nextPage);
+        }
+    }, [loadingMore, hasMore, loading, page, fetchData]);
 
     const handleToggleFavorite = async (productId: string) => {
         try {
@@ -91,14 +113,62 @@ export default function CategoryProductsScreen() {
         router.push(`/event/${productId}`);
     };
 
-    if (loading) {
+    const renderProduct = ({ item }: { item: Product }) => (
+        <Pressable
+            style={styles.productCard}
+            onPress={() => handleProductPress(item._id)}
+        >
+            <View style={styles.imageContainer}>
+                <Image source={{ uri: getImageUrl(item.image) }} style={styles.productImage} />
+                {item.badge && (
+                    <View style={styles.badge}>
+                        <Text style={styles.badgeText}>{item.badge}</Text>
+                    </View>
+                )}
+                <Pressable
+                    style={styles.heartButton}
+                    onPress={() => handleToggleFavorite(item._id)}
+                >
+                    <Heart
+                        size={18}
+                        color={favorites.includes(item._id) ? '#ff4757' : colors.mutedForeground}
+                        fill={favorites.includes(item._id) ? '#ff4757' : 'transparent'}
+                    />
+                </Pressable>
+            </View>
+            <View style={styles.productInfo}>
+                <Text style={styles.productTitle} numberOfLines={2}>{item.title}</Text>
+                <View style={styles.ratingRow}>
+                    <Star size={12} color="#FBBF24" fill="#FBBF24" />
+                    <Text style={styles.rating}>{item.rating}</Text>
+                    <Text style={styles.reviews}>({item.reviews})</Text>
+                </View>
+                <View style={styles.priceRow}>
+                    <Text style={styles.price}>₹{item.price.toLocaleString()}</Text>
+                    {item.mrp > item.price && (
+                        <Text style={styles.mrp}>₹{item.mrp.toLocaleString()}</Text>
+                    )}
+                </View>
+            </View>
+        </Pressable>
+    );
+
+    const renderFooter = () => {
+        if (!loadingMore) return null;
         return (
-            <View style={[styles.container, styles.loadingContainer]}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={styles.loadingText}>Loading products...</Text>
+            <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color={colors.primary} />
             </View>
         );
-    }
+    };
+
+    const renderSkeletons = () => (
+        <View style={styles.productsGrid}>
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+                <ProductCardSkeleton key={i} />
+            ))}
+        </View>
+    );
 
     return (
         <View style={styles.container}>
@@ -124,71 +194,39 @@ export default function CategoryProductsScreen() {
             </View>
 
             {/* Products Grid */}
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        tintColor={colors.primary}
-                        colors={[colors.primary]}
-                    />
-                }
-            >
-                {products.length === 0 ? (
-                    <View style={styles.emptyState}>
-                        <Text style={styles.emptyText}>No products found in this category</Text>
-                        <Pressable style={styles.browseButton} onPress={() => router.back()}>
-                            <Text style={styles.browseButtonText}>Browse Other Categories</Text>
-                        </Pressable>
-                    </View>
-                ) : (
-                    <View style={styles.productsGrid}>
-                        {products.map((product) => (
-                            <Pressable
-                                key={product._id}
-                                style={styles.productCard}
-                                onPress={() => handleProductPress(product._id)}
-                            >
-                                <View style={styles.imageContainer}>
-                                    <Image source={{ uri: getImageUrl(product.image) }} style={styles.productImage} />
-                                    {product.badge && (
-                                        <View style={styles.badge}>
-                                            <Text style={styles.badgeText}>{product.badge}</Text>
-                                        </View>
-                                    )}
-                                    <Pressable
-                                        style={styles.heartButton}
-                                        onPress={() => handleToggleFavorite(product._id)}
-                                    >
-                                        <Heart
-                                            size={18}
-                                            color={favorites.includes(product._id) ? '#ff4757' : colors.mutedForeground}
-                                            fill={favorites.includes(product._id) ? '#ff4757' : 'transparent'}
-                                        />
-                                    </Pressable>
-                                </View>
-                                <View style={styles.productInfo}>
-                                    <Text style={styles.productTitle} numberOfLines={2}>{product.title}</Text>
-                                    <View style={styles.ratingRow}>
-                                        <Star size={12} color="#FBBF24" fill="#FBBF24" />
-                                        <Text style={styles.rating}>{product.rating}</Text>
-                                        <Text style={styles.reviews}>({product.reviews})</Text>
-                                    </View>
-                                    <View style={styles.priceRow}>
-                                        <Text style={styles.price}>₹{product.price.toLocaleString()}</Text>
-                                        {product.mrp > product.price && (
-                                            <Text style={styles.mrp}>₹{product.mrp.toLocaleString()}</Text>
-                                        )}
-                                    </View>
-                                </View>
-                            </Pressable>
-                        ))}
-                    </View>
-                )}
-            </ScrollView>
+            {loading ? (
+                <View style={styles.scrollContent}>
+                    {renderSkeletons()}
+                </View>
+            ) : products.length === 0 ? (
+                <View style={styles.emptyState}>
+                    <Text style={styles.emptyText}>No products found in this category</Text>
+                    <Pressable style={styles.browseButton} onPress={() => router.back()}>
+                        <Text style={styles.browseButtonText}>Browse Other Categories</Text>
+                    </Pressable>
+                </View>
+            ) : (
+                <FlatList
+                    data={products}
+                    renderItem={renderProduct}
+                    keyExtractor={(item) => item._id}
+                    numColumns={2}
+                    columnWrapperStyle={styles.columnWrapper}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            tintColor={colors.primary}
+                            colors={[colors.primary]}
+                        />
+                    }
+                    onEndReached={loadMore}
+                    onEndReachedThreshold={0.5}
+                    ListFooterComponent={renderFooter}
+                />
+            )}
         </View>
     );
 }
@@ -197,15 +235,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background,
-    },
-    loadingContainer: {
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingText: {
-        marginTop: 12,
-        fontSize: 14,
-        color: colors.mutedForeground,
     },
     header: {
         paddingHorizontal: 10,
@@ -255,16 +284,22 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    scrollView: {
-        flex: 1,
-    },
     scrollContent: {
         padding: 6,
         paddingBottom: 100,
     },
+    listContent: {
+        padding: 6,
+        paddingBottom: 100,
+    },
+    columnWrapper: {
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
     productsGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
+        justifyContent: 'space-between',
         gap: 12,
     },
     productCard: {
@@ -371,5 +406,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
         color: '#FFFFFF',
+    },
+    footerLoader: {
+        paddingVertical: 20,
+        alignItems: 'center',
     },
 });

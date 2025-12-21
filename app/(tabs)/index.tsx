@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Image, Animated, NativeSyntheticEvent, NativeScrollEvent, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Image, Animated, NativeSyntheticEvent, NativeScrollEvent, RefreshControl } from 'react-native';
 import { ArrowRight, Sparkles, Flame, Zap } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import TopBar from '@/components/TopBar';
@@ -7,6 +7,7 @@ import EventCard from '@/components/EventCard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { categoriesApi, productsApi, bannersApi, Product, Category, Banner, getImageUrl } from '@/lib/api';
 import { router } from 'expo-router';
+import { HomeScreenSkeleton, Skeleton } from '@/components/Skeleton';
 
 const { width } = Dimensions.get('window');
 const BANNER_WIDTH = width - 32;
@@ -174,9 +175,11 @@ export default function HomeScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Loading...</Text>
+      <View style={styles.container}>
+        <TopBar showSearchBar={true} searchBarAnimation={searchBarAnimation} />
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          <HomeScreenSkeleton />
+        </ScrollView>
       </View>
     );
   }
@@ -353,15 +356,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  loadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: colors.mutedForeground,
-  },
   scrollView: {
     flex: 1,
   },
@@ -501,7 +495,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   categoryIconContainer: {
     width: 60,
     height: 60,
-    borderRadius: 10,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -510,19 +504,20 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   categoryImage: {
     width: 60,
     height: 60,
-    borderRadius: 10,
+    borderRadius: 30,
   },
   categoryName: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '600',
     color: colors.foreground,
+    textAlign: 'center',
   },
   productsContainer: {
-    gap: 8,
+    gap: 12,
     marginBottom: 20,
   },
   productCardContainer: {
-    width: 170,
+    width: CARD_WIDTH,
   },
   gridContainer: {
     flexDirection: 'row',
@@ -531,6 +526,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     gap: 8,
   },
   gridProductCard: {
-    width: CARD_WIDTH - 4,
+    width: CARD_WIDTH,
+    marginBottom: 8,
   },
 });

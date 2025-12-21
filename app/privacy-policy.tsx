@@ -1,15 +1,23 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, Shield, Database, Lock, Eye, UserCheck, CreditCard, Bell, Trash2, Sun, Moon } from 'lucide-react-native';
+import { ArrowLeft, Shield, Database, Lock, Eye, UserCheck, CreditCard, Bell, Trash2 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { PrivacyPolicySkeleton } from '@/components/Skeleton';
 
 export default function PrivacyPolicyScreen() {
   const insets = useSafeAreaInsets();
-  const { colors, isDark, toggleTheme } = useTheme();
+  const { colors, isDark } = useTheme();
+  const [loading, setLoading] = useState(true);
 
   const styles = createStyles(colors, isDark);
+
+  useEffect(() => {
+    // Simulate loading
+    const timer = setTimeout(() => setLoading(false), 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const policyItems = [
     {
@@ -48,6 +56,20 @@ export default function PrivacyPolicyScreen() {
       description: 'We retain booking data for 3 years for legal and tax compliance. You can request account deletion anytime, which removes personal data within 30 days. Some anonymized data may be kept for analytics purposes.',
     },
   ];
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <ArrowLeft size={22} color={colors.foreground} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Privacy Policy</Text>
+        </View>
+        <PrivacyPolicySkeleton />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

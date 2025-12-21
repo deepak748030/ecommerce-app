@@ -15,6 +15,7 @@ const couponRoutes = require('./routes/couponRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const vendorRoutes = require('./routes/vendorRoutes');
+const walletRoutes = require('./routes/walletRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -60,6 +61,7 @@ app.use('/api/coupons', couponRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/vendor', vendorRoutes);
+app.use('/api/wallet', walletRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -37,7 +37,6 @@ export default function RootLayout() {
           <Stack.Screen name="auth/profile-setup" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="event/[id]" />
-          <Stack.Screen name="booking/[id]" />
           <Stack.Screen name="order/[id]" />
           <Stack.Screen name="category/[id]" />
           <Stack.Screen name="search" />

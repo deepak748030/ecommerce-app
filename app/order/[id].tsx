@@ -8,6 +8,7 @@ import { ordersApi, reviewsApi, Order, ReviewableProduct, getImageUrl } from '@/
 import { ReviewModal } from '@/components/ReviewModal';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
 import { ActionModal } from '@/components/ActionModal';
+import { OrderDetailsSkeleton } from '@/components/Skeleton';
 
 export default function OrderDetailScreen() {
     const insets = useSafeAreaInsets();
@@ -182,9 +183,7 @@ export default function OrderDetailScreen() {
                     </Pressable>
                     <Text style={styles.headerTitle}>Order Details</Text>
                 </View>
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={colors.primary} />
-                </View>
+                <OrderDetailsSkeleton />
             </View>
         );
     }

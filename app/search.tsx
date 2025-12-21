@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, RefreshControl, Dimensions, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, RefreshControl, Dimensions, ActivityIndicator, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { Search, ListFilter, X, TrendingUp, TrendingDown, ArrowLeft } from 'lucide-react-native';
 import EventCard from '@/components/EventCard';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -8,10 +8,12 @@ import { useTheme } from '@/hooks/useTheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { productsApi, categoriesApi, Product, Category } from '@/lib/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SearchScreenSkeleton } from '@/components/Skeleton';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 20) / 2;
 const FAVORITES_KEY = 'favorites';
+const PAGE_SIZE = 10;
 
 export default function SearchScreen() {
   const params = useLocalSearchParams<{ category?: string }>();
@@ -39,6 +41,9 @@ export default function SearchScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
@@ -50,20 +55,25 @@ export default function SearchScreen() {
   ];
 
   // Fetch data from API with filters
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (pageNum: number = 1, append: boolean = false) => {
     try {
-      setLoading(true);
+      if (pageNum === 1) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
 
       // Build filter params for API using applied states
       const filterParams: {
         limit: number;
+        page?: number;
         search?: string;
         category?: string;
         minPrice?: number;
         maxPrice?: number;
         minRating?: number;
         sort?: 'price_low_to_high' | 'price_high_to_low' | 'rating';
-      } = { limit: 100 };
+      } = { limit: PAGE_SIZE, page: pageNum };
 
       if (debouncedSearchQuery.trim()) {
         filterParams.search = debouncedSearchQuery.trim();
@@ -93,27 +103,51 @@ export default function SearchScreen() {
 
       const [productsRes, categoriesRes] = await Promise.all([
         productsApi.getAll(filterParams),
-        categoriesApi.getAll(),
+        pageNum === 1 ? categoriesApi.getAll() : Promise.resolve(null),
       ]);
 
       if (productsRes.success && productsRes.response?.data) {
-        setProducts(productsRes.response.data);
+        const newProducts = productsRes.response.data;
+        if (append) {
+          setProducts(prev => [...prev, ...newProducts]);
+        } else {
+          setProducts(newProducts);
+        }
+        setHasMore(newProducts.length === PAGE_SIZE);
       }
 
-      if (categoriesRes.success && categoriesRes.response?.data) {
+      if (categoriesRes?.success && categoriesRes.response?.data) {
         setCategories(categoriesRes.response.data);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
       setRefreshing(false);
     }
   }, [debouncedSearchQuery, appliedCategory, appliedPriceRange, appliedMinRating, appliedPriceSort]);
 
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore && !loading) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchData(nextPage, true);
+    }
+  }, [loadingMore, hasMore, loading, page, fetchData]);
+
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 200;
+    if (isCloseToBottom) {
+      loadMore();
+    }
+  }, [loadMore]);
+
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    setPage(1);
+    fetchData(1, false);
+  }, [debouncedSearchQuery, appliedCategory, appliedPriceRange, appliedMinRating, appliedPriceSort]);
 
   // Set initial category from params
   useEffect(() => {
@@ -143,7 +177,8 @@ export default function SearchScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchData();
+    setPage(1);
+    await fetchData(1, false);
   }, [fetchData]);
 
   const handleToggleFavorite = async (productId: string) => {
@@ -203,9 +238,28 @@ export default function SearchScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Loading products...</Text>
+      <View style={styles.container}>
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+          <View style={styles.searchRow}>
+            <Pressable style={styles.backButton} onPress={() => router.back()}>
+              <ArrowLeft size={22} color={colors.foreground} />
+            </Pressable>
+            <View style={styles.searchContainer}>
+              <Search size={18} color={colors.mutedForeground} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search products..."
+                placeholderTextColor={colors.mutedForeground}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
+            <Pressable style={styles.filterButton} onPress={openFilters}>
+              <ListFilter size={18} color={colors.foreground} strokeWidth={2} />
+            </Pressable>
+          </View>
+        </View>
+        <SearchScreenSkeleton />
       </View>
     );
   }
@@ -243,6 +297,8 @@ export default function SearchScreen() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={400}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -277,6 +333,11 @@ export default function SearchScreen() {
                   />
                 </View>
               ))}
+              {loadingMore && (
+                <View style={styles.loadingMoreContainer}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -455,6 +516,11 @@ const createStyles = (colors: any) => StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: colors.mutedForeground,
+  },
+  loadingMoreContainer: {
+    width: '100%',
+    paddingVertical: 16,
+    alignItems: 'center',
   },
   header: {
     backgroundColor: colors.background,
