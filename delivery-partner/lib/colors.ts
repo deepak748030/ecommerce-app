@@ -1,28 +1,28 @@
-// Design System Colors for React Native
-// Light Theme: White and Green format
+// Design System Colors for SwiftDrop Partner App
+// Light Theme: White and Orange accent
 // Dark Theme: Dark purple format
 
 export const lightColors = {
   // Base Colors
   background: '#FFFFFF',
   foreground: '#1A1A1A',
-  card: '#F8FFF8',
+  card: '#FFF8F5',
   cardForeground: '#1A1A1A',
 
-  // Primary Colors (Green)
-  primary: '#22C55E',
+  // Primary Colors (Orange - Delivery theme)
+  primary: '#F97316',
   primaryForeground: '#FFFFFF',
 
   // Secondary Colors
-  secondary: '#E8F5E9',
-  secondaryForeground: '#22C55E',
+  secondary: '#FFF7ED',
+  secondaryForeground: '#F97316',
 
   // Muted Colors
-  muted: '#F1F5F1',
+  muted: '#F5F5F4',
   mutedForeground: '#6B7280',
 
   // Accent Colors
-  accent: '#16A34A',
+  accent: '#EA580C',
   accentForeground: '#FFFFFF',
 
   // Status Colors
@@ -33,11 +33,11 @@ export const lightColors = {
   // Border & Input
   border: '#E5E7EB',
   input: '#F3F4F6',
-  ring: '#22C55E',
+  ring: '#F97316',
 
   // Stat Card Colors
-  statCard1: '#DCFCE7',
-  statCard2: '#D1FAE5',
+  statCard1: '#FFEDD5',
+  statCard2: '#FED7AA',
 
   // Additional helper colors
   white: '#FFFFFF',
@@ -53,19 +53,19 @@ export const darkColors = {
   cardForeground: '#FFFFFF',
 
   // Primary Colors
-  primary: '#22C55E',
+  primary: '#F97316',
   primaryForeground: '#FFFFFF',
 
   // Secondary Colors
-  secondary: '#1E3A2F',
-  secondaryForeground: '#22C55E',
+  secondary: '#3D2A1A',
+  secondaryForeground: '#F97316',
 
   // Muted Colors
   muted: '#3D3450',
   mutedForeground: '#9CA3AF',
 
   // Accent Colors
-  accent: '#22C55E',
+  accent: '#F97316',
   accentForeground: '#FFFFFF',
 
   // Status Colors
@@ -76,11 +76,11 @@ export const darkColors = {
   // Border & Input
   border: '#4B4460',
   input: '#3D3450',
-  ring: '#22C55E',
+  ring: '#F97316',
 
   // Stat Card Colors
-  statCard1: '#1E3A2F',
-  statCard2: '#1A3328',
+  statCard1: '#3D2A1A',
+  statCard2: '#4D3520',
 
   // Additional helper colors
   white: '#FFFFFF',
@@ -88,5 +88,4 @@ export const darkColors = {
   transparent: 'transparent',
 };
 
-// Default export for backward compatibility
-export const colors = darkColors;
+export const colors = lightColors;
