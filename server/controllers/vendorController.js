@@ -1,6 +1,9 @@
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Category = require('../models/Category');
+const User = require('../models/User');
+const { sendOrderStatusNotification } = require('../services/notificationService');
+const { createNotification } = require('./notificationController');
 
 // @desc    Get vendor's own products
 // @route   GET /api/vendor/products
@@ -319,10 +322,306 @@ const getVendorOrders = async (req, res) => {
     }
 };
 
+// @desc    Update order status for vendor's products
+// @route   PUT /api/vendor/orders/:id/status
+// @access  Private
+const updateVendorOrderStatus = async (req, res) => {
+    try {
+        const { status } = req.body;
+
+        if (!status) {
+            return res.status(400).json({
+                success: false,
+                message: 'Status is required',
+            });
+        }
+
+        const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'cancelled'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid status',
+            });
+        }
+
+        // Get vendor's product IDs
+        const vendorProducts = await Product.find({ createdBy: req.user._id }).select('_id');
+        const vendorProductIds = vendorProducts.map(p => p._id.toString());
+
+        if (vendorProductIds.length === 0) {
+            return res.status(403).json({
+                success: false,
+                message: 'You have no products',
+            });
+        }
+
+        // Find the order and check if it contains vendor's products
+        const order = await Order.findById(req.params.id).populate('user', 'expoPushToken name');
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found',
+            });
+        }
+
+        // Check if order contains any of vendor's products
+        const hasVendorProduct = order.items.some(item =>
+            vendorProductIds.includes(item.product.toString())
+        );
+
+        if (!hasVendorProduct) {
+            return res.status(403).json({
+                success: false,
+                message: 'You can only update orders containing your products',
+            });
+        }
+
+        const oldStatus = order.status;
+        order.status = status;
+
+        // Update timeline based on status
+        const timelineMap = {
+            'pending': 0,
+            'confirmed': 1,
+            'processing': 1,
+            'shipped': 2,
+            'out_for_delivery': 3,
+            'delivered': 4,
+        };
+
+        if (status !== 'cancelled' && timelineMap[status] !== undefined) {
+            const timelineIndex = timelineMap[status];
+            for (let i = 0; i <= timelineIndex; i++) {
+                if (order.timeline[i]) {
+                    order.timeline[i].completed = true;
+                    if (!order.timeline[i].date) {
+                        order.timeline[i].date = new Date();
+                    }
+                }
+            }
+
+            if (status === 'processing') {
+                order.timeline[1].status = 'Processing';
+            } else if (status === 'confirmed') {
+                order.timeline[1].status = 'Order Confirmed';
+            }
+        }
+
+        if (status === 'delivered') {
+            order.deliveredAt = new Date();
+        }
+
+        await order.save();
+
+        // Get user for notification
+        const user = await User.findById(order.user._id || order.user);
+
+        // Create in-app notification
+        const statusMessages = {
+            pending: { title: '📦 Order Received', message: `Your order #${order.orderNumber} has been received.` },
+            confirmed: { title: '✅ Order Confirmed', message: `Your order #${order.orderNumber} has been confirmed.` },
+            processing: { title: '🔄 Order Processing', message: `Your order #${order.orderNumber} is being processed.` },
+            shipped: { title: '🚚 Order Shipped', message: `Your order #${order.orderNumber} has been shipped!` },
+            out_for_delivery: { title: '🏃 Out for Delivery', message: `Your order #${order.orderNumber} is out for delivery.` },
+            delivered: { title: '🎉 Order Delivered', message: `Your order #${order.orderNumber} has been delivered!` },
+            cancelled: { title: '❌ Order Cancelled', message: `Your order #${order.orderNumber} has been cancelled.` },
+        };
+
+        const notifData = statusMessages[status] || { title: 'Order Update', message: `Order #${order.orderNumber} status: ${status}` };
+
+        if (user) {
+            await createNotification(user._id, {
+                title: notifData.title,
+                message: notifData.message,
+                type: 'order',
+                data: {
+                    orderId: order._id.toString(),
+                    orderNumber: order.orderNumber,
+                    status: status,
+                },
+            });
+
+            await sendOrderStatusNotification(user, order, status);
+        }
+
+        res.json({
+            success: true,
+            message: `Order status updated to ${status}`,
+            response: order,
+        });
+    } catch (error) {
+        console.error('Update vendor order status error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get vendor analytics
+// @route   GET /api/vendor/analytics
+// @access  Private
+const getVendorAnalytics = async (req, res) => {
+    try {
+        // Get vendor's products
+        const vendorProducts = await Product.find({ createdBy: req.user._id });
+        const vendorProductIds = vendorProducts.map(p => p._id);
+
+        if (vendorProductIds.length === 0) {
+            return res.json({
+                success: true,
+                message: 'No analytics data',
+                response: {
+                    totalProducts: 0,
+                    totalOrders: 0,
+                    totalRevenue: 0,
+                    totalItemsSold: 0,
+                    pendingOrders: 0,
+                    deliveredOrders: 0,
+                    cancelledOrders: 0,
+                    topProducts: [],
+                    recentOrders: [],
+                    revenueByStatus: {},
+                    ordersByMonth: [],
+                },
+            });
+        }
+
+        // Get all orders containing vendor's products
+        const orders = await Order.find({
+            'items.product': { $in: vendorProductIds }
+        }).populate('items.product', 'title image createdBy');
+
+        // Calculate analytics
+        let totalRevenue = 0;
+        let totalItemsSold = 0;
+        let pendingOrders = 0;
+        let deliveredOrders = 0;
+        let cancelledOrders = 0;
+        const productSales = {};
+        const revenueByStatus = {};
+        const ordersByMonth = {};
+
+        orders.forEach(order => {
+            const vendorItems = order.items.filter(item =>
+                item.product && vendorProductIds.some(pid =>
+                    pid.toString() === (item.product._id || item.product).toString()
+                )
+            );
+
+            const vendorSubtotal = vendorItems.reduce((sum, item) => {
+                const itemTotal = item.price * item.quantity;
+
+                // Track product sales
+                const productId = (item.product._id || item.product).toString();
+                if (!productSales[productId]) {
+                    productSales[productId] = {
+                        productId,
+                        name: item.name || (item.product.title || 'Unknown'),
+                        image: item.image || (item.product.image || ''),
+                        totalSold: 0,
+                        revenue: 0,
+                    };
+                }
+                productSales[productId].totalSold += item.quantity;
+                productSales[productId].revenue += itemTotal;
+
+                return sum + itemTotal;
+            }, 0);
+
+            if (vendorItems.length > 0) {
+                totalRevenue += vendorSubtotal;
+                totalItemsSold += vendorItems.reduce((sum, item) => sum + item.quantity, 0);
+
+                // Track by status
+                if (!revenueByStatus[order.status]) {
+                    revenueByStatus[order.status] = { count: 0, revenue: 0 };
+                }
+                revenueByStatus[order.status].count++;
+                revenueByStatus[order.status].revenue += vendorSubtotal;
+
+                // Track by month
+                const monthKey = new Date(order.createdAt).toISOString().slice(0, 7);
+                if (!ordersByMonth[monthKey]) {
+                    ordersByMonth[monthKey] = { month: monthKey, orders: 0, revenue: 0 };
+                }
+                ordersByMonth[monthKey].orders++;
+                ordersByMonth[monthKey].revenue += vendorSubtotal;
+
+                // Count by status
+                if (order.status === 'pending' || order.status === 'confirmed' || order.status === 'processing') {
+                    pendingOrders++;
+                } else if (order.status === 'delivered') {
+                    deliveredOrders++;
+                } else if (order.status === 'cancelled') {
+                    cancelledOrders++;
+                }
+            }
+        });
+
+        // Get top products by revenue
+        const topProducts = Object.values(productSales)
+            .sort((a, b) => b.revenue - a.revenue)
+            .slice(0, 5);
+
+        // Get recent orders
+        const recentOrders = await Order.find({
+            'items.product': { $in: vendorProductIds }
+        })
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .populate('user', 'name')
+            .populate('items.product', 'title image createdBy');
+
+        const formattedRecentOrders = recentOrders.map(order => {
+            const vendorItems = order.items.filter(item =>
+                item.product && vendorProductIds.some(pid =>
+                    pid.toString() === (item.product._id || item.product).toString()
+                )
+            );
+            const vendorSubtotal = vendorItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+            return {
+                _id: order._id,
+                orderNumber: order.orderNumber,
+                customerName: order.user?.name || 'Customer',
+                status: order.status,
+                itemsCount: vendorItems.length,
+                total: vendorSubtotal,
+                createdAt: order.createdAt,
+            };
+        });
+
+        // Convert ordersByMonth to array and sort
+        const ordersByMonthArray = Object.values(ordersByMonth).sort((a, b) => a.month.localeCompare(b.month));
+
+        res.json({
+            success: true,
+            message: 'Analytics fetched successfully',
+            response: {
+                totalProducts: vendorProducts.length,
+                totalOrders: orders.length,
+                totalRevenue: Math.round(totalRevenue),
+                totalItemsSold,
+                pendingOrders,
+                deliveredOrders,
+                cancelledOrders,
+                topProducts,
+                recentOrders: formattedRecentOrders,
+                revenueByStatus,
+                ordersByMonth: ordersByMonthArray,
+            },
+        });
+    } catch (error) {
+        console.error('Get vendor analytics error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 module.exports = {
     getVendorProducts,
     createVendorProduct,
     updateVendorProduct,
     deleteVendorProduct,
     getVendorOrders,
+    updateVendorOrderStatus,
+    getVendorAnalytics,
 };

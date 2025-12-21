@@ -818,6 +818,39 @@ export interface VendorOrder {
     updatedAt: string;
 }
 
+// Vendor Analytics Types
+export interface VendorAnalytics {
+    totalProducts: number;
+    totalOrders: number;
+    totalRevenue: number;
+    totalItemsSold: number;
+    pendingOrders: number;
+    deliveredOrders: number;
+    cancelledOrders: number;
+    topProducts: {
+        productId: string;
+        name: string;
+        image: string;
+        totalSold: number;
+        revenue: number;
+    }[];
+    recentOrders: {
+        _id: string;
+        orderNumber: string;
+        customerName: string;
+        status: string;
+        itemsCount: number;
+        total: number;
+        createdAt: string;
+    }[];
+    revenueByStatus: Record<string, { count: number; revenue: number }>;
+    ordersByMonth: {
+        month: string;
+        orders: number;
+        revenue: number;
+    }[];
+}
+
 // Vendor API (All Protected)
 export const vendorApi = {
     // Get vendor's own products
@@ -874,5 +907,18 @@ export const vendorApi = {
         if (params?.limit) query.append('limit', params.limit.toString());
 
         return apiRequest<{ count: number; total: number; data: VendorOrder[] }>(`/vendor/orders?${query.toString()}`);
+    },
+
+    // Update order status
+    updateOrderStatus: async (orderId: string, status: string) => {
+        return apiRequest<Order>(`/vendor/orders/${orderId}/status`, {
+            method: 'PUT',
+            body: JSON.stringify({ status }),
+        });
+    },
+
+    // Get vendor analytics
+    getAnalytics: async () => {
+        return apiRequest<VendorAnalytics>('/vendor/analytics');
     },
 };

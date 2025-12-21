@@ -9,7 +9,6 @@ import {
     TextInput,
     ActivityIndicator,
     FlatList,
-    Alert,
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
@@ -26,21 +25,41 @@ import {
     ChevronDown,
     Trash2,
     Edit,
+    TrendingUp,
+    DollarSign,
+    ShoppingCart,
+    CheckCircle,
+    Clock,
+    XCircle,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { vendorApi, categoriesApi, Category, Product, VendorOrder, getImageUrl } from '@/lib/api';
+import { vendorApi, categoriesApi, Category, Product, VendorOrder, VendorAnalytics, getImageUrl } from '@/lib/api';
 import { ActionModal } from '@/components/ActionModal';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
 
-type TabType = 'create' | 'products' | 'orders';
+type TabType = 'analytics' | 'create' | 'products' | 'orders';
+
+const STATUS_OPTIONS = [
+    { value: 'pending', label: 'Pending' },
+    { value: 'confirmed', label: 'Confirmed' },
+    { value: 'processing', label: 'Processing' },
+    { value: 'shipped', label: 'Shipped' },
+    { value: 'out_for_delivery', label: 'Out for Delivery' },
+    { value: 'delivered', label: 'Delivered' },
+    { value: 'cancelled', label: 'Cancelled' },
+];
 
 export default function VendorScreen() {
     const insets = useSafeAreaInsets();
     const { colors, isDark } = useTheme();
     const styles = createStyles(colors, isDark);
 
-    const [activeTab, setActiveTab] = useState<TabType>('products');
+    const [activeTab, setActiveTab] = useState<TabType>('analytics');
     const [isLoading, setIsLoading] = useState(false);
+
+    // Analytics state
+    const [analytics, setAnalytics] = useState<VendorAnalytics | null>(null);
+    const [analyticsLoading, setAnalyticsLoading] = useState(true);
 
     // Products state
     const [products, setProducts] = useState<Product[]>([]);
@@ -49,6 +68,8 @@ export default function VendorScreen() {
     // Orders state
     const [orders, setOrders] = useState<VendorOrder[]>([]);
     const [ordersLoading, setOrdersLoading] = useState(true);
+    const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+    const [showStatusPicker, setShowStatusPicker] = useState<string | null>(null);
 
     // Create product state
     const [categories, setCategories] = useState<Category[]>([]);
@@ -85,6 +106,20 @@ export default function VendorScreen() {
         }
     };
 
+    const loadAnalytics = async () => {
+        try {
+            setAnalyticsLoading(true);
+            const result = await vendorApi.getAnalytics();
+            if (result.success && result.response) {
+                setAnalytics(result.response);
+            }
+        } catch (error) {
+            console.error('Error loading analytics:', error);
+        } finally {
+            setAnalyticsLoading(false);
+        }
+    };
+
     const loadProducts = async () => {
         try {
             setProductsLoading(true);
@@ -116,10 +151,37 @@ export default function VendorScreen() {
     useFocusEffect(
         useCallback(() => {
             loadCategories();
+            loadAnalytics();
             loadProducts();
             loadOrders();
         }, [])
     );
+
+    const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
+        setUpdatingOrderId(orderId);
+        setShowStatusPicker(null);
+        try {
+            const result = await vendorApi.updateOrderStatus(orderId, newStatus);
+            if (result.success) {
+                setInfoModalData({
+                    title: 'Success',
+                    message: `Order status updated to ${newStatus.replace(/_/g, ' ')}`,
+                    type: 'success'
+                });
+                setShowInfoModal(true);
+                loadOrders();
+                loadAnalytics();
+            } else {
+                setInfoModalData({ title: 'Error', message: result.message || 'Failed to update status', type: 'error' });
+                setShowInfoModal(true);
+            }
+        } catch (error) {
+            setInfoModalData({ title: 'Error', message: 'Failed to update order status', type: 'error' });
+            setShowInfoModal(true);
+        } finally {
+            setUpdatingOrderId(null);
+        }
+    };
 
     const pickImage = async (isMain: boolean = true) => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -202,6 +264,7 @@ export default function VendorScreen() {
                 setShowInfoModal(true);
                 resetForm();
                 loadProducts();
+                loadAnalytics();
                 setActiveTab('products');
             } else {
                 setInfoModalData({ title: 'Error', message: result.message || 'Failed to save product', type: 'error' });
@@ -260,6 +323,7 @@ export default function VendorScreen() {
                 setInfoModalData({ title: 'Success', message: 'Product deleted successfully!', type: 'success' });
                 setShowInfoModal(true);
                 loadProducts();
+                loadAnalytics();
             } else {
                 setInfoModalData({ title: 'Error', message: result.message || 'Failed to delete product', type: 'error' });
                 setShowInfoModal(true);
@@ -289,6 +353,127 @@ export default function VendorScreen() {
     const formatStatus = (status: string) => {
         return status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     };
+
+    const renderAnalyticsTab = () => (
+        <ScrollView style={styles.tabContent} contentContainerStyle={styles.analyticsContent}>
+            {analyticsLoading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                    <Text style={styles.loadingText}>Loading analytics...</Text>
+                </View>
+            ) : analytics ? (
+                <>
+                    {/* Stats Cards */}
+                    <View style={styles.statsGrid}>
+                        <View style={[styles.statCard, { backgroundColor: colors.primary + '15' }]}>
+                            <View style={[styles.statIcon, { backgroundColor: colors.primary }]}>
+                                <DollarSign size={20} color={colors.white} />
+                            </View>
+                            <Text style={styles.statValue}>₹{analytics.totalRevenue.toLocaleString()}</Text>
+                            <Text style={styles.statLabel}>Total Revenue</Text>
+                        </View>
+                        <View style={[styles.statCard, { backgroundColor: colors.accent + '15' }]}>
+                            <View style={[styles.statIcon, { backgroundColor: colors.accent }]}>
+                                <ShoppingCart size={20} color={colors.white} />
+                            </View>
+                            <Text style={styles.statValue}>{analytics.totalOrders}</Text>
+                            <Text style={styles.statLabel}>Total Orders</Text>
+                        </View>
+                        <View style={[styles.statCard, { backgroundColor: colors.success + '15' }]}>
+                            <View style={[styles.statIcon, { backgroundColor: colors.success }]}>
+                                <Package size={20} color={colors.white} />
+                            </View>
+                            <Text style={styles.statValue}>{analytics.totalProducts}</Text>
+                            <Text style={styles.statLabel}>Products</Text>
+                        </View>
+                        <View style={[styles.statCard, { backgroundColor: colors.warning + '15' }]}>
+                            <View style={[styles.statIcon, { backgroundColor: colors.warning }]}>
+                                <TrendingUp size={20} color={colors.white} />
+                            </View>
+                            <Text style={styles.statValue}>{analytics.totalItemsSold}</Text>
+                            <Text style={styles.statLabel}>Items Sold</Text>
+                        </View>
+                    </View>
+
+                    {/* Order Status Summary */}
+                    <View style={styles.sectionCard}>
+                        <Text style={styles.sectionTitle}>Order Status</Text>
+                        <View style={styles.orderStatusRow}>
+                            <View style={styles.orderStatusItem}>
+                                <View style={[styles.statusDot, { backgroundColor: colors.warning }]} />
+                                <Text style={styles.orderStatusValue}>{analytics.pendingOrders}</Text>
+                                <Text style={styles.orderStatusLabel}>Pending</Text>
+                            </View>
+                            <View style={styles.orderStatusItem}>
+                                <View style={[styles.statusDot, { backgroundColor: colors.success }]} />
+                                <Text style={styles.orderStatusValue}>{analytics.deliveredOrders}</Text>
+                                <Text style={styles.orderStatusLabel}>Delivered</Text>
+                            </View>
+                            <View style={styles.orderStatusItem}>
+                                <View style={[styles.statusDot, { backgroundColor: colors.destructive }]} />
+                                <Text style={styles.orderStatusValue}>{analytics.cancelledOrders}</Text>
+                                <Text style={styles.orderStatusLabel}>Cancelled</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Top Products */}
+                    <View style={styles.sectionCard}>
+                        <Text style={styles.sectionTitle}>Top Products</Text>
+                        {analytics.topProducts.length === 0 ? (
+                            <Text style={styles.emptyText}>No sales data yet</Text>
+                        ) : (
+                            analytics.topProducts.map((product, index) => (
+                                <View key={product.productId} style={styles.topProductRow}>
+                                    <Text style={styles.topProductRank}>#{index + 1}</Text>
+                                    <Image source={{ uri: getImageUrl(product.image) }} style={styles.topProductImage} />
+                                    <View style={styles.topProductInfo}>
+                                        <Text style={styles.topProductName} numberOfLines={1}>{product.name}</Text>
+                                        <Text style={styles.topProductStats}>
+                                            {product.totalSold} sold • ₹{product.revenue.toLocaleString()}
+                                        </Text>
+                                    </View>
+                                </View>
+                            ))
+                        )}
+                    </View>
+
+                    {/* Recent Orders */}
+                    <View style={styles.sectionCard}>
+                        <Text style={styles.sectionTitle}>Recent Orders</Text>
+                        {analytics.recentOrders.length === 0 ? (
+                            <Text style={styles.emptyText}>No orders yet</Text>
+                        ) : (
+                            analytics.recentOrders.map((order) => (
+                                <View key={order._id} style={styles.recentOrderRow}>
+                                    <View style={styles.recentOrderInfo}>
+                                        <Text style={styles.recentOrderNumber}>#{order.orderNumber}</Text>
+                                        <Text style={styles.recentOrderCustomer}>{order.customerName}</Text>
+                                    </View>
+                                    <View style={styles.recentOrderRight}>
+                                        <Text style={styles.recentOrderTotal}>₹{order.total}</Text>
+                                        <View style={[styles.miniStatusBadge, { backgroundColor: getStatusColor(order.status) + '20' }]}>
+                                            <Text style={[styles.miniStatusText, { color: getStatusColor(order.status) }]}>
+                                                {formatStatus(order.status)}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                </View>
+                            ))
+                        )}
+                    </View>
+
+                    <View style={{ height: 100 }} />
+                </>
+            ) : (
+                <View style={styles.emptyContainer}>
+                    <TrendingUp size={60} color={colors.mutedForeground} />
+                    <Text style={styles.emptyTitle}>No Analytics Data</Text>
+                    <Text style={styles.emptyText}>Start selling to see your analytics</Text>
+                </View>
+            )}
+        </ScrollView>
+    );
 
     const renderProductCard = ({ item }: { item: Product }) => (
         <View style={styles.productCard}>
@@ -323,7 +508,7 @@ export default function VendorScreen() {
     );
 
     const renderOrderCard = ({ item }: { item: VendorOrder }) => (
-        <Pressable style={styles.orderCard}>
+        <View style={styles.orderCard}>
             <View style={styles.orderHeader}>
                 <Text style={styles.orderNumber}>#{item.orderNumber}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
@@ -368,7 +553,52 @@ export default function VendorScreen() {
                     {item.shippingAddress?.address}, {item.shippingAddress?.city} - {item.shippingAddress?.pincode}
                 </Text>
             </View>
-        </Pressable>
+
+            {/* Update Status */}
+            <View style={styles.updateStatusSection}>
+                <Text style={styles.updateStatusLabel}>Update Status:</Text>
+                <Pressable
+                    style={styles.statusPickerButton}
+                    onPress={() => setShowStatusPicker(showStatusPicker === item._id ? null : item._id)}
+                    disabled={updatingOrderId === item._id}
+                >
+                    {updatingOrderId === item._id ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                        <>
+                            <Text style={styles.statusPickerText}>{formatStatus(item.status)}</Text>
+                            <ChevronDown size={18} color={colors.mutedForeground} />
+                        </>
+                    )}
+                </Pressable>
+            </View>
+
+            {showStatusPicker === item._id && (
+                <View style={styles.statusDropdown}>
+                    {STATUS_OPTIONS.map((option) => (
+                        <Pressable
+                            key={option.value}
+                            style={[
+                                styles.statusOption,
+                                item.status === option.value && styles.statusOptionSelected
+                            ]}
+                            onPress={() => handleUpdateOrderStatus(item._id, option.value)}
+                        >
+                            <View style={[styles.statusDotSmall, { backgroundColor: getStatusColor(option.value) }]} />
+                            <Text style={[
+                                styles.statusOptionText,
+                                item.status === option.value && styles.statusOptionTextSelected
+                            ]}>
+                                {option.label}
+                            </Text>
+                            {item.status === option.value && (
+                                <CheckCircle size={16} color={colors.primary} />
+                            )}
+                        </Pressable>
+                    ))}
+                </View>
+            )}
+        </View>
     );
 
     const renderCreateTab = () => (
@@ -621,14 +851,28 @@ export default function VendorScreen() {
             </View>
 
             {/* Sub-tabs */}
-            <View style={styles.tabBar}>
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.tabBarScroll}
+                contentContainerStyle={styles.tabBar}
+            >
+                <Pressable
+                    style={[styles.tab, activeTab === 'analytics' && styles.tabActive]}
+                    onPress={() => setActiveTab('analytics')}
+                >
+                    <TrendingUp size={16} color={activeTab === 'analytics' ? colors.primary : colors.mutedForeground} />
+                    <Text style={[styles.tabText, activeTab === 'analytics' && styles.tabTextActive]}>
+                        Analytics
+                    </Text>
+                </Pressable>
                 <Pressable
                     style={[styles.tab, activeTab === 'products' && styles.tabActive]}
                     onPress={() => setActiveTab('products')}
                 >
-                    <Package size={18} color={activeTab === 'products' ? colors.primary : colors.mutedForeground} />
+                    <Package size={16} color={activeTab === 'products' ? colors.primary : colors.mutedForeground} />
                     <Text style={[styles.tabText, activeTab === 'products' && styles.tabTextActive]}>
-                        My Products
+                        Products
                     </Text>
                 </Pressable>
                 <Pressable
@@ -638,7 +882,7 @@ export default function VendorScreen() {
                         setActiveTab('create');
                     }}
                 >
-                    <Plus size={18} color={activeTab === 'create' ? colors.primary : colors.mutedForeground} />
+                    <Plus size={16} color={activeTab === 'create' ? colors.primary : colors.mutedForeground} />
                     <Text style={[styles.tabText, activeTab === 'create' && styles.tabTextActive]}>
                         Create
                     </Text>
@@ -647,14 +891,15 @@ export default function VendorScreen() {
                     style={[styles.tab, activeTab === 'orders' && styles.tabActive]}
                     onPress={() => setActiveTab('orders')}
                 >
-                    <ShoppingBag size={18} color={activeTab === 'orders' ? colors.primary : colors.mutedForeground} />
+                    <ShoppingBag size={16} color={activeTab === 'orders' ? colors.primary : colors.mutedForeground} />
                     <Text style={[styles.tabText, activeTab === 'orders' && styles.tabTextActive]}>
                         Orders
                     </Text>
                 </Pressable>
-            </View>
+            </ScrollView>
 
             {/* Tab Content */}
+            {activeTab === 'analytics' && renderAnalyticsTab()}
             {activeTab === 'create' && renderCreateTab()}
             {activeTab === 'products' && renderProductsTab()}
             {activeTab === 'orders' && renderOrdersTab()}
@@ -718,19 +963,21 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     headerRight: {
         width: 40,
     },
-    tabBar: {
-        flexDirection: 'row',
+    tabBarScroll: {
         backgroundColor: colors.card,
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
+    },
+    tabBar: {
+        flexDirection: 'row',
         paddingHorizontal: 8,
     },
     tab: {
-        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         paddingVertical: 14,
+        paddingHorizontal: 16,
         gap: 6,
     },
     tabActive: {
@@ -747,6 +994,9 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     },
     tabContent: {
         flex: 1,
+    },
+    analyticsContent: {
+        padding: 16,
     },
     loadingContainer: {
         flex: 1,
@@ -791,6 +1041,155 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         fontWeight: '600',
         color: colors.white,
     },
+    // Stats Grid
+    statsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginBottom: 20,
+    },
+    statCard: {
+        width: '47%',
+        padding: 16,
+        borderRadius: 16,
+        alignItems: 'center',
+    },
+    statIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 12,
+    },
+    statValue: {
+        fontSize: 22,
+        fontWeight: '800',
+        color: colors.foreground,
+    },
+    statLabel: {
+        fontSize: 12,
+        color: colors.mutedForeground,
+        marginTop: 4,
+    },
+    // Section Card
+    sectionCard: {
+        backgroundColor: colors.card,
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: colors.foreground,
+        marginBottom: 16,
+    },
+    // Order Status Row
+    orderStatusRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+    },
+    orderStatusItem: {
+        alignItems: 'center',
+    },
+    statusDot: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        marginBottom: 8,
+    },
+    statusDotSmall: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    orderStatusValue: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: colors.foreground,
+    },
+    orderStatusLabel: {
+        fontSize: 12,
+        color: colors.mutedForeground,
+        marginTop: 2,
+    },
+    // Top Products
+    topProductRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+    },
+    topProductRank: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: colors.primary,
+        width: 30,
+    },
+    topProductImage: {
+        width: 44,
+        height: 44,
+        borderRadius: 8,
+        backgroundColor: colors.muted,
+    },
+    topProductInfo: {
+        flex: 1,
+        marginLeft: 12,
+    },
+    topProductName: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: colors.foreground,
+    },
+    topProductStats: {
+        fontSize: 12,
+        color: colors.mutedForeground,
+        marginTop: 2,
+    },
+    // Recent Orders
+    recentOrderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+    },
+    recentOrderInfo: {
+        flex: 1,
+    },
+    recentOrderNumber: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: colors.foreground,
+    },
+    recentOrderCustomer: {
+        fontSize: 12,
+        color: colors.mutedForeground,
+    },
+    recentOrderRight: {
+        alignItems: 'flex-end',
+    },
+    recentOrderTotal: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: colors.primary,
+    },
+    miniStatusBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 6,
+        marginTop: 4,
+    },
+    miniStatusText: {
+        fontSize: 10,
+        fontWeight: '600',
+    },
+    // Product List
     listContent: {
         padding: 16,
         paddingBottom: 100,
@@ -857,6 +1256,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     deleteButton: {
         backgroundColor: colors.destructive + '15',
     },
+    // Order Card
     orderCard: {
         backgroundColor: colors.card,
         borderRadius: 14,
@@ -964,6 +1364,64 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         fontSize: 12,
         color: colors.foreground,
     },
+    // Update Status Section
+    updateStatusSection: {
+        marginTop: 12,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    updateStatusLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: colors.foreground,
+    },
+    statusPickerButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.secondary,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 8,
+        gap: 6,
+    },
+    statusPickerText: {
+        fontSize: 13,
+        fontWeight: '500',
+        color: colors.foreground,
+    },
+    statusDropdown: {
+        marginTop: 12,
+        backgroundColor: colors.background,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: colors.border,
+        overflow: 'hidden',
+    },
+    statusOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        gap: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+    },
+    statusOptionSelected: {
+        backgroundColor: colors.primary + '10',
+    },
+    statusOptionText: {
+        flex: 1,
+        fontSize: 14,
+        color: colors.foreground,
+    },
+    statusOptionTextSelected: {
+        fontWeight: '600',
+        color: colors.primary,
+    },
+    // Form Styles
     formContainer: {
         flex: 1,
         padding: 16,
