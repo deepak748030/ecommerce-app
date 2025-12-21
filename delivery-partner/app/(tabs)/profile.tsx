@@ -6,7 +6,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { router } from 'expo-router';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
 import { EditProfileModal } from '../../components/EditProfileModal';
-import { deliveryPartnerAuthApi, getPartnerData, PartnerData, setPartnerData } from '../../lib/api';
+import { deliveryPartnerAuthApi, getPartnerData, PartnerData, setPartnerData, clearAllPartnerData } from '../../lib/api';
 import { ProfileScreenSkeleton } from '../../components/Skeleton';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -63,11 +63,17 @@ export default function ProfileScreen() {
     const handleLogout = async () => {
         setLogoutLoading(true);
         try {
+            // First clear all local data
+            await clearAllPartnerData();
+            // Then call server logout
             await deliveryPartnerAuthApi.logout();
             setShowLogoutModal(false);
+            // Navigate to login screen with replace to clear navigation stack
             router.replace('/auth/phone');
         } catch (error) {
             console.log('Logout error:', error);
+            // Even if server logout fails, we've cleared local data, so redirect anyway
+            router.replace('/auth/phone');
         } finally {
             setLogoutLoading(false);
         }
@@ -87,7 +93,7 @@ export default function ProfileScreen() {
                             return;
                         }
                         const result = await ImagePicker.launchCameraAsync({
-                            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                            mediaTypes: ['images'],
                             allowsEditing: true,
                             aspect: [1, 1],
                             quality: 0.7,
@@ -103,7 +109,7 @@ export default function ProfileScreen() {
                     text: 'Choose from Gallery',
                     onPress: async () => {
                         const result = await ImagePicker.launchImageLibraryAsync({
-                            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                            mediaTypes: ['images'],
                             allowsEditing: true,
                             aspect: [1, 1],
                             quality: 0.7,
@@ -288,6 +294,7 @@ export default function ProfileScreen() {
                 confirmText="Yes, Logout"
                 cancelText="Cancel"
                 confirmDestructive={true}
+                isLoading={logoutLoading}
             />
 
             <EditProfileModal

@@ -61,7 +61,7 @@ export default function VehicleSetupScreen() {
     const pickImage = async (docType: keyof DocumentState) => {
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                mediaTypes: ['images'],
                 allowsEditing: true,
                 aspect: docType === 'selfie' ? [1, 1] : [4, 3],
                 quality: 0.7,

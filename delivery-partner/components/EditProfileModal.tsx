@@ -73,7 +73,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     return;
                 }
                 result = await ImagePicker.launchCameraAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    mediaTypes: ['images'],
                     allowsEditing: true,
                     aspect: [1, 1],
                     quality: 0.7,
@@ -81,7 +81,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 });
             } else {
                 result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    mediaTypes: ['images'],
                     allowsEditing: true,
                     aspect: [1, 1],
                     quality: 0.7,

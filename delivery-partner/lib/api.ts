@@ -108,6 +108,50 @@ export const removePartnerData = async (): Promise<void> => {
     }
 };
 
+// Clear all partner related data from storage
+export const clearAllPartnerData = async (): Promise<void> => {
+    try {
+        await AsyncStorage.multiRemove([PARTNER_TOKEN_KEY, PARTNER_DATA_KEY]);
+        // Also clear any other app-specific keys
+        const allKeys = await AsyncStorage.getAllKeys();
+        const partnerKeys = allKeys.filter(key =>
+            key.startsWith('partner') ||
+            key.startsWith('delivery') ||
+            key.startsWith('theme')
+        );
+        if (partnerKeys.length > 0) {
+            await AsyncStorage.multiRemove(partnerKeys);
+        }
+    } catch (error) {
+        console.error('Error clearing all partner data:', error);
+    }
+};
+
+// Check if partner is logged in
+export const isPartnerLoggedIn = async (): Promise<boolean> => {
+    try {
+        const token = await getPartnerToken();
+        return !!token;
+    } catch {
+        return false;
+    }
+};
+
+// Session expired callback - will be set by the app
+let onSessionExpired: (() => void) | null = null;
+
+export const setSessionExpiredCallback = (callback: () => void) => {
+    onSessionExpired = callback;
+};
+
+// Handle 401 - session expired
+const handleSessionExpired = async () => {
+    await clearAllPartnerData();
+    if (onSessionExpired) {
+        onSessionExpired();
+    }
+};
+
 // API Request helper with authentication
 export const authFetch = async <T>(
     endpoint: string,
@@ -129,6 +173,16 @@ export const authFetch = async <T>(
             ...options,
             headers,
         });
+
+        // Handle 401 - session expired
+        if (response.status === 401) {
+            await handleSessionExpired();
+            return {
+                success: false,
+                message: 'Session expired. Please login again.',
+                response: null as any,
+            };
+        }
 
         const responseText = await response.text();
 
@@ -281,8 +335,8 @@ export const deliveryPartnerAuthApi = {
             method: 'POST',
         });
 
-        await removePartnerToken();
-        await removePartnerData();
+        // Clear all stored data
+        await clearAllPartnerData();
 
         return result;
     },

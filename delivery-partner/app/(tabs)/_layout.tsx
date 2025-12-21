@@ -1,9 +1,19 @@
 import { Tabs } from 'expo-router';
 import { Home, Package, Wallet, User } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useTheme';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
     const { colors } = useTheme();
+    const insets = useSafeAreaInsets();
+
+    // Calculate proper tab bar height with safe area
+    const tabBarHeight = Platform.select({
+        ios: 60 + insets.bottom,
+        android: 60 + Math.max(insets.bottom, 10),
+        default: 60,
+    });
 
     return (
         <Tabs
@@ -11,12 +21,27 @@ export default function TabLayout() {
                 headerShown: false,
                 tabBarActiveTintColor: colors.primary,
                 tabBarInactiveTintColor: colors.mutedForeground,
+                tabBarHideOnKeyboard: true,
                 tabBarStyle: {
                     backgroundColor: colors.card,
                     borderTopColor: colors.border,
-                    height: 60,
-                    paddingBottom: 8,
+                    borderTopWidth: 1,
+                    height: tabBarHeight,
+                    paddingBottom: Platform.select({
+                        ios: insets.bottom + 8,
+                        android: Math.max(insets.bottom, 10) + 8,
+                        default: 8,
+                    }),
                     paddingTop: 8,
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    elevation: 8,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: -2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
                 },
                 tabBarLabelStyle: {
                     fontSize: 11,

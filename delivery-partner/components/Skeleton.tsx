@@ -314,7 +314,7 @@ export const EarningsCardSkeleton: React.FC = () => {
 
 const createStyles = (colors: any) => StyleSheet.create({
     container: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 6,
     },
     // Home Screen Styles
     statusCard: {

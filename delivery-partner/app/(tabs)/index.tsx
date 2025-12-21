@@ -6,6 +6,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { router } from 'expo-router';
 import { deliveryPartnerAuthApi, getPartnerData, PartnerData, deliveryOrdersApi, DeliveryOrder } from '../../lib/api';
 import { HomeScreenSkeleton } from '../../components/Skeleton';
+import KycPendingModal from '../../components/KycPendingModal';
 
 const { width } = Dimensions.get('window');
 
@@ -17,6 +18,7 @@ export default function HomeScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [toggleLoading, setToggleLoading] = useState(false);
     const [acceptLoading, setAcceptLoading] = useState<string | null>(null);
+    const [showKycModal, setShowKycModal] = useState(false);
 
     const [activeOrders, setActiveOrders] = useState<DeliveryOrder[]>([]);
     const [availableOrders, setAvailableOrders] = useState<DeliveryOrder[]>([]);
@@ -96,8 +98,24 @@ export default function HomeScreen() {
         }
     };
 
+    const getKycStatus = (): 'pending' | 'under_review' | 'rejected' | 'verified' | null => {
+        if (!partnerData) return null;
+        const kycStatus = partnerData.kycStatus;
+        if (kycStatus === 'approved') return 'verified';
+        if (kycStatus === 'submitted') return 'under_review';
+        if (kycStatus === 'rejected') return 'rejected';
+        return 'pending';
+    };
+
     const handleAcceptOrder = async (orderId: string) => {
         if (acceptLoading) return;
+
+        // Check KYC status before accepting
+        const kycStatus = getKycStatus();
+        if (kycStatus !== 'verified') {
+            setShowKycModal(true);
+            return;
+        }
 
         setAcceptLoading(orderId);
         try {
@@ -112,6 +130,8 @@ export default function HomeScreen() {
             setAcceptLoading(null);
         }
     };
+
+    const kycStatusForModal = getKycStatus();
 
     const activeCount = activeOrders.length;
     const pendingCount = availableOrders.length;
@@ -306,6 +326,13 @@ export default function HomeScreen() {
                     </View>
                 )}
             </ScrollView>
+
+            {/* KYC Pending Modal */}
+            <KycPendingModal
+                visible={showKycModal}
+                onClose={() => setShowKycModal(false)}
+                kycStatus={kycStatusForModal === 'verified' ? null : kycStatusForModal}
+            />
         </SafeAreaView>
     );
 }

@@ -4,9 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, MapPin, Phone, Package, Clock, Navigation, CheckCircle, Store, User, CreditCard } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { router, useLocalSearchParams } from 'expo-router';
-import { deliveryOrdersApi, DeliveryOrder, DeliveryOrderItem } from '../../lib/api';
+import { deliveryOrdersApi, DeliveryOrder, DeliveryOrderItem, getPartnerData, PartnerData } from '../../lib/api';
 import PickupOtpModal from '../../components/PickupOtpModal';
 import { DeliveryDetailSkeleton } from '../../components/Skeleton';
+import KycPendingModal from '../../components/KycPendingModal';
 
 export default function DeliveryDetailScreen() {
     const { colors, isDark } = useTheme();
@@ -21,6 +22,8 @@ export default function DeliveryDetailScreen() {
     const [showPickupOtpModal, setShowPickupOtpModal] = useState(false);
     const [showDeliveryOtpModal, setShowDeliveryOtpModal] = useState(false);
     const [otpLoading, setOtpLoading] = useState(false);
+    const [showKycModal, setShowKycModal] = useState(false);
+    const [partnerData, setPartnerData] = useState<PartnerData | null>(null);
 
     const fetchOrder = async () => {
         try {
@@ -43,7 +46,22 @@ export default function DeliveryDetailScreen() {
         if (id) {
             fetchOrder();
         }
+        // Load partner data for KYC check
+        const loadPartnerData = async () => {
+            const data = await getPartnerData();
+            setPartnerData(data);
+        };
+        loadPartnerData();
     }, [id]);
+
+    const getKycStatus = (): 'pending' | 'under_review' | 'rejected' | 'verified' | null => {
+        if (!partnerData) return null;
+        const kycStatus = partnerData.kycStatus;
+        if (kycStatus === 'approved') return 'verified';
+        if (kycStatus === 'submitted') return 'under_review';
+        if (kycStatus === 'rejected') return 'rejected';
+        return 'pending';
+    };
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -69,6 +87,14 @@ export default function DeliveryDetailScreen() {
 
     const handleAcceptOrder = async () => {
         if (!order) return;
+
+        // Check KYC status before accepting
+        const kycStatus = getKycStatus();
+        if (kycStatus !== 'verified') {
+            setShowKycModal(true);
+            return;
+        }
+
         setActionLoading(true);
         try {
             const result = await deliveryOrdersApi.acceptOrder(order.id);
@@ -79,6 +105,8 @@ export default function DeliveryDetailScreen() {
             setActionLoading(false);
         }
     };
+
+    const kycStatusForModal = getKycStatus();
 
     const handleInitiatePickup = async () => {
         if (!order) return;
@@ -394,6 +422,13 @@ export default function DeliveryDetailScreen() {
                 subtitle={`Ask the customer for the OTP to confirm delivery for order ${order?.orderId || ''}`}
                 buttonText="Verify & Deliver"
                 hintText="OTP is sent to the customer via notification"
+            />
+
+            {/* KYC Pending Modal */}
+            <KycPendingModal
+                visible={showKycModal}
+                onClose={() => setShowKycModal(false)}
+                kycStatus={kycStatusForModal === 'verified' ? null : kycStatusForModal}
             />
         </SafeAreaView>
     );

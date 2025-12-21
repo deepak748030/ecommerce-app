@@ -190,7 +190,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         backgroundColor: colors.background,
     },
     header: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 6,
         paddingVertical: 12,
     },
     title: {
@@ -202,7 +202,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 6,
         paddingBottom: 100,
     },
     mainCard: {
@@ -340,7 +340,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         color: colors.mutedForeground,
     },
     skeletonContainer: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 6,
     },
     mainCardSkeleton: {
         backgroundColor: colors.primary,

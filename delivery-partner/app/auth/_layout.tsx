@@ -1,11 +1,27 @@
-import { Stack } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Stack, router } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useTheme } from '../../hooks/useTheme';
+import { setSessionExpiredCallback, clearAllPartnerData } from '../../lib/api';
 
-export default function AuthLayout() {
+export default function RootLayout() {
+    const { isDark } = useTheme();
+
+    useEffect(() => {
+        // Set up session expired callback
+        setSessionExpiredCallback(async () => {
+            await clearAllPartnerData();
+            router.replace('/auth/phone');
+        });
+    }, []);
+
     return (
-        <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="phone" />
-            <Stack.Screen name="otp" />
-            <Stack.Screen name="vehicle-setup" />
-        </Stack>
+        <SafeAreaProvider>
+            <>
+                <Stack screenOptions={{ headerShown: false }} />
+                <StatusBar style={isDark ? 'light' : 'dark'} />
+            </>
+        </SafeAreaProvider>
     );
 }

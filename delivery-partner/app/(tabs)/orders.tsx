@@ -272,7 +272,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         backgroundColor: colors.background,
     },
     header: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 6,
         paddingVertical: 12,
     },
     title: {
@@ -282,7 +282,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     },
     tabsContainer: {
         flexDirection: 'row',
-        paddingHorizontal: 16,
+        paddingHorizontal: 6,
         gap: 8,
         marginBottom: 12,
     },
@@ -325,7 +325,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         color: colors.white,
     },
     scrollContent: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 6,
         paddingBottom: 100,
         flexGrow: 1,
     },
@@ -419,7 +419,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         alignItems: 'center',
     },
     skeletonContainer: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 6,
         gap: 10,
     },
     skeletonCard: {

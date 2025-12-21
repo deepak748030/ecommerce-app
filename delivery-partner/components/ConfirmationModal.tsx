@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal, ActivityIndicator } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { LogOut, AlertTriangle } from 'lucide-react-native';
 
@@ -12,6 +12,7 @@ interface ConfirmationModalProps {
     confirmText?: string;
     cancelText?: string;
     confirmDestructive?: boolean;
+    isLoading?: boolean;
 }
 
 export function ConfirmationModal({
@@ -23,19 +24,32 @@ export function ConfirmationModal({
     confirmText = 'Yes',
     cancelText = 'Cancel',
     confirmDestructive = true,
+    isLoading = false,
 }: ConfirmationModalProps) {
     const { colors, isDark } = useTheme();
     const styles = createStyles(colors, isDark, confirmDestructive);
+
+    const handleConfirm = () => {
+        if (!isLoading) {
+            onConfirm();
+        }
+    };
+
+    const handleClose = () => {
+        if (!isLoading) {
+            onClose();
+        }
+    };
 
     return (
         <Modal
             visible={isVisible}
             transparent
             animationType="slide"
-            onRequestClose={onClose}
+            onRequestClose={handleClose}
         >
             <View style={styles.overlay}>
-                <Pressable style={styles.backdrop} onPress={onClose} />
+                <Pressable style={styles.backdrop} onPress={handleClose} />
                 <View style={styles.modal}>
                     {/* Handle bar */}
                     <View style={styles.handleBar} />
@@ -57,11 +71,23 @@ export function ConfirmationModal({
 
                     {/* Buttons */}
                     <View style={styles.buttonContainer}>
-                        <Pressable style={styles.cancelButton} onPress={onClose}>
-                            <Text style={styles.cancelButtonText}>{cancelText}</Text>
+                        <Pressable
+                            style={[styles.cancelButton, isLoading && styles.disabledButton]}
+                            onPress={handleClose}
+                            disabled={isLoading}
+                        >
+                            <Text style={[styles.cancelButtonText, isLoading && styles.disabledText]}>{cancelText}</Text>
                         </Pressable>
-                        <Pressable style={styles.confirmButton} onPress={onConfirm}>
-                            <Text style={styles.confirmButtonText}>{confirmText}</Text>
+                        <Pressable
+                            style={[styles.confirmButton, isLoading && styles.confirmButtonLoading]}
+                            onPress={handleConfirm}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? (
+                                <ActivityIndicator size="small" color="#FFFFFF" />
+                            ) : (
+                                <Text style={styles.confirmButtonText}>{confirmText}</Text>
+                            )}
                         </Pressable>
                     </View>
                 </View>
@@ -153,10 +179,21 @@ const createStyles = (colors: any, isDark: boolean, confirmDestructive: boolean)
         paddingVertical: 14,
         borderRadius: 12,
         alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 48,
+    },
+    confirmButtonLoading: {
+        opacity: 0.8,
     },
     confirmButtonText: {
         fontSize: 15,
         fontWeight: '600',
         color: '#FFFFFF',
+    },
+    disabledButton: {
+        opacity: 0.5,
+    },
+    disabledText: {
+        opacity: 0.7,
     },
 });
