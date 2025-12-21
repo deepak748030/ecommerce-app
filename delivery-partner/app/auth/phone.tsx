@@ -14,7 +14,7 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Phone } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useTheme';
-import { API_BASE_URL } from '../../lib/api';
+import { deliveryPartnerAuthApi } from '../../lib/api';
 
 export default function PhoneScreen() {
     const { colors } = useTheme();
@@ -23,8 +23,10 @@ export default function PhoneScreen() {
     const [error, setError] = useState('');
 
     const handleSendOtp = async () => {
+        if (loading) return; // Prevent multiple clicks
+
         if (phone.length < 10) {
-            setError('Please enter a valid phone number');
+            setError('Please enter a valid 10-digit phone number');
             return;
         }
 
@@ -32,25 +34,19 @@ export default function PhoneScreen() {
         setError('');
 
         try {
-            const response = await fetch(`${API_BASE_URL}/delivery-partner/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone }),
-            });
+            const result = await deliveryPartnerAuthApi.login(phone);
 
-            const data = await response.json();
-
-            if (data.success) {
+            if (result.success && result.response) {
                 router.push({
                     pathname: '/auth/otp' as any,
                     params: {
                         phone,
-                        isNewUser: data.response.isNewUser ? 'true' : 'false',
-                        isProfileComplete: data.response.isProfileComplete ? 'true' : 'false',
+                        isNewUser: result.response.isNewUser ? 'true' : 'false',
+                        isProfileComplete: result.response.isProfileComplete ? 'true' : 'false',
                     },
                 });
             } else {
-                setError(data.message || 'Failed to send OTP');
+                setError(result.message || 'Failed to send OTP');
             }
         } catch (err) {
             setError('Network error. Please try again.');
@@ -62,8 +58,9 @@ export default function PhoneScreen() {
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={styles.content}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             >
                 <View style={styles.header}>
                     <Image
@@ -99,7 +96,10 @@ export default function PhoneScreen() {
                     {error ? <Text style={styles.error}>{error}</Text> : null}
 
                     <TouchableOpacity
-                        style={[styles.button, { backgroundColor: colors.primary }]}
+                        style={[
+                            styles.button,
+                            { backgroundColor: phone.length === 10 ? colors.primary : colors.muted }
+                        ]}
                         onPress={handleSendOtp}
                         disabled={loading || phone.length < 10}
                     >

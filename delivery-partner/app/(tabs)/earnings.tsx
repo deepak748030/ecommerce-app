@@ -1,14 +1,96 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Wallet, TrendingUp, Package, Star, ChevronRight, IndianRupee } from 'lucide-react-native';
+import { Wallet, Package, Star, ChevronRight, IndianRupee } from 'lucide-react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../hooks/useTheme';
-import { mockEarnings, mockEarningsHistory } from '../../lib/mockData';
+import { earningsApi, EarningsSummary, EarningsHistoryItem } from '../../lib/api';
 import { router } from 'expo-router';
 
 export default function EarningsScreen() {
     const { colors, isDark } = useTheme();
     const styles = createStyles(colors, isDark);
+
+    const [earnings, setEarnings] = useState<EarningsSummary | null>(null);
+    const [history, setHistory] = useState<EarningsHistoryItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const fetchData = useCallback(async (isRefresh: boolean = false) => {
+        try {
+            if (isRefresh) {
+                setRefreshing(true);
+            } else {
+                setLoading(true);
+            }
+
+            const [earningsResult, historyResult] = await Promise.all([
+                earningsApi.getEarnings(),
+                earningsApi.getEarningsHistory(1, 5),
+            ]);
+
+            if (earningsResult.success && earningsResult.response) {
+                setEarnings(earningsResult.response);
+            }
+
+            if (historyResult.success && historyResult.response) {
+                setHistory(historyResult.response.data || []);
+            }
+        } catch (error) {
+            console.error('Error fetching earnings:', error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchData(false);
+        }, [fetchData])
+    );
+
+    const handleRefresh = useCallback(() => {
+        fetchData(true);
+    }, [fetchData]);
+
+    const renderSkeleton = () => (
+        <View style={styles.skeletonContainer}>
+            <View style={styles.mainCardSkeleton}>
+                <View style={[styles.skeletonLine, { width: 100, marginBottom: 8 }]} />
+                <View style={[styles.skeletonLine, { width: 150, height: 32, marginBottom: 14 }]} />
+                <View style={styles.mainDivider} />
+                <View style={styles.mainStats}>
+                    <View style={styles.mainStatItem}>
+                        <View style={[styles.skeletonLine, { width: 60 }]} />
+                    </View>
+                    <View style={styles.mainStatItem}>
+                        <View style={[styles.skeletonLine, { width: 60 }]} />
+                    </View>
+                </View>
+            </View>
+            <View style={styles.statsRow}>
+                {[1, 2, 3].map(i => (
+                    <View key={i} style={[styles.statCardSkeleton, { backgroundColor: colors.card }]}>
+                        <View style={[styles.skeletonLine, { width: 24, height: 24, borderRadius: 12 }]} />
+                        <View style={[styles.skeletonLine, { width: 40, marginTop: 8 }]} />
+                        <View style={[styles.skeletonLine, { width: 50, marginTop: 4, height: 8 }]} />
+                    </View>
+                ))}
+            </View>
+        </View>
+    );
+
+    if (loading && !refreshing) {
+        return (
+            <SafeAreaView style={styles.container} edges={['top']}>
+                <View style={styles.header}>
+                    <Text style={styles.title}>My Earnings</Text>
+                </View>
+                {renderSkeleton()}
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
@@ -16,20 +98,32 @@ export default function EarningsScreen() {
                 <Text style={styles.title}>My Earnings</Text>
             </View>
 
-            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={colors.primary}
+                        colors={[colors.primary]}
+                    />
+                }
+            >
                 {/* Main Earnings Card */}
                 <View style={styles.mainCard}>
                     <Text style={styles.mainLabel}>Total This Month</Text>
-                    <Text style={styles.mainAmount}>₹{mockEarnings.thisMonth.toLocaleString()}</Text>
+                    <Text style={styles.mainAmount}>₹{(earnings?.thisMonth || 0).toLocaleString()}</Text>
                     <View style={styles.mainDivider} />
                     <View style={styles.mainStats}>
                         <View style={styles.mainStatItem}>
-                            <Text style={styles.mainStatValue}>₹{mockEarnings.thisWeek}</Text>
+                            <Text style={styles.mainStatValue}>₹{earnings?.thisWeek || 0}</Text>
                             <Text style={styles.mainStatLabel}>This Week</Text>
                         </View>
                         <View style={styles.mainStatDivider} />
                         <View style={styles.mainStatItem}>
-                            <Text style={styles.mainStatValue}>₹{mockEarnings.today}</Text>
+                            <Text style={styles.mainStatValue}>₹{earnings?.today || 0}</Text>
                             <Text style={styles.mainStatLabel}>Today</Text>
                         </View>
                     </View>
@@ -39,17 +133,17 @@ export default function EarningsScreen() {
                 <View style={styles.statsRow}>
                     <View style={[styles.statCard, { backgroundColor: colors.statCard1 }]}>
                         <Package size={18} color={colors.primary} />
-                        <Text style={styles.statValue}>{mockEarnings.totalDeliveries}</Text>
+                        <Text style={styles.statValue}>{earnings?.totalDeliveries || 0}</Text>
                         <Text style={styles.statLabel}>Deliveries</Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: colors.statCard2 }]}>
                         <IndianRupee size={18} color={colors.primary} />
-                        <Text style={styles.statValue}>₹{mockEarnings.totalTips}</Text>
+                        <Text style={styles.statValue}>₹{earnings?.totalTips || 0}</Text>
                         <Text style={styles.statLabel}>Total Tips</Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
                         <Star size={18} color={colors.primary} />
-                        <Text style={styles.statValue}>{mockEarnings.avgRating}</Text>
+                        <Text style={styles.statValue}>{earnings?.avgRating?.toFixed(1) || '5.0'}</Text>
                         <Text style={styles.statLabel}>Rating</Text>
                     </View>
                 </View>
@@ -63,20 +157,28 @@ export default function EarningsScreen() {
                     </Pressable>
                 </View>
 
-                {mockEarningsHistory.map((item, index) => (
-                    <View key={index} style={styles.historyCard}>
-                        <View style={styles.historyLeft}>
-                            <Text style={styles.historyDate}>{item.date}</Text>
-                            <Text style={styles.historyDeliveries}>{item.deliveries} deliveries</Text>
-                        </View>
-                        <View style={styles.historyRight}>
-                            <Text style={styles.historyAmount}>₹{item.amount}</Text>
-                            {item.tips > 0 && (
-                                <Text style={styles.historyTips}>+₹{item.tips} tips</Text>
-                            )}
-                        </View>
+                {history.length === 0 ? (
+                    <View style={styles.emptyState}>
+                        <Wallet size={40} color={colors.mutedForeground} />
+                        <Text style={styles.emptyText}>No earnings history yet</Text>
+                        <Text style={styles.emptySubtext}>Complete deliveries to see your earnings here</Text>
                     </View>
-                ))}
+                ) : (
+                    history.map((item, index) => (
+                        <View key={index} style={styles.historyCard}>
+                            <View style={styles.historyLeft}>
+                                <Text style={styles.historyDate}>{item.date}</Text>
+                                <Text style={styles.historyDeliveries}>{item.deliveries} deliveries</Text>
+                            </View>
+                            <View style={styles.historyRight}>
+                                <Text style={styles.historyAmount}>₹{item.amount}</Text>
+                                {item.tips > 0 && (
+                                    <Text style={styles.historyTips}>+₹{item.tips} tips</Text>
+                                )}
+                            </View>
+                        </View>
+                    ))
+                )}
             </ScrollView>
         </SafeAreaView>
     );
@@ -88,7 +190,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         backgroundColor: colors.background,
     },
     header: {
-        paddingHorizontal: 6,
+        paddingHorizontal: 16,
         paddingVertical: 12,
     },
     title: {
@@ -100,7 +202,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
-        paddingHorizontal: 6,
+        paddingHorizontal: 16,
         paddingBottom: 100,
     },
     mainCard: {
@@ -221,5 +323,41 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         fontSize: 11,
         color: colors.success,
         marginTop: 2,
+    },
+    emptyState: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 40,
+        gap: 8,
+    },
+    emptyText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: colors.foreground,
+    },
+    emptySubtext: {
+        fontSize: 12,
+        color: colors.mutedForeground,
+    },
+    skeletonContainer: {
+        paddingHorizontal: 16,
+    },
+    mainCardSkeleton: {
+        backgroundColor: colors.primary,
+        borderRadius: 16,
+        padding: 18,
+        marginBottom: 14,
+        opacity: 0.7,
+    },
+    statCardSkeleton: {
+        flex: 1,
+        padding: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    skeletonLine: {
+        height: 14,
+        backgroundColor: 'rgba(255,255,255,0.3)',
+        borderRadius: 4,
     },
 });

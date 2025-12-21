@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Package, MapPin, Clock, CheckCircle, XCircle } from 'lucide-react-native';
+import { Package, Clock, CheckCircle, XCircle } from 'lucide-react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../hooks/useTheme';
-import { mockActiveDeliveries, mockPendingDeliveries, mockCompletedDeliveries, Delivery } from '../../lib/mockData';
+import { deliveryOrdersApi, DeliveryOrder } from '../../lib/api';
 import { router } from 'expo-router';
 
 type TabType = 'active' | 'pending' | 'completed';
@@ -12,28 +13,205 @@ export default function OrdersScreen() {
     const { colors, isDark } = useTheme();
     const [activeTab, setActiveTab] = useState<TabType>('active');
 
+    // Orders state
+    const [orders, setOrders] = useState<DeliveryOrder[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+
+    // Pagination state
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [totalCounts, setTotalCounts] = useState({ active: 0, pending: 0, completed: 0 });
+
     const styles = createStyles(colors, isDark);
 
-    const tabs: { key: TabType; label: string; count: number }[] = [
-        { key: 'active', label: 'Active', count: mockActiveDeliveries.length },
-        { key: 'pending', label: 'Pending', count: mockPendingDeliveries.length },
-        { key: 'completed', label: 'Completed', count: mockCompletedDeliveries.length },
-    ];
+    const fetchOrders = useCallback(async (pageNum: number = 1, isRefresh: boolean = false) => {
+        try {
+            if (pageNum === 1) {
+                if (isRefresh) {
+                    setRefreshing(true);
+                } else {
+                    setLoading(true);
+                }
+            } else {
+                setLoadingMore(true);
+            }
 
-    const getDeliveries = (): Delivery[] => {
-        switch (activeTab) {
-            case 'active':
-                return mockActiveDeliveries;
-            case 'pending':
-                return mockPendingDeliveries;
-            case 'completed':
-                return mockCompletedDeliveries;
-            default:
-                return [];
+            let result;
+            switch (activeTab) {
+                case 'active':
+                    result = await deliveryOrdersApi.getActiveOrders(pageNum, 10);
+                    break;
+                case 'pending':
+                    result = await deliveryOrdersApi.getAvailableOrders(pageNum, 10);
+                    break;
+                case 'completed':
+                    result = await deliveryOrdersApi.getOrderHistory(pageNum, 10);
+                    break;
+            }
+
+            if (result.success && result.response) {
+                const newOrders = result.response.data || [];
+
+                if (pageNum === 1) {
+                    setOrders(newOrders);
+                } else {
+                    setOrders(prev => [...prev, ...newOrders]);
+                }
+
+                setHasMore(result.response.hasMore);
+                setPage(pageNum);
+
+                // Update total count for current tab
+                setTotalCounts(prev => ({
+                    ...prev,
+                    [activeTab]: result.response?.total || 0,
+                }));
+            }
+        } catch (error) {
+            console.error('Error fetching orders:', error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+            setLoadingMore(false);
+        }
+    }, [activeTab]);
+
+    // Fetch all tab counts
+    const fetchAllCounts = useCallback(async () => {
+        try {
+            const [activeResult, pendingResult, completedResult] = await Promise.all([
+                deliveryOrdersApi.getActiveOrders(1, 1),
+                deliveryOrdersApi.getAvailableOrders(1, 1),
+                deliveryOrdersApi.getOrderHistory(1, 1),
+            ]);
+
+            setTotalCounts({
+                active: activeResult.response?.total || 0,
+                pending: pendingResult.response?.total || 0,
+                completed: completedResult.response?.total || 0,
+            });
+        } catch (error) {
+            console.error('Error fetching counts:', error);
+        }
+    }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchOrders(1, false);
+            fetchAllCounts();
+        }, [fetchOrders, fetchAllCounts])
+    );
+
+    // Reset and fetch when tab changes
+    const handleTabChange = (tab: TabType) => {
+        if (tab !== activeTab) {
+            setActiveTab(tab);
+            setOrders([]);
+            setPage(1);
+            setHasMore(true);
         }
     };
 
-    const deliveries = getDeliveries();
+    // Refetch when activeTab changes
+    React.useEffect(() => {
+        fetchOrders(1, false);
+    }, [activeTab]);
+
+    const handleRefresh = useCallback(() => {
+        fetchOrders(1, true);
+        fetchAllCounts();
+    }, [fetchOrders, fetchAllCounts]);
+
+    const handleLoadMore = useCallback(() => {
+        if (!loadingMore && hasMore && !loading) {
+            fetchOrders(page + 1, false);
+        }
+    }, [loadingMore, hasMore, loading, page, fetchOrders]);
+
+    const tabs: { key: TabType; label: string; count: number }[] = [
+        { key: 'active', label: 'Active', count: totalCounts.active },
+        { key: 'pending', label: 'Pending', count: totalCounts.pending },
+        { key: 'completed', label: 'Completed', count: totalCounts.completed },
+    ];
+
+    const renderOrder = ({ item }: { item: DeliveryOrder }) => (
+        <Pressable
+            style={styles.orderCard}
+            onPress={() => router.push({ pathname: '/delivery/[id]' as any, params: { id: item.id } })}
+        >
+            <View style={styles.orderHeader}>
+                <View style={styles.orderIdRow}>
+                    <Text style={styles.orderId}>#{item.orderId}</Text>
+                    {item.status === 'delivered' && (
+                        <CheckCircle size={16} color={colors.success} />
+                    )}
+                    {item.status === 'cancelled' && (
+                        <XCircle size={16} color={colors.destructive} />
+                    )}
+                </View>
+                <Text style={styles.orderAmount}>₹{item.amount + item.tip}</Text>
+            </View>
+
+            <View style={styles.addressSection}>
+                <View style={styles.addressRow}>
+                    <View style={[styles.dot, { backgroundColor: colors.success }]} />
+                    <Text style={styles.addressText} numberOfLines={1}>{item.pickupAddress}</Text>
+                </View>
+                <View style={styles.addressLine} />
+                <View style={styles.addressRow}>
+                    <View style={[styles.dot, { backgroundColor: colors.destructive }]} />
+                    <Text style={styles.addressText} numberOfLines={1}>{item.deliveryAddress}</Text>
+                </View>
+            </View>
+
+            <View style={styles.orderFooter}>
+                <View style={styles.infoRow}>
+                    <Clock size={12} color={colors.mutedForeground} />
+                    <Text style={styles.infoText}>{item.estimatedTime}</Text>
+                </View>
+                <Text style={styles.distanceText}>{item.distance}</Text>
+            </View>
+        </Pressable>
+    );
+
+    const renderEmpty = () => (
+        <View style={styles.emptyState}>
+            <Package size={48} color={colors.mutedForeground} />
+            <Text style={styles.emptyText}>No orders in this category</Text>
+        </View>
+    );
+
+    const renderFooter = () => {
+        if (!loadingMore) return null;
+        return (
+            <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color={colors.primary} />
+            </View>
+        );
+    };
+
+    const renderSkeleton = () => (
+        <View style={styles.skeletonContainer}>
+            {[1, 2, 3].map((i) => (
+                <View key={i} style={styles.skeletonCard}>
+                    <View style={styles.skeletonHeader}>
+                        <View style={[styles.skeletonLine, { width: 80 }]} />
+                        <View style={[styles.skeletonLine, { width: 60 }]} />
+                    </View>
+                    <View style={styles.skeletonAddress}>
+                        <View style={[styles.skeletonLine, { width: '100%' }]} />
+                        <View style={[styles.skeletonLine, { width: '80%' }]} />
+                    </View>
+                    <View style={styles.skeletonFooter}>
+                        <View style={[styles.skeletonLine, { width: 80 }]} />
+                        <View style={[styles.skeletonLine, { width: 50 }]} />
+                    </View>
+                </View>
+            ))}
+        </View>
+    );
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
@@ -47,7 +225,7 @@ export default function OrdersScreen() {
                     <Pressable
                         key={tab.key}
                         style={[styles.tab, activeTab === tab.key && styles.activeTab]}
-                        onPress={() => setActiveTab(tab.key)}
+                        onPress={() => handleTabChange(tab.key)}
                     >
                         <Text style={[styles.tabText, activeTab === tab.key && styles.activeTabText]}>
                             {tab.label}
@@ -61,55 +239,29 @@ export default function OrdersScreen() {
                 ))}
             </View>
 
-            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                {deliveries.length === 0 ? (
-                    <View style={styles.emptyState}>
-                        <Package size={48} color={colors.mutedForeground} />
-                        <Text style={styles.emptyText}>No orders in this category</Text>
-                    </View>
-                ) : (
-                    deliveries.map((delivery) => (
-                        <Pressable
-                            key={delivery.id}
-                            style={styles.orderCard}
-                            onPress={() => router.push({ pathname: '/delivery/[id]' as any, params: { id: delivery.id } })}
-                        >
-                            <View style={styles.orderHeader}>
-                                <View style={styles.orderIdRow}>
-                                    <Text style={styles.orderId}>#{delivery.orderId}</Text>
-                                    {delivery.status === 'delivered' && (
-                                        <CheckCircle size={16} color={colors.success} />
-                                    )}
-                                    {delivery.status === 'cancelled' && (
-                                        <XCircle size={16} color={colors.destructive} />
-                                    )}
-                                </View>
-                                <Text style={styles.orderAmount}>₹{delivery.amount + delivery.tip}</Text>
-                            </View>
-
-                            <View style={styles.addressSection}>
-                                <View style={styles.addressRow}>
-                                    <View style={[styles.dot, { backgroundColor: colors.success }]} />
-                                    <Text style={styles.addressText} numberOfLines={1}>{delivery.pickupAddress}</Text>
-                                </View>
-                                <View style={styles.addressLine} />
-                                <View style={styles.addressRow}>
-                                    <View style={[styles.dot, { backgroundColor: colors.destructive }]} />
-                                    <Text style={styles.addressText} numberOfLines={1}>{delivery.deliveryAddress}</Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.orderFooter}>
-                                <View style={styles.infoRow}>
-                                    <Clock size={12} color={colors.mutedForeground} />
-                                    <Text style={styles.infoText}>{delivery.estimatedTime}</Text>
-                                </View>
-                                <Text style={styles.distanceText}>{delivery.distance}</Text>
-                            </View>
-                        </Pressable>
-                    ))
-                )}
-            </ScrollView>
+            {loading && !refreshing ? (
+                renderSkeleton()
+            ) : (
+                <FlatList
+                    data={orders}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderOrder}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            tintColor={colors.primary}
+                            colors={[colors.primary]}
+                        />
+                    }
+                    ListEmptyComponent={renderEmpty}
+                    ListFooterComponent={renderFooter}
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={0.3}
+                />
+            )}
         </SafeAreaView>
     );
 }
@@ -120,7 +272,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         backgroundColor: colors.background,
     },
     header: {
-        paddingHorizontal: 6,
+        paddingHorizontal: 16,
         paddingVertical: 12,
     },
     title: {
@@ -130,7 +282,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     },
     tabsContainer: {
         flexDirection: 'row',
-        paddingHorizontal: 6,
+        paddingHorizontal: 16,
         gap: 8,
         marginBottom: 12,
     },
@@ -172,14 +324,13 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     activeTabBadgeText: {
         color: colors.white,
     },
-    scrollView: {
-        flex: 1,
-    },
     scrollContent: {
-        paddingHorizontal: 6,
+        paddingHorizontal: 16,
         paddingBottom: 100,
+        flexGrow: 1,
     },
     emptyState: {
+        flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
         paddingVertical: 60,
@@ -262,5 +413,39 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         color: colors.mutedForeground,
+    },
+    footerLoader: {
+        paddingVertical: 20,
+        alignItems: 'center',
+    },
+    skeletonContainer: {
+        paddingHorizontal: 16,
+        gap: 10,
+    },
+    skeletonCard: {
+        backgroundColor: colors.card,
+        borderRadius: 12,
+        padding: 12,
+    },
+    skeletonHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    skeletonAddress: {
+        gap: 8,
+        marginBottom: 12,
+    },
+    skeletonFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingTop: 10,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+    },
+    skeletonLine: {
+        height: 12,
+        backgroundColor: colors.muted,
+        borderRadius: 4,
     },
 });

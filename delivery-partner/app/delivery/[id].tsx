@@ -1,21 +1,167 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Linking } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Linking, Image, RefreshControl, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, MapPin, Phone, Package, Clock, Navigation, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, MapPin, Phone, Package, Clock, Navigation, CheckCircle, Store, User, CreditCard } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useTheme';
-import { mockActiveDeliveries, mockPendingDeliveries, mockCompletedDeliveries } from '../../lib/mockData';
 import { router, useLocalSearchParams } from 'expo-router';
+import { deliveryOrdersApi, DeliveryOrder, DeliveryOrderItem } from '../../lib/api';
+import PickupOtpModal from '../../components/PickupOtpModal';
+import { DeliveryDetailSkeleton } from '../../components/Skeleton';
 
 export default function DeliveryDetailScreen() {
     const { colors, isDark } = useTheme();
     const { id } = useLocalSearchParams<{ id: string }>();
     const styles = createStyles(colors, isDark);
 
-    // Find delivery from all lists
-    const allDeliveries = [...mockActiveDeliveries, ...mockPendingDeliveries, ...mockCompletedDeliveries];
-    const delivery = allDeliveries.find(d => d.id === id);
+    const [order, setOrder] = useState<DeliveryOrder | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [actionLoading, setActionLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [showPickupOtpModal, setShowPickupOtpModal] = useState(false);
+    const [showDeliveryOtpModal, setShowDeliveryOtpModal] = useState(false);
+    const [otpLoading, setOtpLoading] = useState(false);
 
-    if (!delivery) {
+    const fetchOrder = async () => {
+        try {
+            const result = await deliveryOrdersApi.getOrderById(id);
+            if (result.success && result.response) {
+                setOrder(result.response);
+                setError(null);
+            } else {
+                setError(result.message || 'Failed to load order');
+            }
+        } catch (err) {
+            setError('Failed to load order');
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    useEffect(() => {
+        if (id) {
+            fetchOrder();
+        }
+    }, [id]);
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchOrder();
+    };
+
+    const handleCallCustomer = () => {
+        if (order?.customerPhone) {
+            Linking.openURL(`tel:${order.customerPhone}`);
+        }
+    };
+
+    const handleCallVendor = () => {
+        if (order?.vendorPhone) {
+            Linking.openURL(`tel:${order.vendorPhone}`);
+        }
+    };
+
+    const handleNavigate = (address: string) => {
+        const url = `https://maps.google.com/?q=${encodeURIComponent(address)}`;
+        Linking.openURL(url);
+    };
+
+    const handleAcceptOrder = async () => {
+        if (!order) return;
+        setActionLoading(true);
+        try {
+            const result = await deliveryOrdersApi.acceptOrder(order.id);
+            if (result.success) {
+                fetchOrder();
+            }
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleInitiatePickup = async () => {
+        if (!order) return;
+        setOtpLoading(true);
+        try {
+            const result = await deliveryOrdersApi.initiatePickup(order.id);
+            if (result.success) {
+                setShowPickupOtpModal(true);
+            } else {
+                Alert.alert('Error', result.message || 'Failed to send OTP');
+            }
+        } catch (err) {
+            Alert.alert('Error', 'Failed to send OTP');
+        } finally {
+            setOtpLoading(false);
+        }
+    };
+
+    const handleVerifyPickupOtp = async (otp: string): Promise<boolean> => {
+        if (!order) return false;
+        try {
+            const result = await deliveryOrdersApi.verifyPickupOtp(order.id, otp);
+            if (result.success) {
+                setShowPickupOtpModal(false);
+                fetchOrder();
+                return true;
+            }
+            return false;
+        } catch (err) {
+            return false;
+        }
+    };
+
+    const handleInitiateDelivery = async () => {
+        if (!order) return;
+        setOtpLoading(true);
+        try {
+            const result = await deliveryOrdersApi.initiateDelivery(order.id);
+            if (result.success) {
+                setShowDeliveryOtpModal(true);
+            } else {
+                Alert.alert('Error', result.message || 'Failed to send OTP');
+            }
+        } catch (err) {
+            Alert.alert('Error', 'Failed to send OTP');
+        } finally {
+            setOtpLoading(false);
+        }
+    };
+
+    const handleVerifyDeliveryOtp = async (otp: string): Promise<boolean> => {
+        if (!order) return false;
+        try {
+            const result = await deliveryOrdersApi.verifyDeliveryOtp(order.id, otp);
+            if (result.success) {
+                setShowDeliveryOtpModal(false);
+                router.back();
+                return true;
+            }
+            return false;
+        } catch (err) {
+            return false;
+        }
+    };
+
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.header}>
+                    <Pressable onPress={() => router.back()} style={styles.backBtn}>
+                        <ArrowLeft size={20} color={colors.foreground} />
+                    </Pressable>
+                    <Text style={styles.headerTitle}>Order Details</Text>
+                    <View style={{ width: 40 }} />
+                </View>
+                <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+                    <DeliveryDetailSkeleton />
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
+
+    if (error || !order) {
         return (
             <SafeAreaView style={styles.container}>
                 <View style={styles.header}>
@@ -26,20 +172,14 @@ export default function DeliveryDetailScreen() {
                     <View style={{ width: 40 }} />
                 </View>
                 <View style={styles.emptyState}>
-                    <Text style={styles.emptyText}>Delivery not found</Text>
+                    <Text style={styles.emptyText}>{error || 'Order not found'}</Text>
                 </View>
             </SafeAreaView>
         );
     }
 
-    const handleCall = () => {
-        Linking.openURL(`tel:${delivery.customerPhone}`);
-    };
-
-    const handleNavigate = (address: string) => {
-        const url = `https://maps.google.com/?q=${encodeURIComponent(address)}`;
-        Linking.openURL(url);
-    };
+    const items = Array.isArray(order.items) ? order.items : [];
+    const itemCount = order.itemCount || (typeof order.items === 'number' ? order.items : items.length);
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
@@ -51,121 +191,210 @@ export default function DeliveryDetailScreen() {
                 <View style={{ width: 40 }} />
             </View>
 
-            <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+                }
+            >
                 {/* Order Info */}
                 <View style={styles.card}>
                     <View style={styles.cardHeader}>
-                        <Text style={styles.orderId}>#{delivery.orderId}</Text>
-                        <Text style={styles.amount}>₹{delivery.amount + delivery.tip}</Text>
+                        <Text style={styles.orderId}>#{order.orderId}</Text>
+                        <Text style={styles.amount}>₹{order.amount + order.tip}</Text>
                     </View>
                     <View style={styles.statusRow}>
-                        <View style={[styles.statusBadge, { backgroundColor: delivery.status === 'delivered' ? colors.success + '20' : colors.primary + '20' }]}>
-                            <Text style={[styles.statusText, { color: delivery.status === 'delivered' ? colors.success : colors.primary }]}>
-                                {delivery.status.replace('_', ' ').toUpperCase()}
+                        <View style={[styles.statusBadge, { backgroundColor: order.status === 'delivered' ? colors.success + '20' : colors.primary + '20' }]}>
+                            <Text style={[styles.statusText, { color: order.status === 'delivered' ? colors.success : colors.primary }]}>
+                                {order.status.replace('_', ' ').toUpperCase()}
                             </Text>
                         </View>
-                        <Text style={styles.timeText}>{delivery.estimatedTime} • {delivery.distance}</Text>
+                        <Text style={styles.timeText}>{order.estimatedTime} • {order.distance}</Text>
                     </View>
                 </View>
 
-                {/* Customer Info */}
+                {/* Vendor Info - Show phone only when order is accepted by this partner */}
                 <View style={styles.card}>
-                    <Text style={styles.sectionTitle}>Customer</Text>
-                    <View style={styles.customerRow}>
-                        <View style={styles.customerInfo}>
-                            <Text style={styles.customerName}>{delivery.customerName}</Text>
-                            <Text style={styles.customerPhone}>{delivery.customerPhone}</Text>
+                    <View style={styles.sectionHeader}>
+                        <Store size={16} color={colors.primary} />
+                        <Text style={styles.sectionTitle}>Vendor / Pickup</Text>
+                    </View>
+                    <View style={styles.contactRow}>
+                        <View style={styles.contactInfo}>
+                            <Text style={styles.contactName}>Store</Text>
+                            <Text style={styles.contactAddress}>{order.pickupAddress}</Text>
+                            {order.isAcceptedByMe && order.vendorPhone && (
+                                <Text style={styles.contactPhone}>{order.vendorPhone}</Text>
+                            )}
                         </View>
-                        <Pressable onPress={handleCall} style={styles.callBtn}>
-                            <Phone size={18} color={colors.white} />
-                        </Pressable>
+                        <View style={styles.contactActions}>
+                            {order.isAcceptedByMe && order.vendorPhone && (
+                                <Pressable onPress={handleCallVendor} style={styles.callBtn}>
+                                    <Phone size={18} color={colors.white} />
+                                </Pressable>
+                            )}
+                            <Pressable onPress={() => handleNavigate(order.pickupAddress)} style={styles.navBtn}>
+                                <Navigation size={18} color={colors.primary} />
+                            </Pressable>
+                        </View>
                     </View>
                 </View>
 
-                {/* Addresses */}
+                {/* Customer Info - Show phone only when order is accepted by this partner */}
                 <View style={styles.card}>
-                    <Text style={styles.sectionTitle}>Addresses</Text>
-
-                    <Pressable style={styles.addressCard} onPress={() => handleNavigate(delivery.pickupAddress)}>
-                        <View style={styles.addressLeft}>
-                            <View style={[styles.addressDot, { backgroundColor: colors.success }]} />
-                            <View style={styles.addressInfo}>
-                                <Text style={styles.addressLabel}>Pickup</Text>
-                                <Text style={styles.addressText}>{delivery.pickupAddress}</Text>
-                            </View>
+                    <View style={styles.sectionHeader}>
+                        <User size={16} color={colors.primary} />
+                        <Text style={styles.sectionTitle}>Customer / Delivery</Text>
+                    </View>
+                    <View style={styles.contactRow}>
+                        <View style={styles.contactInfo}>
+                            <Text style={styles.contactName}>{order.customerName}</Text>
+                            <Text style={styles.contactAddress}>{order.deliveryAddress}</Text>
+                            {order.isAcceptedByMe && order.customerPhone && (
+                                <Text style={styles.contactPhone}>{order.customerPhone}</Text>
+                            )}
                         </View>
-                        <Navigation size={18} color={colors.primary} />
-                    </Pressable>
-
-                    <View style={styles.addressDivider} />
-
-                    <Pressable style={styles.addressCard} onPress={() => handleNavigate(delivery.deliveryAddress)}>
-                        <View style={styles.addressLeft}>
-                            <View style={[styles.addressDot, { backgroundColor: colors.destructive }]} />
-                            <View style={styles.addressInfo}>
-                                <Text style={styles.addressLabel}>Delivery</Text>
-                                <Text style={styles.addressText}>{delivery.deliveryAddress}</Text>
-                            </View>
+                        <View style={styles.contactActions}>
+                            {order.isAcceptedByMe && order.customerPhone && (
+                                <Pressable onPress={handleCallCustomer} style={styles.callBtn}>
+                                    <Phone size={18} color={colors.white} />
+                                </Pressable>
+                            )}
+                            <Pressable onPress={() => handleNavigate(order.deliveryAddress)} style={styles.navBtn}>
+                                <Navigation size={18} color={colors.primary} />
+                            </Pressable>
                         </View>
-                        <Navigation size={18} color={colors.primary} />
-                    </Pressable>
+                    </View>
                 </View>
 
-                {/* Items */}
+                {/* Items with Images */}
                 <View style={styles.card}>
-                    <Text style={styles.sectionTitle}>Items ({delivery.items.length})</Text>
-                    {delivery.items.map((item, index) => (
-                        <View key={index} style={styles.itemRow}>
+                    <Text style={styles.sectionTitle}>Items ({itemCount})</Text>
+                    {items.length > 0 ? (
+                        items.map((item: DeliveryOrderItem, index: number) => (
+                            <View key={item.id || index} style={styles.itemRow}>
+                                {item.image ? (
+                                    <Image source={{ uri: item.image }} style={styles.itemImage} />
+                                ) : (
+                                    <View style={styles.itemImagePlaceholder}>
+                                        <Package size={20} color={colors.mutedForeground} />
+                                    </View>
+                                )}
+                                <View style={styles.itemDetails}>
+                                    <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
+                                    <View style={styles.itemMeta}>
+                                        <Text style={styles.itemQty}>Qty: {item.quantity}</Text>
+                                        <Text style={styles.itemPrice}>₹{item.price}</Text>
+                                    </View>
+                                </View>
+                            </View>
+                        ))
+                    ) : (
+                        <View style={styles.itemRow}>
                             <Package size={14} color={colors.mutedForeground} />
-                            <Text style={styles.itemText}>{item}</Text>
+                            <Text style={styles.itemText}>{itemCount} items</Text>
                         </View>
-                    ))}
+                    )}
                 </View>
 
                 {/* Payment Breakdown */}
                 <View style={styles.card}>
-                    <Text style={styles.sectionTitle}>Payment</Text>
+                    <View style={styles.sectionHeader}>
+                        <CreditCard size={16} color={colors.primary} />
+                        <Text style={styles.sectionTitle}>Payment</Text>
+                    </View>
+                    {order.paymentMethod && (
+                        <View style={styles.paymentRow}>
+                            <Text style={styles.paymentLabel}>Payment Method</Text>
+                            <Text style={styles.paymentValue}>{order.paymentMethod.toUpperCase()}</Text>
+                        </View>
+                    )}
                     <View style={styles.paymentRow}>
                         <Text style={styles.paymentLabel}>Delivery Fee</Text>
-                        <Text style={styles.paymentValue}>₹{delivery.amount}</Text>
+                        <Text style={styles.paymentValue}>₹{order.amount}</Text>
                     </View>
                     <View style={styles.paymentRow}>
                         <Text style={styles.paymentLabel}>Tip</Text>
-                        <Text style={styles.paymentValue}>₹{delivery.tip}</Text>
+                        <Text style={styles.paymentValue}>₹{order.tip}</Text>
                     </View>
                     <View style={[styles.paymentRow, styles.paymentTotal]}>
-                        <Text style={styles.paymentTotalLabel}>Total Earnings</Text>
-                        <Text style={styles.paymentTotalValue}>₹{delivery.amount + delivery.tip}</Text>
+                        <Text style={styles.paymentTotalLabel}>Your Earnings</Text>
+                        <Text style={styles.paymentTotalValue}>₹{order.amount + order.tip}</Text>
                     </View>
                 </View>
             </ScrollView>
 
             {/* Bottom Actions */}
-            {delivery.status !== 'delivered' && delivery.status !== 'cancelled' && (
+            {order.status !== 'delivered' && order.status !== 'cancelled' && (
                 <View style={styles.bottomActions}>
-                    {delivery.status === 'pending' && (
-                        <Pressable style={styles.primaryBtn}>
-                            <Text style={styles.primaryBtnText}>Accept Order</Text>
+                    {order.status === 'pending' && !order.isAcceptedByMe && (
+                        <Pressable
+                            style={[styles.primaryBtn, actionLoading && styles.disabledBtn]}
+                            onPress={handleAcceptOrder}
+                            disabled={actionLoading}
+                        >
+                            {actionLoading ? (
+                                <ActivityIndicator color={colors.white} size="small" />
+                            ) : (
+                                <Text style={styles.primaryBtnText}>Accept Order</Text>
+                            )}
                         </Pressable>
                     )}
-                    {delivery.status === 'accepted' && (
-                        <Pressable style={styles.primaryBtn}>
-                            <Text style={styles.primaryBtnText}>Mark as Picked Up</Text>
+                    {order.status === 'accepted' && order.isAcceptedByMe && (
+                        <Pressable
+                            style={[styles.primaryBtn, (actionLoading || otpLoading) && styles.disabledBtn]}
+                            onPress={handleInitiatePickup}
+                            disabled={actionLoading || otpLoading}
+                        >
+                            {otpLoading ? (
+                                <ActivityIndicator color={colors.white} size="small" />
+                            ) : (
+                                <Text style={styles.primaryBtnText}>Mark as Picked Up</Text>
+                            )}
                         </Pressable>
                     )}
-                    {delivery.status === 'picked_up' && (
-                        <Pressable style={styles.primaryBtn}>
-                            <Text style={styles.primaryBtnText}>Start Delivery</Text>
-                        </Pressable>
-                    )}
-                    {delivery.status === 'in_transit' && (
-                        <Pressable style={[styles.primaryBtn, { backgroundColor: colors.success }]}>
-                            <CheckCircle size={18} color={colors.white} />
-                            <Text style={styles.primaryBtnText}>Mark as Delivered</Text>
+                    {(order.status === 'picked_up' || order.status === 'out_for_delivery') && order.isAcceptedByMe && (
+                        <Pressable
+                            style={[styles.primaryBtn, { backgroundColor: colors.success }, (actionLoading || otpLoading) && styles.disabledBtn]}
+                            onPress={handleInitiateDelivery}
+                            disabled={actionLoading || otpLoading}
+                        >
+                            {otpLoading ? (
+                                <ActivityIndicator color={colors.white} size="small" />
+                            ) : (
+                                <>
+                                    <CheckCircle size={18} color={colors.white} />
+                                    <Text style={styles.primaryBtnText}>Mark as Delivered</Text>
+                                </>
+                            )}
                         </Pressable>
                     )}
                 </View>
             )}
+
+            {/* Pickup OTP Modal */}
+            <PickupOtpModal
+                visible={showPickupOtpModal}
+                onClose={() => setShowPickupOtpModal(false)}
+                onVerify={handleVerifyPickupOtp}
+                orderNumber={order?.orderId || ''}
+                isLoading={otpLoading}
+            />
+
+            {/* Delivery OTP Modal */}
+            <PickupOtpModal
+                visible={showDeliveryOtpModal}
+                onClose={() => setShowDeliveryOtpModal(false)}
+                onVerify={handleVerifyDeliveryOtp}
+                orderNumber={order?.orderId || ''}
+                isLoading={otpLoading}
+                title="Enter Delivery OTP"
+                subtitle={`Ask the customer for the OTP to confirm delivery for order ${order?.orderId || ''}`}
+                buttonText="Verify & Deliver"
+                hintText="OTP is sent to the customer via notification"
+            />
         </SafeAreaView>
     );
 }
@@ -202,6 +431,11 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         paddingHorizontal: 6,
         paddingBottom: 100,
     },
+    loadingState: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     emptyState: {
         flex: 1,
         alignItems: 'center',
@@ -215,7 +449,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         backgroundColor: colors.card,
         borderRadius: 12,
         padding: 14,
-        marginBottom: 10,
+        marginBottom: 12,
     },
     cardHeader: {
         flexDirection: 'row',
@@ -251,27 +485,45 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         fontSize: 12,
         color: colors.mutedForeground,
     },
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 12,
+    },
     sectionTitle: {
         fontSize: 14,
         fontWeight: '700',
         color: colors.foreground,
-        marginBottom: 12,
     },
-    customerRow: {
+    contactRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-start',
     },
-    customerInfo: {},
-    customerName: {
+    contactInfo: {
+        flex: 1,
+    },
+    contactName: {
         fontSize: 14,
         fontWeight: '600',
         color: colors.foreground,
+        marginBottom: 4,
     },
-    customerPhone: {
+    contactAddress: {
         fontSize: 12,
         color: colors.mutedForeground,
-        marginTop: 2,
+        lineHeight: 18,
+    },
+    contactPhone: {
+        fontSize: 13,
+        color: colors.primary,
+        marginTop: 4,
+        fontWeight: '500',
+    },
+    contactActions: {
+        flexDirection: 'row',
+        gap: 8,
     },
     callBtn: {
         width: 40,
@@ -281,45 +533,58 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    addressCard: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+    navBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: colors.primary + '15',
         alignItems: 'center',
-    },
-    addressLeft: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 10,
-        flex: 1,
-    },
-    addressDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        marginTop: 4,
-    },
-    addressInfo: {
-        flex: 1,
-    },
-    addressLabel: {
-        fontSize: 11,
-        color: colors.mutedForeground,
-        marginBottom: 2,
-    },
-    addressText: {
-        fontSize: 13,
-        color: colors.foreground,
-    },
-    addressDivider: {
-        height: 1,
-        backgroundColor: colors.border,
-        marginVertical: 12,
+        justifyContent: 'center',
     },
     itemRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        paddingVertical: 6,
+        gap: 12,
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+    },
+    itemImage: {
+        width: 50,
+        height: 50,
+        borderRadius: 8,
+        backgroundColor: colors.muted,
+    },
+    itemImagePlaceholder: {
+        width: 50,
+        height: 50,
+        borderRadius: 8,
+        backgroundColor: colors.muted,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    itemDetails: {
+        flex: 1,
+    },
+    itemName: {
+        fontSize: 13,
+        fontWeight: '500',
+        color: colors.foreground,
+        marginBottom: 4,
+    },
+    itemMeta: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    itemQty: {
+        fontSize: 12,
+        color: colors.mutedForeground,
+    },
+    itemPrice: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: colors.foreground,
     },
     itemText: {
         fontSize: 13,
@@ -355,7 +620,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         color: colors.primary,
     },
     bottomActions: {
-        paddingHorizontal: 6,
+        paddingHorizontal: 16,
         paddingVertical: 12,
         borderTopWidth: 1,
         borderTopColor: colors.border,
@@ -374,5 +639,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         color: colors.white,
         fontSize: 15,
         fontWeight: '700',
+    },
+    disabledBtn: {
+        opacity: 0.7,
     },
 });

@@ -8,27 +8,36 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
+    Keyboard,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useTheme';
-import { API_BASE_URL } from '../../lib/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { deliveryPartnerAuthApi } from '../../lib/api';
 
 export default function OtpScreen() {
     const { colors } = useTheme();
     const params = useLocalSearchParams();
     const phone = params.phone as string;
     const isNewUser = params.isNewUser === 'true';
-    const isProfileComplete = params.isProfileComplete === 'true';
 
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [loading, setLoading] = useState(false);
+    const [resendLoading, setResendLoading] = useState(false);
     const [error, setError] = useState('');
     const [resendTimer, setResendTimer] = useState(30);
+    const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
     const inputRefs = useRef<(TextInput | null)[]>([]);
+
+    // Auto focus first input when screen loads
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            inputRefs.current[0]?.focus();
+        }, 300);
+        return () => clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
         if (resendTimer > 0) {
@@ -59,6 +68,8 @@ export default function OtpScreen() {
     };
 
     const handleVerifyOtp = async () => {
+        if (loading) return; // Prevent multiple clicks
+
         const otpString = otp.join('');
         if (otpString.length !== 6) {
             setError('Please enter complete OTP');
@@ -69,31 +80,19 @@ export default function OtpScreen() {
         setError('');
 
         try {
-            const response = await fetch(`${API_BASE_URL}/delivery-partner/auth/verify-otp`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone, otp: otpString }),
-            });
+            const result = await deliveryPartnerAuthApi.verifyOtp(phone, otpString);
 
-            const data = await response.json();
-
-            if (data.success) {
-                // Save token and partner data
-                await AsyncStorage.setItem('partnerToken', data.response.token);
-                await AsyncStorage.setItem('partnerData', JSON.stringify(data.response.partner));
-
-                if (data.response.isNewUser || !data.response.partner.isProfileComplete) {
-                    // New user - go to vehicle setup
+            if (result.success && result.response) {
+                if (result.response.isNewUser || !result.response.partner.isProfileComplete) {
                     router.replace({
                         pathname: '/auth/vehicle-setup' as any,
-                        params: { partnerId: data.response.partner.id },
+                        params: { partnerId: result.response.partner.id },
                     });
                 } else {
-                    // Existing user - go to home
                     router.replace('/(tabs)' as any);
                 }
             } else {
-                setError(data.message || 'Invalid OTP');
+                setError(result.message || 'Invalid OTP');
             }
         } catch (err) {
             setError('Network error. Please try again.');
@@ -103,22 +102,21 @@ export default function OtpScreen() {
     };
 
     const handleResendOtp = async () => {
-        if (resendTimer > 0) return;
+        if (resendTimer > 0 || resendLoading) return; // Prevent multiple clicks
 
+        setResendLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/delivery-partner/auth/resend-otp`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone }),
-            });
-
-            const data = await response.json();
-            if (data.success) {
+            const result = await deliveryPartnerAuthApi.resendOtp(phone);
+            if (result.success) {
                 setResendTimer(30);
                 setOtp(['', '', '', '', '', '']);
+            } else {
+                setError(result.message || 'Failed to resend OTP');
             }
         } catch (err) {
             setError('Failed to resend OTP');
+        } finally {
+            setResendLoading(false);
         }
     };
 
@@ -129,8 +127,9 @@ export default function OtpScreen() {
             </TouchableOpacity>
 
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={styles.content}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             >
                 <View style={styles.header}>
                     <Text style={[styles.title, { color: colors.foreground }]}>Verify OTP</Text>
@@ -153,7 +152,7 @@ export default function OtpScreen() {
                                 styles.otpInput,
                                 {
                                     backgroundColor: colors.card,
-                                    borderColor: digit ? colors.primary : colors.border,
+                                    borderColor: focusedIndex === index ? colors.primary : digit ? colors.primary : colors.border,
                                     color: colors.foreground,
                                 },
                             ]}
@@ -162,6 +161,9 @@ export default function OtpScreen() {
                             value={digit}
                             onChangeText={(value) => handleOtpChange(value.replace(/[^0-9]/g, ''), index)}
                             onKeyPress={(e) => handleKeyPress(e, index)}
+                            onFocus={() => setFocusedIndex(index)}
+                            onBlur={() => setFocusedIndex(null)}
+                            caretHidden={true}
                         />
                     ))}
                 </View>
@@ -169,7 +171,10 @@ export default function OtpScreen() {
                 {error ? <Text style={styles.error}>{error}</Text> : null}
 
                 <TouchableOpacity
-                    style={[styles.button, { backgroundColor: colors.primary }]}
+                    style={[
+                        styles.button,
+                        { backgroundColor: otp.join('').length === 6 ? colors.primary : colors.muted }
+                    ]}
                     onPress={handleVerifyOtp}
                     disabled={loading || otp.join('').length !== 6}
                 >
