@@ -22,6 +22,11 @@ const orderSchema = new mongoose.Schema({
         ref: 'User',
         required: true,
     },
+    deliveryPartner: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'DeliveryPartner',
+        default: null,
+    },
     orderNumber: {
         type: String,
         unique: true,
@@ -75,6 +80,18 @@ const orderSchema = new mongoose.Schema({
     }],
     promoCode: String,
     deliveredAt: Date,
+    deliveryTip: {
+        type: Number,
+        default: 0,
+    },
+    deliveryFee: {
+        type: Number,
+        default: 40,
+    },
+    estimatedDeliveryTime: {
+        type: String,
+        default: '30-45 min',
+    },
 }, {
     timestamps: true,
 });

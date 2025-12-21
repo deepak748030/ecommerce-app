@@ -9,6 +9,11 @@ const {
     updateProfile,
     toggleOnline,
     logout,
+    getAvailableOrders,
+    getActiveOrders,
+    acceptOrder,
+    updateDeliveryStatus,
+    getOrderHistory,
 } = require('../controllers/deliveryPartnerController');
 const { protectPartner } = require('../middleware/auth');
 
@@ -23,5 +28,12 @@ router.get('/auth/me', protectPartner, getMe);
 router.put('/auth/profile', protectPartner, updateProfile);
 router.put('/auth/toggle-online', protectPartner, toggleOnline);
 router.post('/auth/logout', protectPartner, logout);
+
+// Order routes for delivery partners
+router.get('/orders/available', protectPartner, getAvailableOrders);
+router.get('/orders/active', protectPartner, getActiveOrders);
+router.get('/orders/history', protectPartner, getOrderHistory);
+router.post('/orders/:id/accept', protectPartner, acceptOrder);
+router.put('/orders/:id/status', protectPartner, updateDeliveryStatus);
 
 module.exports = router;
