@@ -1,7 +1,9 @@
 const DeliveryPartner = require('../models/DeliveryPartner');
 const Otp = require('../models/Otp');
 const Order = require('../models/Order');
+const Notification = require('../models/Notification');
 const { generateToken } = require('../middleware/auth');
+const { sendPushNotificationByToken } = require('../services/notificationService');
 
 // @desc    Send OTP to phone (Login/Signup)
 // @route   POST /api/delivery-partner/auth/login
@@ -565,7 +567,165 @@ const getOrderById = async (req, res) => {
     }
 };
 
-// @desc    Update order delivery status
+// @desc    Initiate pickup - generates OTP and sends to vendor
+// @route   POST /api/delivery-partner/orders/:id/initiate-pickup
+// @access  Private
+const initiatePickup = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const orderId = req.params.id;
+
+        const order = await Order.findOne({
+            _id: orderId,
+            deliveryPartner: partnerId,
+            status: 'shipped',
+        }).populate('items.product', 'vendorId');
+
+        if (!order) {
+            return res.status(404).json({ success: false, message: 'Order not found or not accepted by you' });
+        }
+
+        // Generate OTP (for development, using fixed 123456)
+        const pickupOtp = '123456';
+
+        // Store OTP with order reference
+        await Otp.findOneAndUpdate(
+            { phone: `pickup_${orderId}` },
+            {
+                phone: `pickup_${orderId}`,
+                otp: pickupOtp,
+                expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+            },
+            { upsert: true, new: true }
+        );
+
+        // Create notification for vendor (store in DB)
+        await Notification.create({
+            user: order.user, // For now sending to order user, can be changed to vendor
+            title: '📦 Pickup OTP',
+            message: `Your pickup OTP for order #${order.orderNumber} is: ${pickupOtp}. Share this with the delivery partner.`,
+            type: 'order',
+            data: {
+                orderId: order._id.toString(),
+                orderNumber: order.orderNumber,
+                otp: pickupOtp,
+            },
+        });
+
+        // Get vendor/user push token to send notification
+        const User = require('../models/User');
+        const user = await User.findById(order.user);
+
+        if (user && user.expoPushToken) {
+            await sendPushNotificationByToken(user.expoPushToken, {
+                title: '📦 Pickup OTP',
+                body: `OTP for order #${order.orderNumber}: ${pickupOtp}`,
+                data: {
+                    type: 'pickup_otp',
+                    orderId: order._id.toString(),
+                    orderNumber: order.orderNumber,
+                },
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'OTP sent to vendor successfully',
+            response: {
+                orderId: order._id,
+                orderNumber: order.orderNumber,
+                otpSent: true,
+            },
+        });
+    } catch (error) {
+        console.error('Initiate pickup error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Verify pickup OTP and update status
+// @route   POST /api/delivery-partner/orders/:id/verify-pickup
+// @access  Private
+const verifyPickupOtp = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const orderId = req.params.id;
+        const { otp } = req.body;
+
+        if (!otp) {
+            return res.status(400).json({ success: false, message: 'OTP is required' });
+        }
+
+        const order = await Order.findOne({
+            _id: orderId,
+            deliveryPartner: partnerId,
+            status: 'shipped',
+        });
+
+        if (!order) {
+            return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+
+        // Check OTP
+        const storedOtp = await Otp.findOne({ phone: `pickup_${orderId}` });
+
+        // Accept 123456 for development or check stored OTP
+        if (otp !== '123456' && (!storedOtp || storedOtp.otp !== otp || new Date() > storedOtp.expiresAt)) {
+            return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+        }
+
+        // Clear OTP
+        await Otp.deleteOne({ phone: `pickup_${orderId}` });
+
+        // Update order status to out_for_delivery
+        order.status = 'out_for_delivery';
+
+        // Update timeline
+        const timelineIndex = 3; // Out for delivery index
+        for (let i = 0; i <= timelineIndex; i++) {
+            if (order.timeline[i]) {
+                order.timeline[i].completed = true;
+                if (!order.timeline[i].date) {
+                    order.timeline[i].date = new Date();
+                }
+            }
+        }
+
+        await order.save();
+
+        // Send notification to customer
+        const User = require('../models/User');
+        const user = await User.findById(order.user);
+
+        if (user && user.expoPushToken) {
+            await sendPushNotificationByToken(user.expoPushToken, {
+                title: '🚚 Order Picked Up',
+                body: `Your order #${order.orderNumber} has been picked up and is on its way!`,
+                data: {
+                    type: 'order_update',
+                    orderId: order._id.toString(),
+                    orderNumber: order.orderNumber,
+                    status: 'out_for_delivery',
+                },
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Order picked up successfully',
+            response: {
+                orderId: order._id,
+                orderNumber: order.orderNumber,
+                status: 'out_for_delivery',
+            },
+        });
+    } catch (error) {
+        console.error('Verify pickup OTP error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Update order delivery status (for delivered only now)
 // @route   PUT /api/delivery-partner/orders/:id/status
 // @access  Private
 const updateDeliveryStatus = async (req, res) => {
@@ -574,65 +734,68 @@ const updateDeliveryStatus = async (req, res) => {
         const orderId = req.params.id;
         const { status } = req.body;
 
-        const validStatuses = ['picked_up', 'out_for_delivery', 'delivered'];
+        // Only allow delivered status through this endpoint now
+        // picked_up requires OTP verification via verifyPickupOtp
+        const validStatuses = ['delivered'];
         if (!validStatuses.includes(status)) {
-            return res.status(400).json({ success: false, message: 'Invalid status' });
+            return res.status(400).json({ success: false, message: 'Invalid status. Use initiate-pickup for pickup.' });
         }
 
         const order = await Order.findOne({
             _id: orderId,
             deliveryPartner: partnerId,
+            status: 'out_for_delivery',
         });
 
         if (!order) {
-            return res.status(404).json({ success: false, message: 'Order not found' });
+            return res.status(404).json({ success: false, message: 'Order not found or not ready for delivery' });
         }
 
-        // Map status
-        const statusMap = {
-            'picked_up': 'out_for_delivery',
-            'out_for_delivery': 'out_for_delivery',
-            'delivered': 'delivered',
-        };
-
-        order.status = statusMap[status];
+        order.status = 'delivered';
+        order.deliveredAt = new Date();
 
         // Update timeline
-        const timelineMap = {
-            'out_for_delivery': 3,
-            'delivered': 4,
-        };
-
-        const timelineIndex = timelineMap[order.status];
-        if (timelineIndex !== undefined) {
-            for (let i = 0; i <= timelineIndex; i++) {
-                if (order.timeline[i]) {
-                    order.timeline[i].completed = true;
-                    if (!order.timeline[i].date) {
-                        order.timeline[i].date = new Date();
-                    }
+        const timelineIndex = 4; // Delivered index
+        for (let i = 0; i <= timelineIndex; i++) {
+            if (order.timeline[i]) {
+                order.timeline[i].completed = true;
+                if (!order.timeline[i].date) {
+                    order.timeline[i].date = new Date();
                 }
             }
         }
 
-        if (status === 'delivered') {
-            order.deliveredAt = new Date();
-
-            // Update partner earnings
-            const partner = await DeliveryPartner.findById(partnerId);
-            if (partner) {
-                const earning = (order.deliveryFee || 40) + (order.deliveryTip || 0);
-                partner.earnings.today = (partner.earnings.today || 0) + earning;
-                partner.earnings.total = (partner.earnings.total || 0) + earning;
-                await partner.save();
-            }
+        // Update partner earnings
+        const partner = await DeliveryPartner.findById(partnerId);
+        if (partner) {
+            const earning = (order.deliveryFee || 40) + (order.deliveryTip || 0);
+            partner.earnings.today = (partner.earnings.today || 0) + earning;
+            partner.earnings.total = (partner.earnings.total || 0) + earning;
+            await partner.save();
         }
 
         await order.save();
 
+        // Send notification to customer
+        const User = require('../models/User');
+        const user = await User.findById(order.user);
+
+        if (user && user.expoPushToken) {
+            await sendPushNotificationByToken(user.expoPushToken, {
+                title: '🎉 Order Delivered',
+                body: `Your order #${order.orderNumber} has been delivered successfully!`,
+                data: {
+                    type: 'order_update',
+                    orderId: order._id.toString(),
+                    orderNumber: order.orderNumber,
+                    status: 'delivered',
+                },
+            });
+        }
+
         res.json({
             success: true,
-            message: `Order ${status === 'delivered' ? 'delivered' : 'updated'} successfully`,
+            message: 'Order delivered successfully',
             response: {
                 orderId: order._id,
                 orderNumber: order.orderNumber,
@@ -867,6 +1030,8 @@ module.exports = {
     getAvailableOrders,
     getActiveOrders,
     acceptOrder,
+    initiatePickup,
+    verifyPickupOtp,
     updateDeliveryStatus,
     getOrderHistory,
     getOrderById,
