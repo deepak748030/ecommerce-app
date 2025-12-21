@@ -15,6 +15,8 @@ const {
     updateDeliveryStatus,
     getOrderHistory,
     getOrderById,
+    getEarnings,
+    getEarningsHistory,
 } = require('../controllers/deliveryPartnerController');
 const { protectPartner } = require('../middleware/auth');
 
@@ -37,5 +39,9 @@ router.get('/orders/history', protectPartner, getOrderHistory);
 router.get('/orders/:id', protectPartner, getOrderById);
 router.post('/orders/:id/accept', protectPartner, acceptOrder);
 router.put('/orders/:id/status', protectPartner, updateDeliveryStatus);
+
+// Earnings routes
+router.get('/earnings', protectPartner, getEarnings);
+router.get('/earnings/history', protectPartner, getEarningsHistory);
 
 module.exports = router;

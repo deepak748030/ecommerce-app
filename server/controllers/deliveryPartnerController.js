@@ -704,6 +704,157 @@ const getOrderHistory = async (req, res) => {
     }
 };
 
+// @desc    Get earnings summary for delivery partner
+// @route   GET /api/delivery-partner/earnings
+// @access  Private
+const getEarnings = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const partner = await DeliveryPartner.findById(partnerId);
+
+        if (!partner) {
+            return res.status(404).json({ success: false, message: 'Partner not found' });
+        }
+
+        // Get today's start and end
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date();
+        todayEnd.setHours(23, 59, 59, 999);
+
+        // Get this week's start (Monday)
+        const weekStart = new Date();
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
+        weekStart.setHours(0, 0, 0, 0);
+
+        // Get this month's start
+        const monthStart = new Date();
+        monthStart.setDate(1);
+        monthStart.setHours(0, 0, 0, 0);
+
+        // Aggregate earnings from delivered orders
+        const [todayEarnings, weekEarnings, monthEarnings, totalEarnings, todayDeliveries, totalDeliveries, totalTips] = await Promise.all([
+            Order.aggregate([
+                { $match: { deliveryPartner: partnerId, status: 'delivered', deliveredAt: { $gte: todayStart, $lte: todayEnd } } },
+                { $group: { _id: null, total: { $sum: { $add: [{ $ifNull: ['$deliveryFee', 40] }, { $ifNull: ['$deliveryTip', 0] }] } } } }
+            ]),
+            Order.aggregate([
+                { $match: { deliveryPartner: partnerId, status: 'delivered', deliveredAt: { $gte: weekStart } } },
+                { $group: { _id: null, total: { $sum: { $add: [{ $ifNull: ['$deliveryFee', 40] }, { $ifNull: ['$deliveryTip', 0] }] } } } }
+            ]),
+            Order.aggregate([
+                { $match: { deliveryPartner: partnerId, status: 'delivered', deliveredAt: { $gte: monthStart } } },
+                { $group: { _id: null, total: { $sum: { $add: [{ $ifNull: ['$deliveryFee', 40] }, { $ifNull: ['$deliveryTip', 0] }] } } } }
+            ]),
+            Order.aggregate([
+                { $match: { deliveryPartner: partnerId, status: 'delivered' } },
+                { $group: { _id: null, total: { $sum: { $add: [{ $ifNull: ['$deliveryFee', 40] }, { $ifNull: ['$deliveryTip', 0] }] } } } }
+            ]),
+            Order.countDocuments({ deliveryPartner: partnerId, status: 'delivered', deliveredAt: { $gte: todayStart, $lte: todayEnd } }),
+            Order.countDocuments({ deliveryPartner: partnerId, status: 'delivered' }),
+            Order.aggregate([
+                { $match: { deliveryPartner: partnerId, status: 'delivered' } },
+                { $group: { _id: null, total: { $sum: { $ifNull: ['$deliveryTip', 0] } } } }
+            ]),
+        ]);
+
+        res.json({
+            success: true,
+            response: {
+                today: todayEarnings[0]?.total || 0,
+                thisWeek: weekEarnings[0]?.total || 0,
+                thisMonth: monthEarnings[0]?.total || 0,
+                total: totalEarnings[0]?.total || 0,
+                todayDeliveries,
+                totalDeliveries,
+                totalTips: totalTips[0]?.total || 0,
+                avgRating: partner.stats?.rating || 5.0,
+            },
+        });
+    } catch (error) {
+        console.error('Get earnings error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get earnings history (daily breakdown)
+// @route   GET /api/delivery-partner/earnings/history
+// @access  Private
+const getEarningsHistory = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+
+        // Get daily earnings for last 30 days
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const dailyEarnings = await Order.aggregate([
+            {
+                $match: {
+                    deliveryPartner: partnerId,
+                    status: 'delivered',
+                    deliveredAt: { $gte: thirtyDaysAgo },
+                }
+            },
+            {
+                $group: {
+                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$deliveredAt' } },
+                    amount: { $sum: { $ifNull: ['$deliveryFee', 40] } },
+                    tips: { $sum: { $ifNull: ['$deliveryTip', 0] } },
+                    deliveries: { $sum: 1 },
+                }
+            },
+            { $sort: { _id: -1 } },
+            { $skip: (page - 1) * limit },
+            { $limit: limit },
+        ]);
+
+        // Get total count of unique days
+        const totalDays = await Order.aggregate([
+            {
+                $match: {
+                    deliveryPartner: partnerId,
+                    status: 'delivered',
+                    deliveredAt: { $gte: thirtyDaysAgo },
+                }
+            },
+            {
+                $group: {
+                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$deliveredAt' } },
+                }
+            },
+            { $count: 'total' },
+        ]);
+
+        const formattedHistory = dailyEarnings.map(day => ({
+            date: new Date(day._id).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }),
+            rawDate: day._id,
+            amount: day.amount,
+            tips: day.tips,
+            deliveries: day.deliveries,
+        }));
+
+        const total = totalDays[0]?.total || 0;
+
+        res.json({
+            success: true,
+            response: {
+                count: formattedHistory.length,
+                total,
+                page,
+                totalPages: Math.ceil(total / limit),
+                hasMore: page < Math.ceil(total / limit),
+                data: formattedHistory,
+            },
+        });
+    } catch (error) {
+        console.error('Get earnings history error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 module.exports = {
     login,
     verifyOtp,
@@ -719,4 +870,6 @@ module.exports = {
     updateDeliveryStatus,
     getOrderHistory,
     getOrderById,
+    getEarnings,
+    getEarningsHistory,
 };
