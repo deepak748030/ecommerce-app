@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Image, ActivityIndicator
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { router, useFocusEffect } from 'expo-router';
-import { Package, MapPin, Bell, HelpCircle, Settings, LogOut, ChevronRight, Sun, Moon, Shield, Receipt, Pencil, Camera } from 'lucide-react-native';
+import { Package, MapPin, Bell, HelpCircle, Settings, LogOut, ChevronRight, Sun, Moon, Shield, Receipt, Pencil, Camera, Store } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { EditProfileModal } from '@/components/EditProfileModal';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
@@ -121,6 +121,12 @@ export default function ProfileScreen() {
   };
 
   const menuSections = [
+    {
+      title: 'Vendor',
+      items: [
+        { id: '0', icon: Store, label: 'Vendor Dashboard', badge: '', route: '/vendor' },
+      ],
+    },
     {
       title: 'Orders & Addresses',
       items: [

@@ -790,3 +790,89 @@ export const reviewsApi = {
         });
     },
 };
+
+// Vendor Order Types
+export interface VendorOrder {
+    _id: string;
+    orderNumber: string;
+    user: {
+        _id: string;
+        name: string;
+        phone: string;
+        email: string;
+    };
+    items: OrderItem[];
+    shippingAddress: {
+        name: string;
+        phone: string;
+        address: string;
+        city: string;
+        state: string;
+        pincode: string;
+    };
+    paymentMethod: string;
+    status: string;
+    vendorSubtotal: number;
+    vendorItemsCount: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Vendor API (All Protected)
+export const vendorApi = {
+    // Get vendor's own products
+    getProducts: async (params?: { page?: number; limit?: number }) => {
+        const query = new URLSearchParams();
+        if (params?.page) query.append('page', params.page.toString());
+        if (params?.limit) query.append('limit', params.limit.toString());
+
+        return apiRequest<{ count: number; total: number; data: Product[] }>(`/vendor/products?${query.toString()}`);
+    },
+
+    // Create a product
+    createProduct: async (data: {
+        title: string;
+        description?: string;
+        price: number;
+        mrp?: number;
+        category: string;
+        image?: string;
+        images?: string[];
+        badge?: string;
+        location?: string;
+        fullLocation?: string;
+        date?: string;
+        time?: string;
+        services?: string[];
+    }) => {
+        return apiRequest<Product>('/vendor/products', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+
+    // Update a product
+    updateProduct: async (id: string, data: Partial<Product>) => {
+        return apiRequest<Product>(`/vendor/products/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+
+    // Delete a product
+    deleteProduct: async (id: string) => {
+        return apiRequest<{ id: string }>(`/vendor/products/${id}`, {
+            method: 'DELETE',
+        });
+    },
+
+    // Get orders for vendor's products
+    getOrders: async (params?: { status?: string; page?: number; limit?: number }) => {
+        const query = new URLSearchParams();
+        if (params?.status) query.append('status', params.status);
+        if (params?.page) query.append('page', params.page.toString());
+        if (params?.limit) query.append('limit', params.limit.toString());
+
+        return apiRequest<{ count: number; total: number; data: VendorOrder[] }>(`/vendor/orders?${query.toString()}`);
+    },
+};
