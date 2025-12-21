@@ -140,28 +140,43 @@ const creditVendorWallet = async (vendorId, amount, orderId, description) => {
 const releasePendingBalance = async (vendorId, amount, orderId) => {
     try {
         const vendor = await User.findById(vendorId);
-        if (!vendor || !vendor.wallet) {
-            console.error('Vendor or wallet not found:', vendorId);
+        if (!vendor) {
+            console.error('Vendor not found:', vendorId);
             return null;
         }
 
-        // Move from pending to available
-        vendor.wallet.pendingBalance = Math.max(0, vendor.wallet.pendingBalance - amount);
-        vendor.wallet.balance += amount;
-        vendor.wallet.totalEarnings += amount;
+        // Initialize wallet if not exists
+        if (!vendor.wallet) {
+            vendor.wallet = {
+                balance: 0,
+                pendingBalance: 0,
+                totalEarnings: 0,
+                totalWithdrawn: 0,
+            };
+        }
+
+        // Move from pending to available balance
+        const amountToRelease = Math.min(amount, vendor.wallet.pendingBalance);
+        vendor.wallet.pendingBalance = Math.max(0, vendor.wallet.pendingBalance - amountToRelease);
+        vendor.wallet.balance += amountToRelease;
+        vendor.wallet.totalEarnings += amountToRelease;
+
+        // Mark the wallet as modified to ensure save
+        vendor.markModified('wallet');
         await vendor.save();
 
-        // Update the transaction status
-        await WalletTransaction.findOneAndUpdate(
-            { vendor: vendorId, order: orderId, type: 'credit', status: 'pending' },
+        // Update the transaction status for this order
+        const updatedTransaction = await WalletTransaction.findOneAndUpdate(
+            { vendor: vendorId, order: orderId, type: 'credit' },
             {
                 status: 'completed',
                 balanceAfter: vendor.wallet.balance,
                 description: 'Order delivered - payment released',
-            }
+            },
+            { new: true }
         );
 
-        console.log(`Pending balance released: Vendor ${vendorId}, Amount ₹${amount}`);
+        console.log(`Pending balance released: Vendor ${vendorId}, Amount ₹${amountToRelease}, New Balance: ₹${vendor.wallet.balance}`);
         return vendor.wallet;
     } catch (error) {
         console.error('Release pending balance error:', error);

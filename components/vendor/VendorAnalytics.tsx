@@ -257,60 +257,6 @@ const createStyles = (colors: any) => StyleSheet.create({
         color: colors.mutedForeground,
         marginTop: 4,
     },
-    walletCard: {
-        borderRadius: 14,
-        padding: 14,
-        marginBottom: 12,
-    },
-    walletHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    walletIcon: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.2)',
-        marginRight: 8,
-    },
-    walletTitle: {
-        fontSize: 13,
-        color: colors.primaryForeground,
-        opacity: 0.8,
-    },
-    walletBalance: {
-        fontSize: 28,
-        fontWeight: '800',
-        color: colors.primaryForeground,
-        marginBottom: 12,
-    },
-    walletRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-    },
-    walletItem: {
-        alignItems: 'center',
-        flex: 1,
-    },
-    walletDivider: {
-        width: 1,
-        backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    },
-    walletLabel: {
-        fontSize: 11,
-        color: colors.primaryForeground,
-        opacity: 0.8,
-        marginTop: 4,
-    },
-    walletValue: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: colors.primaryForeground,
-        marginTop: 4,
-    },
     sectionCard: {
         backgroundColor: colors.card,
         borderRadius: 14,
@@ -418,5 +364,62 @@ const createStyles = (colors: any) => StyleSheet.create({
     miniStatusText: {
         fontSize: 9,
         fontWeight: '600',
+    },
+    walletCard: {
+        borderRadius: 14,
+        padding: 12,
+        marginBottom: 14,
+    },
+    walletHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 6,
+    },
+    walletIcon: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 8,
+    },
+    walletTitle: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: colors.primaryForeground,
+        opacity: 0.9,
+    },
+    walletBalance: {
+        fontSize: 26,
+        fontWeight: '800',
+        color: colors.primaryForeground,
+        marginBottom: 8,
+    },
+    walletRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    walletItem: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    walletLabel: {
+        fontSize: 11,
+        color: colors.primaryForeground,
+        opacity: 0.8,
+    },
+    walletValue: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: colors.primaryForeground,
+    },
+    walletDivider: {
+        width: 1,
+        height: 20,
+        backgroundColor: 'rgba(255,255,255,0.3)',
+        marginHorizontal: 10,
     },
 });
