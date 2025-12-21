@@ -327,6 +327,16 @@ const logout = async (req, res) => {
 // @access  Private
 const getAvailableOrders = async (req, res) => {
     try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        // Get total count
+        const totalCount = await Order.countDocuments({
+            status: 'shipped',
+            deliveryPartner: null,
+        });
+
         // Get orders that are shipped but not yet assigned to a delivery partner
         const orders = await Order.find({
             status: 'shipped',
@@ -335,7 +345,8 @@ const getAvailableOrders = async (req, res) => {
             .populate('user', 'name phone')
             .populate('items.product', 'title image location fullLocation')
             .sort({ createdAt: -1 })
-            .limit(20);
+            .skip(skip)
+            .limit(limit);
 
         const formattedOrders = orders.map(order => ({
             id: order._id,
@@ -357,6 +368,10 @@ const getAvailableOrders = async (req, res) => {
             success: true,
             response: {
                 count: formattedOrders.length,
+                total: totalCount,
+                page,
+                totalPages: Math.ceil(totalCount / limit),
+                hasMore: page < Math.ceil(totalCount / limit),
                 data: formattedOrders,
             },
         });
@@ -372,19 +387,31 @@ const getAvailableOrders = async (req, res) => {
 const getActiveOrders = async (req, res) => {
     try {
         const partnerId = req.user._id;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        // Get total count
+        const totalCount = await Order.countDocuments({
+            deliveryPartner: partnerId,
+            status: { $in: ['shipped', 'out_for_delivery'] },
+        });
 
         const orders = await Order.find({
             deliveryPartner: partnerId,
             status: { $in: ['shipped', 'out_for_delivery'] },
         })
             .populate('user', 'name phone')
-            .sort({ createdAt: -1 });
+            .populate('items.product', 'title image location fullLocation')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
 
         const formattedOrders = orders.map(order => ({
             id: order._id,
             orderId: order.orderNumber,
             status: order.status === 'shipped' ? 'accepted' : 'picked_up',
-            pickupAddress: 'Store Location, Main Market',
+            pickupAddress: order.items[0]?.product?.fullLocation || order.items[0]?.product?.location || 'Store Location, Main Market',
             deliveryAddress: `${order.shippingAddress.address}, ${order.shippingAddress.city}`,
             customerName: order.shippingAddress.name,
             customerPhone: order.shippingAddress.phone,
@@ -400,6 +427,10 @@ const getActiveOrders = async (req, res) => {
             success: true,
             response: {
                 count: formattedOrders.length,
+                total: totalCount,
+                page,
+                totalPages: Math.ceil(totalCount / limit),
+                hasMore: page < Math.ceil(totalCount / limit),
                 data: formattedOrders,
             },
         });
@@ -620,24 +651,39 @@ const updateDeliveryStatus = async (req, res) => {
 const getOrderHistory = async (req, res) => {
     try {
         const partnerId = req.user._id;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        // Get total count
+        const totalCount = await Order.countDocuments({
+            deliveryPartner: partnerId,
+            status: 'delivered',
+        });
 
         const orders = await Order.find({
             deliveryPartner: partnerId,
             status: 'delivered',
         })
             .populate('user', 'name phone')
+            .populate('items.product', 'title image location fullLocation')
             .sort({ deliveredAt: -1 })
-            .limit(50);
+            .skip(skip)
+            .limit(limit);
 
         const formattedOrders = orders.map(order => ({
             id: order._id,
             orderId: order.orderNumber,
             status: 'delivered',
-            pickupAddress: 'Store Location, Main Market',
+            pickupAddress: order.items[0]?.product?.fullLocation || order.items[0]?.product?.location || 'Store Location, Main Market',
             deliveryAddress: `${order.shippingAddress.address}, ${order.shippingAddress.city}`,
             customerName: order.shippingAddress.name,
             amount: order.deliveryFee || 40,
             tip: order.deliveryTip || 0,
+            distance: '2.5 km',
+            estimatedTime: order.estimatedDeliveryTime || '30-45 min',
+            items: order.items.length,
+            createdAt: order.createdAt,
             deliveredAt: order.deliveredAt,
         }));
 
@@ -645,6 +691,10 @@ const getOrderHistory = async (req, res) => {
             success: true,
             response: {
                 count: formattedOrders.length,
+                total: totalCount,
+                page,
+                totalPages: Math.ceil(totalCount / limit),
+                hasMore: page < Math.ceil(totalCount / limit),
                 data: formattedOrders,
             },
         });
