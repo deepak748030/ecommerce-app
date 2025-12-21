@@ -14,6 +14,7 @@ const {
     acceptOrder,
     updateDeliveryStatus,
     getOrderHistory,
+    getOrderById,
 } = require('../controllers/deliveryPartnerController');
 const { protectPartner } = require('../middleware/auth');
 
@@ -33,6 +34,7 @@ router.post('/auth/logout', protectPartner, logout);
 router.get('/orders/available', protectPartner, getAvailableOrders);
 router.get('/orders/active', protectPartner, getActiveOrders);
 router.get('/orders/history', protectPartner, getOrderHistory);
+router.get('/orders/:id', protectPartner, getOrderById);
 router.post('/orders/:id/accept', protectPartner, acceptOrder);
 router.put('/orders/:id/status', protectPartner, updateDeliveryStatus);
 

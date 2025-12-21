@@ -322,17 +322,18 @@ const logout = async (req, res) => {
     }
 };
 
-// @desc    Get available orders for delivery partner
+// @desc    Get available orders for delivery partner (only shipped status without assigned partner)
 // @route   GET /api/delivery-partner/orders/available
 // @access  Private
 const getAvailableOrders = async (req, res) => {
     try {
-        // Get orders that are confirmed/processing but not yet assigned to a delivery partner
+        // Get orders that are shipped but not yet assigned to a delivery partner
         const orders = await Order.find({
-            status: { $in: ['confirmed', 'processing'] },
+            status: 'shipped',
             deliveryPartner: null,
         })
             .populate('user', 'name phone')
+            .populate('items.product', 'title image location fullLocation')
             .sort({ createdAt: -1 })
             .limit(20);
 
@@ -340,10 +341,10 @@ const getAvailableOrders = async (req, res) => {
             id: order._id,
             orderId: order.orderNumber,
             status: 'pending',
-            pickupAddress: 'Store Location, Main Market',
+            pickupAddress: order.items[0]?.product?.fullLocation || order.items[0]?.product?.location || 'Store Location, Main Market',
             deliveryAddress: `${order.shippingAddress.address}, ${order.shippingAddress.city}`,
             customerName: order.shippingAddress.name,
-            customerPhone: order.shippingAddress.phone,
+            // Don't show phone number for unaccepted orders
             amount: order.deliveryFee || 40,
             tip: order.deliveryTip || 0,
             distance: '2.5 km',
@@ -426,12 +427,12 @@ const acceptOrder = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Order already accepted by another partner' });
         }
 
-        if (!['confirmed', 'processing'].includes(order.status)) {
+        // Only allow accepting shipped orders that don't have a delivery partner
+        if (order.status !== 'shipped') {
             return res.status(400).json({ success: false, message: 'Order cannot be accepted' });
         }
 
         order.deliveryPartner = partnerId;
-        order.status = 'shipped';
 
         // Update timeline
         const timelineIndex = 2; // Shipped index
@@ -464,6 +465,71 @@ const acceptOrder = async (req, res) => {
         });
     } catch (error) {
         console.error('Accept order error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get single order details for delivery partner
+// @route   GET /api/delivery-partner/orders/:id
+// @access  Private
+const getOrderById = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const orderId = req.params.id;
+
+        const order = await Order.findById(orderId)
+            .populate('user', 'name phone')
+            .populate('items.product', 'title image location fullLocation');
+
+        if (!order) {
+            return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+
+        // Check if this partner has accepted this order
+        const isAcceptedByMe = order.deliveryPartner && order.deliveryPartner.toString() === partnerId.toString();
+
+        // Format items with product details
+        const formattedItems = order.items.map(item => ({
+            id: item._id,
+            name: item.name || item.product?.title || 'Unknown Product',
+            price: item.price,
+            quantity: item.quantity,
+            image: item.image || item.product?.image || '',
+        }));
+
+        // Get vendor info from first product
+        const vendorAddress = order.items[0]?.product?.fullLocation || order.items[0]?.product?.location || 'Store Location, Main Market';
+
+        const formattedOrder = {
+            id: order._id,
+            orderId: order.orderNumber,
+            status: order.deliveryPartner ? (order.status === 'shipped' ? 'accepted' : order.status === 'out_for_delivery' ? 'picked_up' : order.status) : 'pending',
+            pickupAddress: vendorAddress,
+            deliveryAddress: `${order.shippingAddress.address}, ${order.shippingAddress.city}, ${order.shippingAddress.state} - ${order.shippingAddress.pincode}`,
+            customerName: order.shippingAddress.name,
+            // Only show phone numbers if order is accepted by this delivery partner
+            customerPhone: isAcceptedByMe ? order.shippingAddress.phone : null,
+            vendorPhone: isAcceptedByMe ? '9876543210' : null, // Vendor phone (can be dynamic if you have vendor model)
+            amount: order.deliveryFee || 40,
+            tip: order.deliveryTip || 0,
+            distance: '2.5 km',
+            estimatedTime: order.estimatedDeliveryTime || '30-45 min',
+            items: formattedItems,
+            itemCount: order.items.length,
+            paymentMethod: order.paymentMethod,
+            subtotal: order.subtotal,
+            total: order.total,
+            createdAt: order.createdAt,
+            deliveredAt: order.deliveredAt,
+            isAcceptedByMe,
+        };
+
+        res.json({
+            success: true,
+            response: formattedOrder,
+        });
+    } catch (error) {
+        console.error('Get order by ID error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 };
@@ -602,4 +668,5 @@ module.exports = {
     acceptOrder,
     updateDeliveryStatus,
     getOrderHistory,
+    getOrderById,
 };
