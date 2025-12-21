@@ -14,7 +14,8 @@ const {
     acceptOrder,
     initiatePickup,
     verifyPickupOtp,
-    updateDeliveryStatus,
+    initiateDelivery,
+    verifyDeliveryOtp,
     getOrderHistory,
     getOrderById,
     getEarnings,
@@ -42,7 +43,8 @@ router.get('/orders/:id', protectPartner, getOrderById);
 router.post('/orders/:id/accept', protectPartner, acceptOrder);
 router.post('/orders/:id/initiate-pickup', protectPartner, initiatePickup);
 router.post('/orders/:id/verify-pickup', protectPartner, verifyPickupOtp);
-router.put('/orders/:id/status', protectPartner, updateDeliveryStatus);
+router.post('/orders/:id/initiate-delivery', protectPartner, initiateDelivery);
+router.post('/orders/:id/verify-delivery', protectPartner, verifyDeliveryOtp);
 
 // Earnings routes
 router.get('/earnings', protectPartner, getEarnings);

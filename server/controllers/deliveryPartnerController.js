@@ -725,20 +725,93 @@ const verifyPickupOtp = async (req, res) => {
     }
 };
 
-// @desc    Update order delivery status (for delivered only now)
-// @route   PUT /api/delivery-partner/orders/:id/status
+// @desc    Initiate delivery - generates OTP and sends to customer
+// @route   POST /api/delivery-partner/orders/:id/initiate-delivery
 // @access  Private
-const updateDeliveryStatus = async (req, res) => {
+const initiateDelivery = async (req, res) => {
     try {
         const partnerId = req.user._id;
         const orderId = req.params.id;
-        const { status } = req.body;
 
-        // Only allow delivered status through this endpoint now
-        // picked_up requires OTP verification via verifyPickupOtp
-        const validStatuses = ['delivered'];
-        if (!validStatuses.includes(status)) {
-            return res.status(400).json({ success: false, message: 'Invalid status. Use initiate-pickup for pickup.' });
+        const order = await Order.findOne({
+            _id: orderId,
+            deliveryPartner: partnerId,
+            status: 'out_for_delivery',
+        });
+
+        if (!order) {
+            return res.status(404).json({ success: false, message: 'Order not found or not ready for delivery' });
+        }
+
+        // Generate OTP (for development, using fixed 123456)
+        const deliveryOtp = '123456';
+
+        // Store OTP with order reference
+        await Otp.findOneAndUpdate(
+            { phone: `delivery_${orderId}` },
+            {
+                phone: `delivery_${orderId}`,
+                otp: deliveryOtp,
+                expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+            },
+            { upsert: true, new: true }
+        );
+
+        // Create notification for customer (store in DB)
+        await Notification.create({
+            user: order.user,
+            title: '📦 Delivery OTP',
+            message: `Your delivery OTP for order #${order.orderNumber} is: ${deliveryOtp}. Share this with the delivery partner to confirm delivery.`,
+            type: 'order',
+            data: {
+                orderId: order._id.toString(),
+                orderNumber: order.orderNumber,
+                otp: deliveryOtp,
+            },
+        });
+
+        // Get customer push token to send notification
+        const User = require('../models/User');
+        const user = await User.findById(order.user);
+
+        if (user && user.expoPushToken) {
+            await sendPushNotificationByToken(user.expoPushToken, {
+                title: '📦 Delivery OTP',
+                body: `OTP for order #${order.orderNumber}: ${deliveryOtp}`,
+                data: {
+                    type: 'delivery_otp',
+                    orderId: order._id.toString(),
+                    orderNumber: order.orderNumber,
+                },
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'OTP sent to customer successfully',
+            response: {
+                orderId: order._id,
+                orderNumber: order.orderNumber,
+                otpSent: true,
+            },
+        });
+    } catch (error) {
+        console.error('Initiate delivery error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Verify delivery OTP and mark as delivered
+// @route   POST /api/delivery-partner/orders/:id/verify-delivery
+// @access  Private
+const verifyDeliveryOtp = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const orderId = req.params.id;
+        const { otp } = req.body;
+
+        if (!otp) {
+            return res.status(400).json({ success: false, message: 'OTP is required' });
         }
 
         const order = await Order.findOne({
@@ -751,6 +824,18 @@ const updateDeliveryStatus = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Order not found or not ready for delivery' });
         }
 
+        // Check OTP
+        const storedOtp = await Otp.findOne({ phone: `delivery_${orderId}` });
+
+        // Accept 123456 for development or check stored OTP
+        if (otp !== '123456' && (!storedOtp || storedOtp.otp !== otp || new Date() > storedOtp.expiresAt)) {
+            return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+        }
+
+        // Clear OTP
+        await Otp.deleteOne({ phone: `delivery_${orderId}` });
+
+        // Update order status to delivered
         order.status = 'delivered';
         order.deliveredAt = new Date();
 
@@ -765,6 +850,8 @@ const updateDeliveryStatus = async (req, res) => {
             }
         }
 
+        await order.save();
+
         // Update partner earnings
         const partner = await DeliveryPartner.findById(partnerId);
         if (partner) {
@@ -773,8 +860,6 @@ const updateDeliveryStatus = async (req, res) => {
             partner.earnings.total = (partner.earnings.total || 0) + earning;
             await partner.save();
         }
-
-        await order.save();
 
         // Send notification to customer
         const User = require('../models/User');
@@ -799,11 +884,11 @@ const updateDeliveryStatus = async (req, res) => {
             response: {
                 orderId: order._id,
                 orderNumber: order.orderNumber,
-                status: order.status,
+                status: 'delivered',
             },
         });
     } catch (error) {
-        console.error('Update delivery status error:', error);
+        console.error('Verify delivery OTP error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 };
@@ -1032,7 +1117,8 @@ module.exports = {
     acceptOrder,
     initiatePickup,
     verifyPickupOtp,
-    updateDeliveryStatus,
+    initiateDelivery,
+    verifyDeliveryOtp,
     getOrderHistory,
     getOrderById,
     getEarnings,
