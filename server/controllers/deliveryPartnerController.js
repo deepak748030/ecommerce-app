@@ -136,12 +136,23 @@ const resendOtp = async (req, res) => {
     }
 };
 
-// @desc    Complete profile with vehicle details
+// @desc    Complete profile with vehicle details and KYC documents
 // @route   POST /api/delivery-partner/auth/complete-profile
 // @access  Private
 const completeProfile = async (req, res) => {
     try {
-        const { partnerId, name, vehicleType, vehicleNumber, vehicleModel, vehicleColor } = req.body;
+        const {
+            partnerId,
+            name,
+            vehicleType,
+            vehicleNumber,
+            vehicleModel,
+            vehicleColor,
+            aadhaarImage,
+            panImage,
+            licenseImage,
+            selfieImage
+        } = req.body;
 
         if (!partnerId) {
             return res.status(400).json({ success: false, message: 'Partner ID is required' });
@@ -153,6 +164,33 @@ const completeProfile = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Partner not found' });
         }
 
+        // Validate base64 images if provided
+        const validateImage = (image, fieldName) => {
+            if (image && image.startsWith('data:image')) {
+                const base64Length = image.length * 0.75;
+                if (base64Length > 4 * 1024 * 1024) {
+                    return { valid: false, message: `${fieldName} image too large. Please use an image smaller than 4MB.` };
+                }
+            }
+            return { valid: true };
+        };
+
+        const imageFields = [
+            { image: aadhaarImage, name: 'Aadhaar' },
+            { image: panImage, name: 'PAN' },
+            { image: licenseImage, name: 'License' },
+            { image: selfieImage, name: 'Selfie' },
+        ];
+
+        for (const field of imageFields) {
+            if (field.image) {
+                const validation = validateImage(field.image, field.name);
+                if (!validation.valid) {
+                    return res.status(400).json({ success: false, message: validation.message });
+                }
+            }
+        }
+
         partner.name = name || partner.name;
         partner.vehicle = {
             type: vehicleType || 'bike',
@@ -160,6 +198,23 @@ const completeProfile = async (req, res) => {
             model: vehicleModel || '',
             color: vehicleColor || '',
         };
+
+        // Save KYC documents
+        if (aadhaarImage) partner.documents.aadhaar = aadhaarImage;
+        if (panImage) partner.documents.pan = panImage;
+        if (licenseImage) partner.documents.license = licenseImage;
+        if (selfieImage) partner.documents.selfie = selfieImage;
+
+        // Check if all documents are provided
+        const hasAllDocuments = partner.documents.aadhaar &&
+            partner.documents.pan &&
+            partner.documents.license &&
+            partner.documents.selfie;
+
+        if (hasAllDocuments) {
+            partner.kycStatus = 'submitted';
+        }
+
         partner.isProfileComplete = true;
 
         await partner.save();
@@ -174,6 +229,13 @@ const completeProfile = async (req, res) => {
                     phone: partner.phone,
                     avatar: partner.avatar,
                     vehicle: partner.vehicle,
+                    documents: {
+                        aadhaar: !!partner.documents.aadhaar,
+                        pan: !!partner.documents.pan,
+                        license: !!partner.documents.license,
+                        selfie: !!partner.documents.selfie,
+                    },
+                    kycStatus: partner.kycStatus,
                     isProfileComplete: partner.isProfileComplete,
                     isVerified: partner.isVerified,
                     isBlocked: partner.isBlocked,
@@ -209,6 +271,14 @@ const getMe = async (req, res) => {
                 phone: partner.phone,
                 avatar: partner.avatar,
                 vehicle: partner.vehicle,
+                documents: {
+                    aadhaar: !!partner.documents.aadhaar,
+                    pan: !!partner.documents.pan,
+                    license: !!partner.documents.license,
+                    selfie: !!partner.documents.selfie,
+                },
+                kycStatus: partner.kycStatus,
+                kycRejectionReason: partner.kycRejectionReason,
                 isProfileComplete: partner.isProfileComplete,
                 isVerified: partner.isVerified,
                 isOnline: partner.isOnline,
@@ -238,6 +308,17 @@ const updateProfile = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Partner not found' });
         }
 
+        // Validate base64 image if provided
+        if (avatar && avatar.startsWith('data:image')) {
+            const base64Length = avatar.length * 0.75;
+            if (base64Length > 4 * 1024 * 1024) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Image too large. Please use an image smaller than 4MB.'
+                });
+            }
+        }
+
         if (name !== undefined) partner.name = name;
         if (avatar !== undefined) partner.avatar = avatar;
         if (vehicleType !== undefined) partner.vehicle.type = vehicleType;
@@ -256,6 +337,13 @@ const updateProfile = async (req, res) => {
                 phone: partner.phone,
                 avatar: partner.avatar,
                 vehicle: partner.vehicle,
+                documents: {
+                    aadhaar: !!partner.documents.aadhaar,
+                    pan: !!partner.documents.pan,
+                    license: !!partner.documents.license,
+                    selfie: !!partner.documents.selfie,
+                },
+                kycStatus: partner.kycStatus,
                 isProfileComplete: partner.isProfileComplete,
                 isVerified: partner.isVerified,
                 isBlocked: partner.isBlocked,
@@ -450,6 +538,24 @@ const acceptOrder = async (req, res) => {
         const partnerId = req.user._id;
         const orderId = req.params.id;
 
+        // Check if partner's KYC is approved
+        const partner = await DeliveryPartner.findById(partnerId);
+        if (!partner) {
+            return res.status(404).json({ success: false, message: 'Partner not found' });
+        }
+
+        if (partner.kycStatus !== 'approved') {
+            let message = 'Your KYC is not approved yet. Please complete your verification to accept orders.';
+            if (partner.kycStatus === 'pending') {
+                message = 'Please complete your KYC verification to start accepting orders.';
+            } else if (partner.kycStatus === 'submitted') {
+                message = 'Your KYC is under review. Please wait for admin approval.';
+            } else if (partner.kycStatus === 'rejected') {
+                message = `Your KYC was rejected: ${partner.kycRejectionReason || 'Please contact support.'}`;
+            }
+            return res.status(403).json({ success: false, message });
+        }
+
         const order = await Order.findById(orderId);
 
         if (!order) {
@@ -481,7 +587,6 @@ const acceptOrder = async (req, res) => {
         await order.save();
 
         // Update partner stats
-        const partner = await DeliveryPartner.findById(partnerId);
         if (partner) {
             partner.stats.totalDeliveries = (partner.stats.totalDeliveries || 0) + 1;
             await partner.save();

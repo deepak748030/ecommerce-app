@@ -38,20 +38,34 @@ const deliveryPartnerSchema = new mongoose.Schema({
             default: '',
         },
     },
-    // Documents
+    // Documents - KYC
     documents: {
+        aadhaar: {
+            type: String,
+            default: '',
+        },
+        pan: {
+            type: String,
+            default: '',
+        },
         license: {
             type: String,
             default: '',
         },
-        vehicleRC: {
+        selfie: {
             type: String,
             default: '',
         },
-        insurance: {
-            type: String,
-            default: '',
-        },
+    },
+    // KYC Status
+    kycStatus: {
+        type: String,
+        enum: ['pending', 'submitted', 'approved', 'rejected'],
+        default: 'pending',
+    },
+    kycRejectionReason: {
+        type: String,
+        default: '',
     },
     // Status
     isActive: {
