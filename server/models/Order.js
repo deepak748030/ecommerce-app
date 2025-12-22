@@ -92,6 +92,15 @@ const orderSchema = new mongoose.Schema({
         type: String,
         default: '30-45 min',
     },
+    // Vendor-set delivery details when shipping
+    deliveryPayment: {
+        type: Number,
+        default: 0,
+    },
+    deliveryTimeMinutes: {
+        type: Number,
+        default: 30,
+    },
 }, {
     timestamps: true,
 });

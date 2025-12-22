@@ -328,7 +328,7 @@ const getVendorOrders = async (req, res) => {
 // @access  Private
 const updateVendorOrderStatus = async (req, res) => {
     try {
-        const { status } = req.body;
+        const { status, deliveryPayment, deliveryTimeMinutes } = req.body;
 
         if (!status) {
             return res.status(400).json({
@@ -337,12 +337,29 @@ const updateVendorOrderStatus = async (req, res) => {
             });
         }
 
-        const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'cancelled'];
+        // Vendors cannot set delivered status - only delivery partners can
+        const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'cancelled'];
         if (!validStatuses.includes(status)) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid status',
+                message: status === 'delivered' ? 'Vendors cannot mark orders as delivered' : 'Invalid status',
             });
+        }
+
+        // When shipping, require delivery payment and time
+        if (status === 'shipped') {
+            if (deliveryPayment === undefined || deliveryPayment === null) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Delivery payment amount is required when shipping',
+                });
+            }
+            if (deliveryTimeMinutes === undefined || deliveryTimeMinutes === null) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Delivery time is required when shipping',
+                });
+            }
         }
 
         // Get vendor's product IDs
@@ -384,6 +401,12 @@ const updateVendorOrderStatus = async (req, res) => {
 
         const oldStatus = order.status;
         order.status = status;
+
+        // Save delivery payment and time when shipping
+        if (status === 'shipped') {
+            order.deliveryPayment = parseFloat(deliveryPayment) || 0;
+            order.deliveryTimeMinutes = parseInt(deliveryTimeMinutes) || 30;
+        }
 
         // Update timeline based on status
         const timelineMap = {
