@@ -675,4 +675,84 @@ export const assignDeliveryPartner = async (id: string, deliveryPartnerId: strin
     return response.data
 }
 
+// Coupon Types
+export interface Coupon {
+    _id: string
+    code: string
+    discountType: 'percentage' | 'fixed'
+    discountValue: number
+    minOrderValue: number
+    maxDiscount: number | null
+    usageLimit: number | null
+    usedCount: number
+    validFrom: string
+    validUntil: string
+    isActive: boolean
+    description: string
+    createdAt: string
+}
+
+export interface CouponStats {
+    totalCoupons: number
+    activeCoupons: number
+    expiredCoupons: number
+    totalUsage: number
+    percentageCoupons: number
+    fixedCoupons: number
+}
+
+export interface CouponFormData {
+    code: string
+    discountType: 'percentage' | 'fixed'
+    discountValue: number
+    minOrderValue: number
+    maxDiscount: number | null
+    usageLimit: number | null
+    validFrom: string
+    validUntil: string
+    description: string
+}
+
+// Coupon API Functions
+export const getCouponsAdmin = async (params: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: string
+    discountType?: string
+}) => {
+    const response = await api.get('/admin/coupons', { params })
+    return response.data
+}
+
+export const getCouponStats = async () => {
+    const response = await api.get('/admin/coupons/stats')
+    return response.data
+}
+
+export const getCouponById = async (id: string) => {
+    const response = await api.get(`/admin/coupons/${id}`)
+    return response.data
+}
+
+export const createCoupon = async (data: CouponFormData) => {
+    const response = await api.post('/admin/coupons', data)
+    return response.data
+}
+
+export const updateCoupon = async (id: string, data: Partial<CouponFormData & { isActive: boolean }>) => {
+    const response = await api.put(`/admin/coupons/${id}`, data)
+    return response.data
+}
+
+export const deleteCoupon = async (id: string) => {
+    const response = await api.delete(`/admin/coupons/${id}`)
+    return response.data
+}
+
+export const toggleCouponStatus = async (id: string) => {
+    const response = await api.put(`/admin/coupons/${id}/toggle`)
+    return response.data
+}
+
 export default api

@@ -13,6 +13,7 @@ import {
     ChevronLeft,
     ChevronRight,
     ShoppingBag,
+    Ticket,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { useAuth } from '../context/AuthContext'
@@ -22,6 +23,7 @@ const navItems = [
     { to: '/orders', icon: ShoppingBag, label: 'Orders' },
     { to: '/users', icon: Users, label: 'Users' },
     { to: '/categories', icon: FolderOpen, label: 'Categories' },
+    { to: '/coupons', icon: Ticket, label: 'Coupons' },
     { to: '/banners', icon: Image, label: 'Banners' },
     { to: '/delivery-partners', icon: Truck, label: 'Delivery Partners' },
 ]
@@ -56,7 +58,10 @@ export function DashboardLayout() {
                     sidebarOpen ? 'justify-between' : 'justify-center'
                 )}>
                     {sidebarOpen && (
-                        <h1 className="text-xl font-bold text-foreground">Plenify Admin</h1>
+                        <div>
+                            <h1 className="text-lg font-bold text-foreground leading-tight">The Art Of</h1>
+                            <p className="text-xl font-bold text-primary leading-tight">भ ओ ज न</p>
+                        </div>
                     )}
                     <button
                         onClick={() => setSidebarOpen(!sidebarOpen)}

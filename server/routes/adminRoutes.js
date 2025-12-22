@@ -48,4 +48,13 @@ router.get('/orders/:id', verifyAdminToken, adminController.getOrderById);
 router.put('/orders/:id/status', verifyAdminToken, adminController.updateOrderStatus);
 router.put('/orders/:id/assign', verifyAdminToken, adminController.assignDeliveryPartner);
 
+// Coupon routes
+router.get('/coupons/stats', verifyAdminToken, adminController.getCouponStats);
+router.get('/coupons', verifyAdminToken, adminController.getCoupons);
+router.get('/coupons/:id', verifyAdminToken, adminController.getCouponById);
+router.post('/coupons', verifyAdminToken, adminController.createCoupon);
+router.put('/coupons/:id', verifyAdminToken, adminController.updateCoupon);
+router.delete('/coupons/:id', verifyAdminToken, adminController.deleteCoupon);
+router.put('/coupons/:id/toggle', verifyAdminToken, adminController.toggleCouponStatus);
+
 module.exports = router;

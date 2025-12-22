@@ -4,6 +4,7 @@ const Category = require('../models/Category');
 const Banner = require('../models/Banner');
 const DeliveryPartner = require('../models/DeliveryPartner');
 const Order = require('../models/Order');
+const Coupon = require('../models/Coupon');
 const { generateAdminToken } = require('../middleware/adminAuth');
 
 // @desc    Admin login
@@ -1306,6 +1307,283 @@ const assignDeliveryPartner = async (req, res) => {
     }
 };
 
+// =====================
+// COUPON MANAGEMENT
+// =====================
+
+// @desc    Get all coupons with pagination and filters
+// @route   GET /api/admin/coupons
+// @access  Private (Admin)
+const getCoupons = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const search = req.query.search || '';
+        const status = req.query.status || 'all';
+        const discountType = req.query.discountType || 'all';
+
+        const skip = (page - 1) * limit;
+        const now = new Date();
+
+        // Build query - optimized with indexed fields
+        const query = {};
+
+        if (search) {
+            query.$or = [
+                { code: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } },
+            ];
+        }
+
+        if (status === 'active') {
+            query.isActive = true;
+            query.validUntil = { $gte: now };
+        } else if (status === 'inactive') {
+            query.isActive = false;
+        } else if (status === 'expired') {
+            query.validUntil = { $lt: now };
+        }
+
+        if (discountType !== 'all') {
+            query.discountType = discountType;
+        }
+
+        // Use Promise.all for parallel execution
+        const [coupons, total] = await Promise.all([
+            Coupon.find(query)
+                .select('code discountType discountValue minOrderValue maxDiscount usageLimit usedCount validFrom validUntil isActive description createdAt')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Coupon.countDocuments(query),
+        ]);
+
+        res.json({
+            success: true,
+            response: {
+                coupons,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    pages: Math.ceil(total / limit),
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Get coupons error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get coupon statistics
+// @route   GET /api/admin/coupons/stats
+// @access  Private (Admin)
+const getCouponStats = async (req, res) => {
+    try {
+        const now = new Date();
+
+        // Use MongoDB aggregation for optimal performance - O(n) single pass
+        const [stats] = await Coupon.aggregate([
+            {
+                $facet: {
+                    total: [{ $count: 'count' }],
+                    active: [
+                        { $match: { isActive: true, validUntil: { $gte: now } } },
+                        { $count: 'count' }
+                    ],
+                    expired: [
+                        { $match: { validUntil: { $lt: now } } },
+                        { $count: 'count' }
+                    ],
+                    totalUsage: [
+                        { $group: { _id: null, total: { $sum: '$usedCount' } } }
+                    ],
+                    byType: [
+                        { $group: { _id: '$discountType', count: { $sum: 1 } } }
+                    ]
+                }
+            }
+        ]);
+
+        const typeStats = {};
+        stats.byType.forEach(t => {
+            typeStats[t._id] = t.count;
+        });
+
+        res.json({
+            success: true,
+            response: {
+                totalCoupons: stats.total[0]?.count || 0,
+                activeCoupons: stats.active[0]?.count || 0,
+                expiredCoupons: stats.expired[0]?.count || 0,
+                totalUsage: stats.totalUsage[0]?.total || 0,
+                percentageCoupons: typeStats.percentage || 0,
+                fixedCoupons: typeStats.fixed || 0,
+            },
+        });
+    } catch (error) {
+        console.error('Get coupon stats error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get coupon by ID
+// @route   GET /api/admin/coupons/:id
+// @access  Private (Admin)
+const getCouponById = async (req, res) => {
+    try {
+        const coupon = await Coupon.findById(req.params.id).lean();
+
+        if (!coupon) {
+            return res.status(404).json({ success: false, message: 'Coupon not found' });
+        }
+
+        res.json({
+            success: true,
+            response: { coupon },
+        });
+    } catch (error) {
+        console.error('Get coupon by ID error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Create coupon
+// @route   POST /api/admin/coupons
+// @access  Private (Admin)
+const createCoupon = async (req, res) => {
+    try {
+        const { code, discountType, discountValue, minOrderValue, maxDiscount, usageLimit, validFrom, validUntil, description } = req.body;
+
+        if (!code || !discountType || !discountValue || !validUntil) {
+            return res.status(400).json({ success: false, message: 'Required fields missing' });
+        }
+
+        // Check if coupon code already exists
+        const existingCoupon = await Coupon.findOne({ code: code.toUpperCase() });
+        if (existingCoupon) {
+            return res.status(400).json({ success: false, message: 'Coupon code already exists' });
+        }
+
+        const coupon = await Coupon.create({
+            code: code.toUpperCase(),
+            discountType,
+            discountValue,
+            minOrderValue: minOrderValue || 0,
+            maxDiscount: maxDiscount || null,
+            usageLimit: usageLimit || null,
+            validFrom: validFrom || new Date(),
+            validUntil,
+            description: description || '',
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Coupon created successfully',
+            response: { coupon },
+        });
+    } catch (error) {
+        console.error('Create coupon error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Update coupon
+// @route   PUT /api/admin/coupons/:id
+// @access  Private (Admin)
+const updateCoupon = async (req, res) => {
+    try {
+        const { code, discountType, discountValue, minOrderValue, maxDiscount, usageLimit, validFrom, validUntil, description, isActive } = req.body;
+
+        const coupon = await Coupon.findById(req.params.id);
+
+        if (!coupon) {
+            return res.status(404).json({ success: false, message: 'Coupon not found' });
+        }
+
+        // Check if new code already exists (if code is being changed)
+        if (code && code.toUpperCase() !== coupon.code) {
+            const existingCoupon = await Coupon.findOne({ code: code.toUpperCase() });
+            if (existingCoupon) {
+                return res.status(400).json({ success: false, message: 'Coupon code already exists' });
+            }
+            coupon.code = code.toUpperCase();
+        }
+
+        if (discountType) coupon.discountType = discountType;
+        if (discountValue !== undefined) coupon.discountValue = discountValue;
+        if (minOrderValue !== undefined) coupon.minOrderValue = minOrderValue;
+        if (maxDiscount !== undefined) coupon.maxDiscount = maxDiscount;
+        if (usageLimit !== undefined) coupon.usageLimit = usageLimit;
+        if (validFrom) coupon.validFrom = validFrom;
+        if (validUntil) coupon.validUntil = validUntil;
+        if (description !== undefined) coupon.description = description;
+        if (typeof isActive === 'boolean') coupon.isActive = isActive;
+
+        await coupon.save();
+
+        res.json({
+            success: true,
+            message: 'Coupon updated successfully',
+            response: { coupon },
+        });
+    } catch (error) {
+        console.error('Update coupon error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Delete coupon
+// @route   DELETE /api/admin/coupons/:id
+// @access  Private (Admin)
+const deleteCoupon = async (req, res) => {
+    try {
+        const coupon = await Coupon.findById(req.params.id);
+
+        if (!coupon) {
+            return res.status(404).json({ success: false, message: 'Coupon not found' });
+        }
+
+        await coupon.deleteOne();
+
+        res.json({
+            success: true,
+            message: 'Coupon deleted successfully',
+            response: { id: req.params.id },
+        });
+    } catch (error) {
+        console.error('Delete coupon error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Toggle coupon status
+// @route   PUT /api/admin/coupons/:id/toggle
+// @access  Private (Admin)
+const toggleCouponStatus = async (req, res) => {
+    try {
+        const coupon = await Coupon.findById(req.params.id);
+
+        if (!coupon) {
+            return res.status(404).json({ success: false, message: 'Coupon not found' });
+        }
+
+        coupon.isActive = !coupon.isActive;
+        await coupon.save();
+
+        res.json({
+            success: true,
+            message: coupon.isActive ? 'Coupon activated' : 'Coupon deactivated',
+            response: { coupon },
+        });
+    } catch (error) {
+        console.error('Toggle coupon status error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 module.exports = {
     adminLogin,
     getAdminProfile,
@@ -1340,4 +1618,11 @@ module.exports = {
     getOrderById,
     updateOrderStatus,
     assignDeliveryPartner,
+    getCoupons,
+    getCouponStats,
+    getCouponById,
+    createCoupon,
+    updateCoupon,
+    deleteCoupon,
+    toggleCouponStatus,
 };

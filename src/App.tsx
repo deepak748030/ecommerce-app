@@ -10,6 +10,7 @@ import { CategoriesPage } from './pages/CategoriesPage'
 import { BannersPage } from './pages/BannersPage'
 import { DeliveryPartnersPage } from './pages/DeliveryPartnersPage'
 import { OrdersPage } from './pages/OrdersPage'
+import { CouponsPage } from './pages/CouponsPage'
 
 function App() {
     return (
@@ -29,6 +30,7 @@ function App() {
                         <Route path="orders" element={<OrdersPage />} />
                         <Route path="users" element={<UsersPage />} />
                         <Route path="categories" element={<CategoriesPage />} />
+                        <Route path="coupons" element={<CouponsPage />} />
                         <Route path="banners" element={<BannersPage />} />
                         <Route path="delivery-partners" element={<DeliveryPartnersPage />} />
                     </Route>
