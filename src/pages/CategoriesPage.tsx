@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
     Search,
     Filter,
@@ -12,6 +12,7 @@ import {
     ChevronRight,
     Loader2,
     FolderOpen,
+    Upload,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import {
@@ -40,6 +41,7 @@ export function CategoriesPage() {
     const [pagination, setPagination] = useState<Pagination | null>(null)
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
+    const [debouncedSearch, setDebouncedSearch] = useState('')
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
     const [page, setPage] = useState(1)
     const [showModal, setShowModal] = useState(false)
@@ -52,6 +54,14 @@ export function CategoriesPage() {
     const [formLoading, setFormLoading] = useState(false)
     const [deleteLoading, setDeleteLoading] = useState<string | null>(null)
     const [toggleLoading, setToggleLoading] = useState<string | null>(null)
+    const [imagePreview, setImagePreview] = useState<string | null>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    // Debounce search for better performance
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedSearch(search), 400)
+        return () => clearTimeout(timer)
+    }, [search])
 
     const fetchCategories = useCallback(async () => {
         try {
@@ -59,7 +69,7 @@ export function CategoriesPage() {
             const response = await getCategoriesAdmin({
                 page,
                 limit: 10,
-                search,
+                search: debouncedSearch,
                 status: statusFilter,
             })
             if (response.success) {
@@ -71,7 +81,7 @@ export function CategoriesPage() {
         } finally {
             setLoading(false)
         }
-    }, [page, search, statusFilter])
+    }, [page, debouncedSearch, statusFilter])
 
     useEffect(() => {
         fetchCategories()
@@ -79,7 +89,7 @@ export function CategoriesPage() {
 
     useEffect(() => {
         setPage(1)
-    }, [search, statusFilter])
+    }, [debouncedSearch, statusFilter])
 
     const handleOpenModal = (category?: Category) => {
         if (category) {
@@ -89,9 +99,11 @@ export function CategoriesPage() {
                 image: category.image || '',
                 color: category.color || '#DCFCE7',
             })
+            setImagePreview(category.image || null)
         } else {
             setEditingCategory(null)
             setFormData({ name: '', image: '', color: '#DCFCE7' })
+            setImagePreview(null)
         }
         setShowModal(true)
     }
@@ -100,6 +112,40 @@ export function CategoriesPage() {
         setShowModal(false)
         setEditingCategory(null)
         setFormData({ name: '', image: '', color: '#DCFCE7' })
+        setImagePreview(null)
+    }
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        // Validate file size (max 2MB for categories)
+        if (file.size > 2 * 1024 * 1024) {
+            alert('Image size should be less than 2MB')
+            return
+        }
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            alert('Please select a valid image file')
+            return
+        }
+
+        const reader = new FileReader()
+        reader.onload = () => {
+            const base64 = reader.result as string
+            setFormData(f => ({ ...f, image: base64 }))
+            setImagePreview(base64)
+        }
+        reader.readAsDataURL(file)
+    }
+
+    const handleRemoveImage = () => {
+        setFormData(f => ({ ...f, image: '' }))
+        setImagePreview(null)
+        if (fileInputRef.current) {
+            fileInputRef.current.value = ''
+        }
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -389,7 +435,7 @@ export function CategoriesPage() {
             {/* Modal */}
             {showModal && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-                    <div className="bg-card border border-border rounded-xl w-full max-w-md animate-fade-in">
+                    <div className="bg-card border border-border rounded-xl w-full max-w-md animate-fade-in max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between p-4 border-b border-border">
                             <h2 className="text-lg font-semibold">
                                 {editingCategory ? 'Edit Category' : 'Add Category'}
@@ -415,18 +461,52 @@ export function CategoriesPage() {
                                     required
                                 />
                             </div>
+
+                            {/* Image Upload */}
                             <div>
                                 <label className="block text-sm font-medium text-foreground mb-1.5">
-                                    Image URL (optional)
+                                    Category Image
                                 </label>
                                 <input
-                                    type="url"
-                                    value={formData.image}
-                                    onChange={(e) => setFormData(f => ({ ...f, image: e.target.value }))}
-                                    placeholder="https://example.com/image.png"
-                                    className="w-full px-3 py-2 bg-input border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleImageUpload}
+                                    className="hidden"
                                 />
+
+                                {imagePreview ? (
+                                    <div className="relative">
+                                        <img
+                                            src={imagePreview}
+                                            alt="Preview"
+                                            className="w-full h-40 object-cover rounded-lg border border-border"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleRemoveImage}
+                                            className="absolute top-2 right-2 p-1.5 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 transition-colors"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="w-full h-40 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-2 hover:border-primary/50 hover:bg-muted/50 transition-colors"
+                                    >
+                                        <div className="p-3 bg-muted rounded-full">
+                                            <Upload className="w-6 h-6 text-muted-foreground" />
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-sm font-medium text-foreground">Click to upload</p>
+                                            <p className="text-xs text-muted-foreground">PNG, JPG up to 2MB</p>
+                                        </div>
+                                    </button>
+                                )}
                             </div>
+
                             <div>
                                 <label className="block text-sm font-medium text-foreground mb-1.5">
                                     Color
@@ -477,4 +557,4 @@ export function CategoriesPage() {
             )}
         </div>
     )
-} 
+}

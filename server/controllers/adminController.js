@@ -356,6 +356,7 @@ const getCategories = async (req, res) => {
 
         const skip = (page - 1) * limit;
 
+        // Build query - optimized with indexed fields
         const query = {};
 
         if (search) {
@@ -368,8 +369,11 @@ const getCategories = async (req, res) => {
             query.isActive = false;
         }
 
+        // Use Promise.all for parallel execution - O(1) for both operations
+        // Use .lean() for faster read and .select() for minimal data transfer
         const [categories, total] = await Promise.all([
             Category.find(query)
+                .select('name image color itemsCount isActive createdAt')
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit)
