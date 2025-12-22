@@ -250,11 +250,6 @@ const getDashboardAnalytics = async (req, res) => {
     try {
         const filter = req.query.filter || 'monthly';
 
-        const [totalUsers, blockedUsers] = await Promise.all([
-            User.countDocuments(),
-            User.countDocuments({ isBlocked: true }),
-        ]);
-
         // Calculate date range based on filter
         let startDate = new Date();
         if (filter === 'today') {
@@ -267,11 +262,73 @@ const getDashboardAnalytics = async (req, res) => {
             startDate.setFullYear(startDate.getFullYear() - 1);
         }
 
-        const periodUsers = await User.countDocuments({ createdAt: { $gte: startDate } });
+        // Parallel fetch all stats for optimal performance - O(1) with Promise.all
+        const [
+            totalUsers,
+            blockedUsers,
+            totalOrders,
+            pendingOrders,
+            confirmedOrders,
+            deliveredOrders,
+            cancelledOrders,
+            totalCoupons,
+            activeCoupons,
+            expiredCoupons,
+            totalCategories,
+            activeCategories,
+            totalBanners,
+            activeBanners,
+            totalDeliveryPartners,
+            activeDeliveryPartners,
+            blockedDeliveryPartners,
+            onlineDeliveryPartners,
+            pendingKycPartners,
+            approvedKycPartners,
+            periodUsers,
+            periodOrders,
+            periodDeliveryPartners,
+            revenueAggregation,
+            periodRevenueAggregation,
+        ] = await Promise.all([
+            User.countDocuments(),
+            User.countDocuments({ isBlocked: true }),
+            Order.countDocuments(),
+            Order.countDocuments({ status: 'pending' }),
+            Order.countDocuments({ status: 'confirmed' }),
+            Order.countDocuments({ status: 'delivered' }),
+            Order.countDocuments({ status: 'cancelled' }),
+            Coupon.countDocuments(),
+            Coupon.countDocuments({ isActive: true, validTo: { $gte: new Date() } }),
+            Coupon.countDocuments({ $or: [{ isActive: false }, { validTo: { $lt: new Date() } }] }),
+            Category.countDocuments(),
+            Category.countDocuments({ isActive: true }),
+            Banner.countDocuments(),
+            Banner.countDocuments({ isActive: true }),
+            DeliveryPartner.countDocuments(),
+            DeliveryPartner.countDocuments({ isActive: true }),
+            DeliveryPartner.countDocuments({ isBlocked: true }),
+            DeliveryPartner.countDocuments({ isOnline: true }),
+            DeliveryPartner.countDocuments({ kycStatus: 'pending' }),
+            DeliveryPartner.countDocuments({ kycStatus: 'approved' }),
+            User.countDocuments({ createdAt: { $gte: startDate } }),
+            Order.countDocuments({ createdAt: { $gte: startDate } }),
+            DeliveryPartner.countDocuments({ createdAt: { $gte: startDate } }),
+            Order.aggregate([
+                { $match: { status: 'delivered' } },
+                { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+            ]),
+            Order.aggregate([
+                { $match: { status: 'delivered', createdAt: { $gte: startDate } } },
+                { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+            ]),
+        ]);
 
-        // Generate chart data
-        const userGrowth = [];
+        const totalRevenue = revenueAggregation[0]?.total || 0;
+        const periodRevenue = periodRevenueAggregation[0]?.total || 0;
+
+        // Generate chart data - last 6 months
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const chartPromises = [];
 
         for (let i = 5; i >= 0; i--) {
             const date = new Date();
@@ -279,16 +336,81 @@ const getDashboardAnalytics = async (req, res) => {
             const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
             const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
 
-            const count = await User.countDocuments({
-                createdAt: { $gte: monthStart, $lte: monthEnd }
-            });
-
-            userGrowth.push({
-                name: monthNames[date.getMonth()],
-                users: count,
-                vendors: 0,
-            });
+            chartPromises.push(
+                Promise.all([
+                    User.countDocuments({ createdAt: { $gte: monthStart, $lte: monthEnd } }),
+                    Order.countDocuments({ createdAt: { $gte: monthStart, $lte: monthEnd } }),
+                    DeliveryPartner.countDocuments({ createdAt: { $gte: monthStart, $lte: monthEnd } }),
+                    Order.aggregate([
+                        { $match: { status: 'delivered', createdAt: { $gte: monthStart, $lte: monthEnd } } },
+                        { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+                    ]),
+                ]).then(([users, orders, partners, revenue]) => ({
+                    name: monthNames[date.getMonth()],
+                    users,
+                    orders,
+                    partners,
+                    revenue: revenue[0]?.total || 0,
+                }))
+            );
         }
+
+        const chartData = await Promise.all(chartPromises);
+
+        // Daily data for last 7 days
+        const dailyChartPromises = [];
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        for (let i = 6; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59);
+
+            dailyChartPromises.push(
+                Promise.all([
+                    Order.countDocuments({ createdAt: { $gte: dayStart, $lte: dayEnd } }),
+                    Order.aggregate([
+                        { $match: { status: 'delivered', createdAt: { $gte: dayStart, $lte: dayEnd } } },
+                        { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+                    ]),
+                ]).then(([orders, revenue]) => ({
+                    name: dayNames[date.getDay()],
+                    orders,
+                    revenue: revenue[0]?.total || 0,
+                }))
+            );
+        }
+
+        const dailyData = await Promise.all(dailyChartPromises);
+
+        // Payment method distribution
+        const paymentMethodAgg = await Order.aggregate([
+            { $group: { _id: '$paymentMethod', count: { $sum: 1 } } }
+        ]);
+
+        const paymentColors = { cod: '#f59e0b', online: '#3b82f6', wallet: '#22c55e', upi: '#8b5cf6' };
+        const paymentMethodDistribution = paymentMethodAgg.map(p => ({
+            name: (p._id || 'COD').toUpperCase(),
+            value: p.count,
+            color: paymentColors[p._id] || '#64748b',
+        }));
+
+        // Top categories by orders (if category field exists)
+        const topCategoriesAgg = await Order.aggregate([
+            { $unwind: '$items' },
+            { $group: { _id: '$items.category', count: { $sum: 1 }, revenue: { $sum: '$items.price' } } },
+            { $sort: { count: -1 } },
+            { $limit: 5 }
+        ]).catch(() => []);
+
+        const categoryColors = ['#8b5cf6', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444'];
+        const topCategories = topCategoriesAgg.map((c, i) => ({
+            name: c._id || 'Other',
+            value: c.count,
+            revenue: c.revenue || 0,
+            color: categoryColors[i] || '#64748b',
+        }));
 
         res.json({
             success: true,
@@ -297,46 +419,57 @@ const getDashboardAnalytics = async (req, res) => {
                     totalUsers,
                     activeUsers: totalUsers - blockedUsers,
                     blockedUsers,
-                    totalVendors: 0,
-                    activeVendors: 0,
-                    blockedVendors: 0,
-                    pendingKYC: 0,
-                    verifiedVendors: 0,
-                    totalBookings: 0,
-                    pendingBookings: 0,
-                    confirmedBookings: 0,
-                    completedBookings: 0,
-                    cancelledBookings: 0,
-                    totalRevenue: 0,
-                    totalEvents: 0,
-                    activeEvents: 0,
-                    featuredEvents: 0,
-                    inactiveEvents: 0,
+                    totalOrders,
+                    pendingOrders,
+                    confirmedOrders,
+                    deliveredOrders,
+                    cancelledOrders,
+                    totalRevenue,
+                    totalCoupons,
+                    activeCoupons,
+                    expiredCoupons,
+                    totalCategories,
+                    activeCategories,
+                    totalBanners,
+                    activeBanners,
+                    totalDeliveryPartners,
+                    activeDeliveryPartners,
+                    blockedDeliveryPartners,
+                    onlineDeliveryPartners,
+                    pendingKycPartners,
+                    approvedKycPartners,
                 },
                 periodStats: {
                     users: periodUsers,
-                    vendors: 0,
-                    bookings: 0,
-                    events: 0,
-                    revenue: 0,
+                    orders: periodOrders,
+                    deliveryPartners: periodDeliveryPartners,
+                    revenue: periodRevenue,
                     filter,
                 },
                 charts: {
-                    userGrowth,
-                    bookingStatusDistribution: [
-                        { name: 'Pending', value: 0, color: '#f59e0b' },
-                        { name: 'Confirmed', value: 0, color: '#3b82f6' },
-                        { name: 'Completed', value: 0, color: '#22c55e' },
-                        { name: 'Cancelled', value: 0, color: '#ef4444' },
+                    monthlyGrowth: chartData,
+                    dailyOrders: dailyData,
+                    orderStatusDistribution: [
+                        { name: 'Pending', value: pendingOrders, color: '#f59e0b' },
+                        { name: 'Confirmed', value: confirmedOrders, color: '#3b82f6' },
+                        { name: 'Delivered', value: deliveredOrders, color: '#22c55e' },
+                        { name: 'Cancelled', value: cancelledOrders, color: '#ef4444' },
                     ],
-                    vendorKycDistribution: [
-                        { name: 'Verified', value: 0, color: '#22c55e' },
-                        { name: 'Pending', value: 0, color: '#f59e0b' },
-                        { name: 'Rejected', value: 0, color: '#ef4444' },
+                    deliveryPartnerStatus: [
+                        { name: 'Active', value: activeDeliveryPartners, color: '#22c55e' },
+                        { name: 'Online', value: onlineDeliveryPartners, color: '#3b82f6' },
+                        { name: 'Blocked', value: blockedDeliveryPartners, color: '#ef4444' },
+                        { name: 'Pending KYC', value: pendingKycPartners, color: '#f59e0b' },
                     ],
-                    revenueTrend: userGrowth.map(item => ({ name: item.name, revenue: 0 })),
-                    bookingsTrend: userGrowth.map(item => ({ name: item.name, bookings: 0 })),
-                    eventsTrend: userGrowth.map(item => ({ name: item.name, events: 0 })),
+                    paymentMethodDistribution: paymentMethodDistribution.length ? paymentMethodDistribution : [
+                        { name: 'COD', value: 0, color: '#f59e0b' },
+                        { name: 'Online', value: 0, color: '#3b82f6' },
+                    ],
+                    topCategories: topCategories.length ? topCategories : [],
+                    couponStatus: [
+                        { name: 'Active', value: activeCoupons, color: '#22c55e' },
+                        { name: 'Expired', value: expiredCoupons, color: '#ef4444' },
+                    ],
                 },
             },
         });
