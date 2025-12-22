@@ -224,7 +224,7 @@ export function DashboardPage() {
                 <div>
                     <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
                     <p className="text-muted-foreground text-sm mt-0.5">
-                        Welcome to The Art Of भ ओ ज न Admin Panel
+                        Welcome to The Art Of भ ओ जन Admin Panel
                     </p>
                 </div>
 

@@ -256,8 +256,72 @@ export function CategoriesPage() {
                 </div>
             </div>
 
-            {/* Table */}
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
+            {/* Mobile Cards */}
+            <div className="md:hidden space-y-3">
+                {loading ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="bg-card border border-border rounded-xl p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="skeleton w-12 h-12 rounded-lg" />
+                                <div className="flex-1 space-y-2">
+                                    <div className="skeleton h-4 w-24 rounded" />
+                                    <div className="skeleton h-3 w-16 rounded" />
+                                </div>
+                            </div>
+                        </div>
+                    ))
+                ) : categories.length === 0 ? (
+                    <div className="bg-card border border-border rounded-xl p-8 text-center">
+                        <FolderOpen className="w-10 h-10 mx-auto text-muted-foreground/50 mb-2" />
+                        <p className="text-sm text-muted-foreground">No categories found</p>
+                    </div>
+                ) : (
+                    categories.map((category) => (
+                        <div key={category._id} className="bg-card border border-border rounded-xl p-4">
+                            <div className="flex items-center gap-3">
+                                {category.image ? (
+                                    <img src={category.image} alt={category.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                                ) : (
+                                    <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: category.color || '#DCFCE7' }}>
+                                        <FolderOpen className="w-6 h-6 text-gray-700" />
+                                    </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-foreground">{category.name}</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className={cn('px-2 py-0.5 text-xs font-medium rounded-full', category.isActive ? 'bg-success/20 text-success' : 'bg-muted text-muted-foreground')}>
+                                            {category.isActive ? 'Active' : 'Inactive'}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">{category.itemsCount || 0} items</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => handleToggleStatus(category._id)}
+                                        disabled={toggleLoading === category._id}
+                                        className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
+                                    >
+                                        {toggleLoading === category._id ? <Loader2 className="w-4 h-4 animate-spin" /> : category.isActive ? <ToggleRight className="w-4 h-4 text-success" /> : <ToggleLeft className="w-4 h-4 text-muted-foreground" />}
+                                    </button>
+                                    <button onClick={() => handleOpenModal(category)} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+                                        <Edit2 className="w-4 h-4 text-primary" />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(category._id)}
+                                        disabled={deleteLoading === category._id}
+                                        className="p-1.5 rounded-lg hover:bg-destructive/20 transition-colors disabled:opacity-50"
+                                    >
+                                        {deleteLoading === category._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 text-destructive" />}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block bg-card border border-border rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead className="bg-muted/50">
@@ -292,16 +356,9 @@ export function CategoriesPage() {
                                     <tr key={category._id} className="hover:bg-muted/30 transition-colors">
                                         <td className="px-4 py-3">
                                             {category.image ? (
-                                                <img
-                                                    src={category.image}
-                                                    alt={category.name}
-                                                    className="w-10 h-10 rounded-lg object-cover"
-                                                />
+                                                <img src={category.image} alt={category.name} className="w-10 h-10 rounded-lg object-cover" />
                                             ) : (
-                                                <div
-                                                    className="w-10 h-10 rounded-lg flex items-center justify-center"
-                                                    style={{ backgroundColor: category.color || '#DCFCE7' }}
-                                                >
+                                                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: category.color || '#DCFCE7' }}>
                                                     <FolderOpen className="w-5 h-5 text-gray-700" />
                                                 </div>
                                             )}
@@ -310,31 +367,18 @@ export function CategoriesPage() {
                                             <span className="text-sm font-medium text-foreground">{category.name}</span>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <div
-                                                className="w-6 h-6 rounded-full border border-border"
-                                                style={{ backgroundColor: category.color || '#DCFCE7' }}
-                                                title={category.color}
-                                            />
+                                            <div className="w-6 h-6 rounded-full border border-border" style={{ backgroundColor: category.color || '#DCFCE7' }} title={category.color} />
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className="text-sm text-muted-foreground">{category.itemsCount || 0}</span>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <span
-                                                className={cn(
-                                                    'px-2 py-1 text-xs font-medium rounded-full',
-                                                    category.isActive
-                                                        ? 'bg-success/20 text-success'
-                                                        : 'bg-muted text-muted-foreground'
-                                                )}
-                                            >
+                                            <span className={cn('px-2 py-1 text-xs font-medium rounded-full', category.isActive ? 'bg-success/20 text-success' : 'bg-muted text-muted-foreground')}>
                                                 {category.isActive ? 'Active' : 'Inactive'}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <span className="text-sm text-muted-foreground">
-                                                {new Date(category.createdAt).toLocaleDateString()}
-                                            </span>
+                                            <span className="text-sm text-muted-foreground">{new Date(category.createdAt).toLocaleDateString()}</span>
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-1">
@@ -344,19 +388,9 @@ export function CategoriesPage() {
                                                     className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
                                                     title={category.isActive ? 'Deactivate' : 'Activate'}
                                                 >
-                                                    {toggleLoading === category._id ? (
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                    ) : category.isActive ? (
-                                                        <ToggleRight className="w-4 h-4 text-success" />
-                                                    ) : (
-                                                        <ToggleLeft className="w-4 h-4 text-muted-foreground" />
-                                                    )}
+                                                    {toggleLoading === category._id ? <Loader2 className="w-4 h-4 animate-spin" /> : category.isActive ? <ToggleRight className="w-4 h-4 text-success" /> : <ToggleLeft className="w-4 h-4 text-muted-foreground" />}
                                                 </button>
-                                                <button
-                                                    onClick={() => handleOpenModal(category)}
-                                                    className="p-1.5 rounded-lg hover:bg-muted transition-colors"
-                                                    title="Edit"
-                                                >
+                                                <button onClick={() => handleOpenModal(category)} className="p-1.5 rounded-lg hover:bg-muted transition-colors" title="Edit">
                                                     <Edit2 className="w-4 h-4 text-primary" />
                                                 </button>
                                                 <button
@@ -365,11 +399,7 @@ export function CategoriesPage() {
                                                     className="p-1.5 rounded-lg hover:bg-destructive/20 transition-colors disabled:opacity-50"
                                                     title="Delete"
                                                 >
-                                                    {deleteLoading === category._id ? (
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                    ) : (
-                                                        <Trash2 className="w-4 h-4 text-destructive" />
-                                                    )}
+                                                    {deleteLoading === category._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 text-destructive" />}
                                                 </button>
                                             </div>
                                         </td>
@@ -379,58 +409,53 @@ export function CategoriesPage() {
                         </tbody>
                     </table>
                 </div>
-
-                {/* Pagination */}
-                {pagination && pagination.pages > 1 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-                        <p className="text-xs text-muted-foreground">
-                            Showing {((page - 1) * pagination.limit) + 1} to {Math.min(page * pagination.limit, pagination.total)} of {pagination.total}
-                        </p>
-                        <div className="flex items-center gap-1">
-                            <button
-                                onClick={() => setPage(p => Math.max(1, p - 1))}
-                                disabled={page === 1}
-                                className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <ChevronLeft className="w-4 h-4" />
-                            </button>
-                            {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
-                                let pageNum: number
-                                if (pagination.pages <= 5) {
-                                    pageNum = i + 1
-                                } else if (page <= 3) {
-                                    pageNum = i + 1
-                                } else if (page >= pagination.pages - 2) {
-                                    pageNum = pagination.pages - 4 + i
-                                } else {
-                                    pageNum = page - 2 + i
-                                }
-                                return (
-                                    <button
-                                        key={pageNum}
-                                        onClick={() => setPage(pageNum)}
-                                        className={cn(
-                                            'w-8 h-8 rounded-lg text-xs font-medium transition-colors',
-                                            page === pageNum
-                                                ? 'bg-primary text-primary-foreground'
-                                                : 'hover:bg-muted'
-                                        )}
-                                    >
-                                        {pageNum}
-                                    </button>
-                                )
-                            })}
-                            <button
-                                onClick={() => setPage(p => Math.min(pagination.pages, p + 1))}
-                                disabled={page === pagination.pages}
-                                className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <ChevronRight className="w-4 h-4" />
-                            </button>
-                        </div>
-                    </div>
-                )}
             </div>
+
+            {/* Pagination */}
+            {pagination && pagination.pages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1">
+                    <p className="text-xs text-muted-foreground">
+                        Showing {((page - 1) * pagination.limit) + 1} to {Math.min(page * pagination.limit, pagination.total)} of {pagination.total}
+                    </p>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                            className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
+                            let pageNum: number
+                            if (pagination.pages <= 5) {
+                                pageNum = i + 1
+                            } else if (page <= 3) {
+                                pageNum = i + 1
+                            } else if (page >= pagination.pages - 2) {
+                                pageNum = pagination.pages - 4 + i
+                            } else {
+                                pageNum = page - 2 + i
+                            }
+                            return (
+                                <button
+                                    key={pageNum}
+                                    onClick={() => setPage(pageNum)}
+                                    className={cn('w-8 h-8 rounded-lg text-xs font-medium transition-colors', page === pageNum ? 'bg-primary text-primary-foreground' : 'hover:bg-muted')}
+                                >
+                                    {pageNum}
+                                </button>
+                            )
+                        })}
+                        <button
+                            onClick={() => setPage(p => Math.min(pagination.pages, p + 1))}
+                            disabled={page === pagination.pages}
+                            className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Modal */}
             {showModal && (

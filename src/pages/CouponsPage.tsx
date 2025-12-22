@@ -556,8 +556,89 @@ export function CouponsPage() {
                 </select>
             </div>
 
-            {/* Table */}
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
+            {/* Mobile Cards */}
+            <div className="md:hidden space-y-3">
+                {isLoading ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="bg-card border border-border rounded-xl p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="skeleton h-6 w-24 rounded" />
+                                <div className="skeleton h-6 w-16 rounded-full" />
+                            </div>
+                            <div className="skeleton h-4 w-32 rounded" />
+                        </div>
+                    ))
+                ) : coupons.length === 0 ? (
+                    <div className="bg-card border border-border rounded-xl p-8 text-center">
+                        <Ticket className="w-10 h-10 mx-auto text-muted-foreground/50 mb-2" />
+                        <p className="text-sm text-muted-foreground">No coupons found</p>
+                    </div>
+                ) : (
+                    coupons.map((coupon) => {
+                        const expired = isExpired(coupon.validUntil)
+                        return (
+                            <div key={coupon._id} className="bg-card border border-border rounded-xl p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-mono font-bold text-primary bg-primary/10 px-2 py-1 rounded-lg text-sm">
+                                                {coupon.code}
+                                            </span>
+                                            <button onClick={() => handleCopyCode(coupon.code)} className="p-1 hover:bg-muted rounded transition-colors">
+                                                <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-2 text-sm">
+                                            {coupon.discountType === 'percentage' ? (
+                                                <span className="font-semibold text-success">{coupon.discountValue}% off</span>
+                                            ) : (
+                                                <span className="font-semibold text-success">₹{coupon.discountValue} off</span>
+                                            )}
+                                            {coupon.maxDiscount && <span className="text-xs text-muted-foreground">(max ₹{coupon.maxDiscount})</span>}
+                                        </div>
+                                    </div>
+                                    {expired ? (
+                                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-destructive/10 text-destructive flex-shrink-0">Expired</span>
+                                    ) : coupon.isActive ? (
+                                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-success/10 text-success flex-shrink-0">Active</span>
+                                    ) : (
+                                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-muted text-muted-foreground flex-shrink-0">Inactive</span>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground flex-wrap">
+                                    <span>Min: {coupon.minOrderValue > 0 ? formatCurrency(coupon.minOrderValue) : 'None'}</span>
+                                    <span>•</span>
+                                    <span>Until: {formatDate(coupon.validUntil)}</span>
+                                    <span>•</span>
+                                    <span>Used: {coupon.usedCount}{coupon.usageLimit ? `/${coupon.usageLimit}` : ''}</span>
+                                </div>
+                                <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-border">
+                                    <button
+                                        onClick={() => handleToggleStatus(coupon._id)}
+                                        disabled={toggleLoading === coupon._id || expired}
+                                        className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
+                                    >
+                                        {toggleLoading === coupon._id ? <Loader2 className="w-4 h-4 animate-spin" /> : coupon.isActive ? <ToggleRight className="w-4 h-4 text-success" /> : <ToggleLeft className="w-4 h-4 text-muted-foreground" />}
+                                    </button>
+                                    <button onClick={() => handleOpenModal(coupon)} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+                                        <Edit2 className="w-4 h-4 text-primary" />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(coupon._id)}
+                                        disabled={deleteLoading === coupon._id}
+                                        className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                                    >
+                                        {deleteLoading === coupon._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 text-destructive" />}
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    })
+                )}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block bg-card border border-border rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead className="bg-muted/50 border-b border-border">
@@ -589,14 +670,8 @@ export function CouponsPage() {
                                         <tr key={coupon._id} className="border-b border-border hover:bg-muted/30 transition-colors">
                                             <td className="p-4">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="font-mono font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-lg">
-                                                        {coupon.code}
-                                                    </span>
-                                                    <button
-                                                        onClick={() => handleCopyCode(coupon.code)}
-                                                        className="p-1.5 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground"
-                                                        title="Copy code"
-                                                    >
+                                                    <span className="font-mono font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-lg">{coupon.code}</span>
+                                                    <button onClick={() => handleCopyCode(coupon.code)} className="p-1.5 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground" title="Copy code">
                                                         <Copy className="w-4 h-4" />
                                                     </button>
                                                 </div>
@@ -614,48 +689,35 @@ export function CouponsPage() {
                                                             <span className="font-semibold text-foreground">{coupon.discountValue}</span>
                                                         </>
                                                     )}
-                                                    {coupon.maxDiscount && (
-                                                        <span className="text-xs text-muted-foreground ml-1">(max ₹{coupon.maxDiscount})</span>
-                                                    )}
+                                                    {coupon.maxDiscount && <span className="text-xs text-muted-foreground ml-1">(max ₹{coupon.maxDiscount})</span>}
                                                 </div>
                                             </td>
-                                            <td className="p-4 text-muted-foreground">
-                                                {coupon.minOrderValue > 0 ? formatCurrency(coupon.minOrderValue) : 'None'}
-                                            </td>
+                                            <td className="p-4 text-muted-foreground">{coupon.minOrderValue > 0 ? formatCurrency(coupon.minOrderValue) : 'None'}</td>
                                             <td className="p-4">
                                                 <div className="flex items-center gap-1.5 text-sm">
                                                     <Calendar className="w-4 h-4 text-muted-foreground" />
-                                                    <span className={cn(expired && 'text-destructive')}>
-                                                        {formatDate(coupon.validUntil)}
-                                                    </span>
+                                                    <span className={cn(expired && 'text-destructive')}>{formatDate(coupon.validUntil)}</span>
                                                 </div>
                                             </td>
                                             <td className="p-4">
-                                                <span className="text-sm text-muted-foreground">
-                                                    {coupon.usedCount}{coupon.usageLimit ? `/${coupon.usageLimit}` : ''}
-                                                </span>
+                                                <span className="text-sm text-muted-foreground">{coupon.usedCount}{coupon.usageLimit ? `/${coupon.usageLimit}` : ''}</span>
                                             </td>
                                             <td className="p-4">
                                                 {expired ? (
                                                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full bg-destructive/10 text-destructive">
-                                                        <Clock className="w-3.5 h-3.5" />
-                                                        Expired
+                                                        <Clock className="w-3.5 h-3.5" />Expired
                                                     </span>
                                                 ) : coupon.isActive ? (
                                                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full bg-success/10 text-success">
-                                                        <CheckCircle className="w-3.5 h-3.5" />
-                                                        Active
+                                                        <CheckCircle className="w-3.5 h-3.5" />Active
                                                     </span>
                                                 ) : (
                                                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
-                                                        <XCircle className="w-3.5 h-3.5" />
-                                                        Inactive
+                                                        <XCircle className="w-3.5 h-3.5" />Inactive
                                                     </span>
                                                 )}
                                             </td>
-                                            <td className="p-4 text-muted-foreground text-sm">
-                                                {formatDate(coupon.createdAt)}
-                                            </td>
+                                            <td className="p-4 text-muted-foreground text-sm">{formatDate(coupon.createdAt)}</td>
                                             <td className="p-4">
                                                 <div className="flex items-center gap-1">
                                                     <button
@@ -664,19 +726,9 @@ export function CouponsPage() {
                                                         className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
                                                         title={coupon.isActive ? 'Deactivate' : 'Activate'}
                                                     >
-                                                        {toggleLoading === coupon._id ? (
-                                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                                        ) : coupon.isActive ? (
-                                                            <ToggleRight className="w-4 h-4 text-success" />
-                                                        ) : (
-                                                            <ToggleLeft className="w-4 h-4 text-muted-foreground" />
-                                                        )}
+                                                        {toggleLoading === coupon._id ? <Loader2 className="w-4 h-4 animate-spin" /> : coupon.isActive ? <ToggleRight className="w-4 h-4 text-success" /> : <ToggleLeft className="w-4 h-4 text-muted-foreground" />}
                                                     </button>
-                                                    <button
-                                                        onClick={() => handleOpenModal(coupon)}
-                                                        className="p-1.5 rounded-lg hover:bg-muted transition-colors"
-                                                        title="Edit"
-                                                    >
+                                                    <button onClick={() => handleOpenModal(coupon)} className="p-1.5 rounded-lg hover:bg-muted transition-colors" title="Edit">
                                                         <Edit2 className="w-4 h-4 text-primary" />
                                                     </button>
                                                     <button
@@ -685,11 +737,7 @@ export function CouponsPage() {
                                                         className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors disabled:opacity-50"
                                                         title="Delete"
                                                     >
-                                                        {deleteLoading === coupon._id ? (
-                                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                                        ) : (
-                                                            <Trash2 className="w-4 h-4 text-destructive" />
-                                                        )}
+                                                        {deleteLoading === coupon._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 text-destructive" />}
                                                     </button>
                                                 </div>
                                             </td>
@@ -700,35 +748,35 @@ export function CouponsPage() {
                         </tbody>
                     </table>
                 </div>
-
-                {/* Pagination */}
-                {pagination && pagination.pages > 1 && (
-                    <div className="flex items-center justify-between p-4 border-t border-border">
-                        <p className="text-muted-foreground">
-                            Showing {(pagination.page - 1) * pagination.limit + 1} - {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} coupons
-                        </p>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => fetchCoupons(pagination.page - 1)}
-                                disabled={pagination.page === 1 || isLoading}
-                                className="p-2.5 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <ChevronLeft className="w-5 h-5" />
-                            </button>
-                            <span className="px-4 py-2 bg-muted rounded-lg font-medium">
-                                {pagination.page} / {pagination.pages}
-                            </span>
-                            <button
-                                onClick={() => fetchCoupons(pagination.page + 1)}
-                                disabled={pagination.page === pagination.pages || isLoading}
-                                className="p-2.5 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <ChevronRight className="w-5 h-5" />
-                            </button>
-                        </div>
-                    </div>
-                )}
             </div>
+
+            {/* Pagination */}
+            {pagination && pagination.pages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1">
+                    <p className="text-xs text-muted-foreground">
+                        Showing {(pagination.page - 1) * pagination.limit + 1} - {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => fetchCoupons(pagination.page - 1)}
+                            disabled={pagination.page === 1 || isLoading}
+                            className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <span className="px-3 py-1.5 bg-muted rounded-lg text-sm font-medium">
+                            {pagination.page} / {pagination.pages}
+                        </span>
+                        <button
+                            onClick={() => fetchCoupons(pagination.page + 1)}
+                            disabled={pagination.page === pagination.pages || isLoading}
+                            className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Modal */}
             <CouponModal

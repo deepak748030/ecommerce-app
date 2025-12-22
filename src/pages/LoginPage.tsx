@@ -104,7 +104,7 @@ export function LoginPage() {
 
                     {/* Footer */}
                     <div className="text-sm text-white/60">
-                        © 2024 The Art Of भ ओ जन. All rights reserved.
+                        © 2025 The Art Of भ ओ जन. All rights reserved.
                     </div>
                 </div>
             </div>

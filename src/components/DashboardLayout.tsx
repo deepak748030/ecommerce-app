@@ -1,4 +1,4 @@
-// File: src/components/DashboardLayout.tsx
+// File: src/components/DashboardLayout.tsx 2024
 import { useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {

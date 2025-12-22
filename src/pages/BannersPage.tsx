@@ -338,8 +338,101 @@ export function BannersPage() {
                 </div>
             </div>
 
-            {/* Table */}
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
+            {/* Mobile Cards */}
+            <div className="md:hidden space-y-3">
+                {loading ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="bg-card border border-border rounded-xl p-4">
+                            <div className="flex gap-3">
+                                <div className="skeleton w-20 h-14 rounded-lg" />
+                                <div className="flex-1 space-y-2">
+                                    <div className="skeleton h-4 w-32 rounded" />
+                                    <div className="skeleton h-3 w-24 rounded" />
+                                </div>
+                            </div>
+                        </div>
+                    ))
+                ) : banners.length === 0 ? (
+                    <div className="bg-card border border-border rounded-xl p-8 text-center">
+                        <ImageIcon className="w-10 h-10 mx-auto text-muted-foreground/50 mb-2" />
+                        <p className="text-sm text-muted-foreground">No banners found</p>
+                    </div>
+                ) : (
+                    banners.map((banner) => (
+                        <div key={banner._id} className="bg-card border border-border rounded-xl p-4">
+                            <div className="flex gap-3">
+                                <div
+                                    className="w-20 h-14 rounded-lg overflow-hidden flex-shrink-0"
+                                    style={{
+                                        background: banner.gradient
+                                            ? `linear-gradient(135deg, ${banner.gradient[0]}, ${banner.gradient[1]})`
+                                            : '#22C55E'
+                                    }}
+                                >
+                                    {banner.image && (
+                                        <img src={banner.image} alt={banner.title} className="w-full h-full object-cover" />
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-foreground truncate">{banner.title}</p>
+                                    {banner.subtitle && (
+                                        <p className="text-xs text-muted-foreground truncate">{banner.subtitle}</p>
+                                    )}
+                                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                        <span className={cn(
+                                            'px-2 py-0.5 text-xs font-medium rounded-full',
+                                            banner.isActive ? 'bg-success/20 text-success' : 'bg-muted text-muted-foreground'
+                                        )}>
+                                            {banner.isActive ? 'Active' : 'Inactive'}
+                                        </span>
+                                        {banner.badge && (
+                                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-primary/20 text-primary">
+                                                {banner.badge}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                    <Tag className="w-3.5 h-3.5" />
+                                    <span>{banner.linkValue ? getCategoryName(banner.linkValue) : '—'}</span>
+                                    <span className="mx-1">•</span>
+                                    <span>Order: {banner.order}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={() => handleToggleStatus(banner._id)}
+                                        disabled={toggleLoading === banner._id}
+                                        className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
+                                    >
+                                        {toggleLoading === banner._id ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : banner.isActive ? (
+                                            <ToggleRight className="w-4 h-4 text-success" />
+                                        ) : (
+                                            <ToggleLeft className="w-4 h-4 text-muted-foreground" />
+                                        )}
+                                    </button>
+                                    <button onClick={() => handleOpenModal(banner)} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+                                        <Edit2 className="w-4 h-4 text-primary" />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(banner._id)}
+                                        disabled={deleteLoading === banner._id}
+                                        className="p-1.5 rounded-lg hover:bg-destructive/20 transition-colors disabled:opacity-50"
+                                    >
+                                        {deleteLoading === banner._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 text-destructive" />}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block bg-card border border-border rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full">
                         <thead className="bg-muted/50">
@@ -382,27 +475,19 @@ export function BannersPage() {
                                                 }}
                                             >
                                                 {banner.image && (
-                                                    <img
-                                                        src={banner.image}
-                                                        alt={banner.title}
-                                                        className="w-full h-full object-cover"
-                                                    />
+                                                    <img src={banner.image} alt={banner.title} className="w-full h-full object-cover" />
                                                 )}
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
                                             <div>
                                                 <span className="text-sm font-medium text-foreground block">{banner.title}</span>
-                                                {banner.subtitle && (
-                                                    <span className="text-xs text-muted-foreground">{banner.subtitle}</span>
-                                                )}
+                                                {banner.subtitle && <span className="text-xs text-muted-foreground">{banner.subtitle}</span>}
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
                                             {banner.badge ? (
-                                                <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/20 text-primary">
-                                                    {banner.badge}
-                                                </span>
+                                                <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/20 text-primary">{banner.badge}</span>
                                             ) : (
                                                 <span className="text-xs text-muted-foreground">—</span>
                                             )}
@@ -410,20 +495,11 @@ export function BannersPage() {
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-1.5">
                                                 <Tag className="w-3.5 h-3.5 text-muted-foreground" />
-                                                <span className="text-sm text-muted-foreground">
-                                                    {banner.linkValue ? getCategoryName(banner.linkValue) : '—'}
-                                                </span>
+                                                <span className="text-sm text-muted-foreground">{banner.linkValue ? getCategoryName(banner.linkValue) : '—'}</span>
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <span
-                                                className={cn(
-                                                    'px-2 py-1 text-xs font-medium rounded-full',
-                                                    banner.isActive
-                                                        ? 'bg-success/20 text-success'
-                                                        : 'bg-muted text-muted-foreground'
-                                                )}
-                                            >
+                                            <span className={cn('px-2 py-1 text-xs font-medium rounded-full', banner.isActive ? 'bg-success/20 text-success' : 'bg-muted text-muted-foreground')}>
                                                 {banner.isActive ? 'Active' : 'Inactive'}
                                             </span>
                                         </td>
@@ -441,19 +517,9 @@ export function BannersPage() {
                                                     className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
                                                     title={banner.isActive ? 'Deactivate' : 'Activate'}
                                                 >
-                                                    {toggleLoading === banner._id ? (
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                    ) : banner.isActive ? (
-                                                        <ToggleRight className="w-4 h-4 text-success" />
-                                                    ) : (
-                                                        <ToggleLeft className="w-4 h-4 text-muted-foreground" />
-                                                    )}
+                                                    {toggleLoading === banner._id ? <Loader2 className="w-4 h-4 animate-spin" /> : banner.isActive ? <ToggleRight className="w-4 h-4 text-success" /> : <ToggleLeft className="w-4 h-4 text-muted-foreground" />}
                                                 </button>
-                                                <button
-                                                    onClick={() => handleOpenModal(banner)}
-                                                    className="p-1.5 rounded-lg hover:bg-muted transition-colors"
-                                                    title="Edit"
-                                                >
+                                                <button onClick={() => handleOpenModal(banner)} className="p-1.5 rounded-lg hover:bg-muted transition-colors" title="Edit">
                                                     <Edit2 className="w-4 h-4 text-primary" />
                                                 </button>
                                                 <button
@@ -462,11 +528,7 @@ export function BannersPage() {
                                                     className="p-1.5 rounded-lg hover:bg-destructive/20 transition-colors disabled:opacity-50"
                                                     title="Delete"
                                                 >
-                                                    {deleteLoading === banner._id ? (
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                    ) : (
-                                                        <Trash2 className="w-4 h-4 text-destructive" />
-                                                    )}
+                                                    {deleteLoading === banner._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 text-destructive" />}
                                                 </button>
                                             </div>
                                         </td>
@@ -476,58 +538,53 @@ export function BannersPage() {
                         </tbody>
                     </table>
                 </div>
-
-                {/* Pagination */}
-                {pagination && pagination.pages > 1 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-                        <p className="text-xs text-muted-foreground">
-                            Showing {((page - 1) * pagination.limit) + 1} to {Math.min(page * pagination.limit, pagination.total)} of {pagination.total}
-                        </p>
-                        <div className="flex items-center gap-1">
-                            <button
-                                onClick={() => setPage(p => Math.max(1, p - 1))}
-                                disabled={page === 1}
-                                className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <ChevronLeft className="w-4 h-4" />
-                            </button>
-                            {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
-                                let pageNum: number
-                                if (pagination.pages <= 5) {
-                                    pageNum = i + 1
-                                } else if (page <= 3) {
-                                    pageNum = i + 1
-                                } else if (page >= pagination.pages - 2) {
-                                    pageNum = pagination.pages - 4 + i
-                                } else {
-                                    pageNum = page - 2 + i
-                                }
-                                return (
-                                    <button
-                                        key={pageNum}
-                                        onClick={() => setPage(pageNum)}
-                                        className={cn(
-                                            'w-8 h-8 rounded-lg text-sm font-medium transition-colors',
-                                            page === pageNum
-                                                ? 'bg-primary text-primary-foreground'
-                                                : 'hover:bg-muted'
-                                        )}
-                                    >
-                                        {pageNum}
-                                    </button>
-                                )
-                            })}
-                            <button
-                                onClick={() => setPage(p => Math.min(pagination.pages, p + 1))}
-                                disabled={page === pagination.pages}
-                                className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <ChevronRight className="w-4 h-4" />
-                            </button>
-                        </div>
-                    </div>
-                )}
             </div>
+
+            {/* Pagination */}
+            {pagination && pagination.pages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1">
+                    <p className="text-xs text-muted-foreground">
+                        Showing {((page - 1) * pagination.limit) + 1} to {Math.min(page * pagination.limit, pagination.total)} of {pagination.total}
+                    </p>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                            className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
+                            let pageNum: number
+                            if (pagination.pages <= 5) {
+                                pageNum = i + 1
+                            } else if (page <= 3) {
+                                pageNum = i + 1
+                            } else if (page >= pagination.pages - 2) {
+                                pageNum = pagination.pages - 4 + i
+                            } else {
+                                pageNum = page - 2 + i
+                            }
+                            return (
+                                <button
+                                    key={pageNum}
+                                    onClick={() => setPage(pageNum)}
+                                    className={cn('w-8 h-8 rounded-lg text-sm font-medium transition-colors', page === pageNum ? 'bg-primary text-primary-foreground' : 'hover:bg-muted')}
+                                >
+                                    {pageNum}
+                                </button>
+                            )
+                        })}
+                        <button
+                            onClick={() => setPage(p => Math.min(pagination.pages, p + 1))}
+                            disabled={page === pagination.pages}
+                            className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Modal */}
             {showModal && (
