@@ -120,23 +120,32 @@ exports.getProductReviews = async (req, res) => {
 
         const total = await Review.countDocuments({ product: productId });
 
-        // Get rating distribution
-        const distribution = await Review.aggregate([
-            { $match: { product: require('mongoose').Types.ObjectId(productId) } },
+        // Get rating distribution using aggregation
+        const mongoose = require('mongoose');
+        const productObjectId = new mongoose.Types.ObjectId(productId);
+
+        const distributionResult = await Review.aggregate([
+            { $match: { product: productObjectId } },
             {
                 $group: {
-                    _id: '$rating',
-                    count: { $sum: 1 },
+                    _id: null,
+                    rating5: { $sum: { $cond: [{ $eq: ['$rating', 5] }, 1, 0] } },
+                    rating4: { $sum: { $cond: [{ $eq: ['$rating', 4] }, 1, 0] } },
+                    rating3: { $sum: { $cond: [{ $eq: ['$rating', 3] }, 1, 0] } },
+                    rating2: { $sum: { $cond: [{ $eq: ['$rating', 2] }, 1, 0] } },
+                    rating1: { $sum: { $cond: [{ $eq: ['$rating', 1] }, 1, 0] } },
                 }
             }
         ]);
 
+        const stats = distributionResult[0] || {};
         const ratingDistribution = {
-            5: 0, 4: 0, 3: 0, 2: 0, 1: 0
+            5: stats.rating5 || 0,
+            4: stats.rating4 || 0,
+            3: stats.rating3 || 0,
+            2: stats.rating2 || 0,
+            1: stats.rating1 || 0
         };
-        distribution.forEach(d => {
-            ratingDistribution[d._id] = d.count;
-        });
 
         res.json({
             success: true,
