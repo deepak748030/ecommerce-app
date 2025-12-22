@@ -10,8 +10,7 @@ export function PrivacyPolicyPage() {
                         <Shield className="w-5 h-5 text-primary" />
                     </div>
                     <div>
-                        <h1 className="text-lg font-bold text-foreground">भ ओ जन - Privacy Policy</h1>
-                        <p className="text-xs text-muted-foreground">Bhaojan E-commerce & Delivery Apps</p>
+                        <h1 className="text-lg font-bold text-foreground">The Art Of भ ओ जन - Privacy Policy</h1>
                     </div>
                 </div>
             </header>
@@ -24,7 +23,7 @@ export function PrivacyPolicyPage() {
                     </div>
                     <h2 className="text-2xl font-bold text-foreground mb-2">Your Privacy Matters</h2>
                     <p className="text-muted-foreground max-w-2xl mx-auto">
-                        At भ ओ जन (Bhaojan), we are committed to protecting your personal information.
+                        At The Art Of भ ओ जन, we are committed to protecting your personal information.
                         This Privacy Policy explains how we collect, use, disclose, and safeguard your information
                         when you use our mobile applications and services.
                     </p>
@@ -38,13 +37,13 @@ export function PrivacyPolicyPage() {
                     <h3 className="text-lg font-semibold text-foreground mb-4">Applications Covered by This Policy</h3>
                     <div className="grid md:grid-cols-2 gap-4">
                         <div className="bg-background rounded-lg p-4 border border-border">
-                            <h4 className="font-medium text-foreground mb-2">भ ओ जन E-commerce App</h4>
+                            <h4 className="font-medium text-foreground mb-2">The Art Of भ ओ जन E-commerce App</h4>
                             <p className="text-sm text-muted-foreground">
                                 Customer-facing app for browsing products, placing orders, and managing purchases.
                             </p>
                         </div>
                         <div className="bg-background rounded-lg p-4 border border-border">
-                            <h4 className="font-medium text-foreground mb-2">भ ओ जन Delivery Partner App</h4>
+                            <h4 className="font-medium text-foreground mb-2">The Art Of भ ओ जन Delivery Partner App</h4>
                             <p className="text-sm text-muted-foreground">
                                 Delivery partner app for managing deliveries, earnings, and order fulfillment.
                             </p>
@@ -74,8 +73,6 @@ export function PrivacyPolicyPage() {
                                     <ul className="list-disc list-inside text-muted-foreground space-y-1 text-sm">
                                         <li>Identity documents: Aadhaar Card, PAN Card, Driving License</li>
                                         <li>Vehicle information: Registration number, type, and photos</li>
-                                        <li>Bank account details for earnings transfer</li>
-                                        <li>Real-time GPS location during active deliveries</li>
                                     </ul>
                                 </div>
                                 <div>
@@ -120,7 +117,7 @@ export function PrivacyPolicyPage() {
                                     <strong className="text-foreground">For Customers:</strong> We collect location data to provide accurate delivery addresses and show nearby vendors/products.
                                 </p>
                                 <p className="text-sm text-muted-foreground">
-                                    <strong className="text-foreground">For Delivery Partners:</strong> We collect real-time GPS location only when you are online and available for deliveries. This is used to:
+                                    <strong className="text-foreground">For Delivery Partners:</strong> We collect location data when you are online and available for deliveries. This is used to:
                                 </p>
                                 <ul className="list-disc list-inside text-muted-foreground space-y-1 text-sm ml-4">
                                     <li>Assign nearby delivery orders efficiently</li>
@@ -272,7 +269,7 @@ export function PrivacyPolicyPage() {
                                     <li>Cloud hosting providers</li>
                                 </ul>
                                 <p className="text-sm text-muted-foreground">
-                                    These third parties have their own privacy policies. We recommend reviewing their policies for more information.
+                                    These third-party services have their own privacy policies. We encourage you to review their policies.
                                 </p>
                             </div>
                         }
@@ -284,79 +281,65 @@ export function PrivacyPolicyPage() {
                         title="11. Changes to This Policy"
                         content={
                             <p className="text-sm text-muted-foreground">
-                                We may update this Privacy Policy from time to time. We will notify you of any material changes by posting the new Privacy Policy in our apps and updating the "Last Updated" date. Your continued use of our services after such modifications constitutes your acknowledgment of the modified policy.
+                                We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last Updated" date. We encourage you to review this Privacy Policy periodically for any changes.
                             </p>
                         }
                     />
                 </div>
 
-                {/* Contact Section */}
-                <div className="bg-card border border-border rounded-xl p-6 mt-8">
-                    <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                        <Phone className="w-5 h-5 text-primary" />
-                        Contact Us
-                    </h3>
+                {/* Contact Information */}
+                <div className="mt-10 bg-card border border-border rounded-xl p-6">
+                    <h3 className="text-lg font-semibold text-foreground mb-4">Contact Us</h3>
                     <p className="text-sm text-muted-foreground mb-4">
-                        For any questions, concerns, or requests regarding this Privacy Policy or your personal data, please contact us:
+                        If you have any questions about this Privacy Policy or our data practices, please contact us:
                     </p>
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div className="flex items-start gap-3">
-                            <Mail className="w-5 h-5 text-primary mt-0.5" />
-                            <div>
-                                <p className="font-medium text-foreground text-sm">Email</p>
-                                <p className="text-muted-foreground text-sm">privacy@bhaojan.com</p>
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center">
+                                <Mail className="w-4 h-4 text-primary" />
                             </div>
+                            <span className="text-sm text-muted-foreground">privacy@theartofbhaojan.com</span>
                         </div>
-                        <div className="flex items-start gap-3">
-                            <Phone className="w-5 h-5 text-primary mt-0.5" />
-                            <div>
-                                <p className="font-medium text-foreground text-sm">Phone</p>
-                                <p className="text-muted-foreground text-sm">+91 123 456 7890</p>
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center">
+                                <Phone className="w-4 h-4 text-primary" />
                             </div>
+                            <span className="text-sm text-muted-foreground">+91 748 930 1982</span>
                         </div>
-                        <div className="flex items-start gap-3 md:col-span-2">
-                            <Building className="w-5 h-5 text-primary mt-0.5" />
-                            <div>
-                                <p className="font-medium text-foreground text-sm">Registered Address</p>
-                                <p className="text-muted-foreground text-sm">
-                                    भ ओ जन Technologies Private Limited<br />
-                                    [Your Company Address]<br />
-                                    India
-                                </p>
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center">
+                                <Building className="w-4 h-4 text-primary" />
                             </div>
+                            <span className="text-sm text-muted-foreground">The Art Of भ ओ जन Technologies Pvt Ltd</span>
                         </div>
                     </div>
                 </div>
 
                 {/* Footer */}
-                <div className="text-center mt-8 pt-8 border-t border-border">
-                    <p className="text-sm text-muted-foreground">
-                        © {new Date().getFullYear()} भ ओ जन Technologies Private Limited. All rights reserved.
-                    </p>
+                <div className="mt-8 text-center text-sm text-muted-foreground">
+                    <p>© 2025 The Art Of भ ओ जन. All rights reserved.</p>
                 </div>
             </main>
         </div>
     );
 }
 
-function PolicySection({
-    icon,
-    title,
-    content
-}: {
+interface PolicySectionProps {
     icon: React.ReactNode;
     title: string;
     content: React.ReactNode;
-}) {
+}
+
+function PolicySection({ icon, title, content }: PolicySectionProps) {
     return (
         <div className="bg-card border border-border rounded-xl p-6">
             <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
                     {icon}
                 </div>
                 <h3 className="text-lg font-semibold text-foreground">{title}</h3>
             </div>
-            <div className="ml-13">{content}</div>
+            {content}
         </div>
     );
 }

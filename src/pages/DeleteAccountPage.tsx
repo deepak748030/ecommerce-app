@@ -12,7 +12,7 @@ const DeleteAccountPage = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [countdown, setCountdown] = useState(0);
-    const [, setUserExists] = useState(false);
+    const [userExists, setUserExists] = useState(false);
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
     useEffect(() => {
@@ -38,7 +38,8 @@ const DeleteAccountPage = () => {
         setError("");
 
         try {
-            const response = await api.post("/auth/delete-account/send-otp", { phone });
+            const fullPhone = `+91${phone}`;
+            const response = await api.post("/auth/delete-account/send-otp", { phone: fullPhone });
             if (response.data.success) {
                 if (!response.data.response.userExists) {
                     setError("No account found with this mobile number");
@@ -101,7 +102,8 @@ const DeleteAccountPage = () => {
         setError("");
 
         try {
-            const response = await api.post("/auth/delete-account/verify-otp", { phone, otp: otpString });
+            const fullPhone = `+91${phone}`;
+            const response = await api.post("/auth/delete-account/verify-otp", { phone: fullPhone, otp: otpString });
             if (response.data.success) {
                 setStep("confirm");
             } else {
@@ -119,7 +121,8 @@ const DeleteAccountPage = () => {
         setError("");
 
         try {
-            const response = await api.post("/auth/delete-account/confirm", { phone });
+            const fullPhone = `+91${phone}`;
+            const response = await api.post("/auth/delete-account/confirm", { phone: fullPhone });
             if (response.data.success) {
                 setStep("success");
             } else {
@@ -138,7 +141,8 @@ const DeleteAccountPage = () => {
         if (countdown > 0) return;
         setLoading(true);
         try {
-            await api.post("/auth/delete-account/send-otp", { phone });
+            const fullPhone = `+91${phone}`;
+            await api.post("/auth/delete-account/send-otp", { phone: fullPhone });
             setCountdown(30);
             setOtp(["", "", "", "", "", ""]);
         } catch (err) {
@@ -275,7 +279,7 @@ const DeleteAccountPage = () => {
                                         value={digit}
                                         onChange={(e) => handleOtpChange(index, e.target.value)}
                                         onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                                        className="w-12 h-14 text-center text-xl font-bold border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                                        className="w-12 h-14 text-center text-xl font-bold border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none bg-white text-gray-900"
                                         maxLength={1}
                                     />
                                 ))}

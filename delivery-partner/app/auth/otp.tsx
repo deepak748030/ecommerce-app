@@ -31,7 +31,7 @@ export default function OtpScreen() {
 
     const inputRefs = useRef<(TextInput | null)[]>([]);
 
-    // Auto focus first input when screen loads
+    // Auto focus first input when screen loads 123456
     useEffect(() => {
         const timer = setTimeout(() => {
             inputRefs.current[0]?.focus();
@@ -137,7 +137,7 @@ export default function OtpScreen() {
                         Enter the 6-digit code sent to +91 {phone}
                     </Text>
                     <Text style={[styles.hint, { color: colors.primary }]}>
-                        Use OTP: 123456
+                        {/* Use OTP: 123456 */}
                     </Text>
                 </View>
 
