@@ -11,7 +11,7 @@ import {
     Alert,
     ScrollView,
 } from 'react-native';
-import { X, Star } from 'lucide-react-native';
+import { X, Star, Truck } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { reviewsApi, ReviewableProduct, getImageUrl } from '@/lib/api';
 
@@ -21,6 +21,7 @@ interface ReviewModalProps {
     orderId: string;
     products: ReviewableProduct[];
     onReviewSubmitted: () => void;
+    hasDeliveryPartner?: boolean;
 }
 
 export function ReviewModal({
@@ -29,10 +30,12 @@ export function ReviewModal({
     orderId,
     products,
     onReviewSubmitted,
+    hasDeliveryPartner = true,
 }: ReviewModalProps) {
     const { colors } = useTheme();
     const [selectedProduct, setSelectedProduct] = useState<ReviewableProduct | null>(null);
     const [rating, setRating] = useState(0);
+    const [deliveryRating, setDeliveryRating] = useState(0);
     const [comment, setComment] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
@@ -54,7 +57,7 @@ export function ReviewModal({
         }
 
         if (rating === 0) {
-            Alert.alert('Error', 'Please select a rating');
+            Alert.alert('Error', 'Please select a product rating');
             return;
         }
 
@@ -65,6 +68,7 @@ export function ReviewModal({
                 orderId,
                 rating,
                 comment: comment.trim(),
+                deliveryRating: hasDeliveryPartner && deliveryRating > 0 ? deliveryRating : undefined,
             });
 
             if (response.success) {
@@ -85,8 +89,18 @@ export function ReviewModal({
     const resetAndClose = () => {
         setSelectedProduct(null);
         setRating(0);
+        setDeliveryRating(0);
         setComment('');
         onClose();
+    };
+
+    const getRatingLabel = (r: number) => {
+        if (r === 0) return 'Tap to rate';
+        if (r === 1) return 'Poor';
+        if (r === 2) return 'Fair';
+        if (r === 3) return 'Good';
+        if (r === 4) return 'Very Good';
+        return 'Excellent';
     };
 
     const styles = createStyles(colors);
@@ -163,10 +177,10 @@ export function ReviewModal({
                             </View>
                         )}
 
-                        {/* Rating */}
+                        {/* Product Rating */}
                         <View style={styles.section}>
                             <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-                                Your Rating
+                                Product Rating
                             </Text>
                             <View style={styles.starsContainer}>
                                 {[1, 2, 3, 4, 5].map((star) => (
@@ -184,19 +198,44 @@ export function ReviewModal({
                                 ))}
                             </View>
                             <Text style={[styles.ratingText, { color: colors.mutedForeground }]}>
-                                {rating === 0
-                                    ? 'Tap to rate'
-                                    : rating === 1
-                                        ? 'Poor'
-                                        : rating === 2
-                                            ? 'Fair'
-                                            : rating === 3
-                                                ? 'Good'
-                                                : rating === 4
-                                                    ? 'Very Good'
-                                                    : 'Excellent'}
+                                {getRatingLabel(rating)}
                             </Text>
                         </View>
+
+                        {/* Delivery Partner Rating */}
+                        {hasDeliveryPartner && (
+                            <View style={[styles.section, styles.deliverySection, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+                                <View style={styles.deliveryHeader}>
+                                    <View style={[styles.deliveryIcon, { backgroundColor: colors.primary }]}>
+                                        <Truck size={16} color={colors.primaryForeground} />
+                                    </View>
+                                    <Text style={[styles.sectionLabel, { color: colors.foreground, marginBottom: 0 }]}>
+                                        Rate Delivery Partner
+                                    </Text>
+                                    <Text style={[styles.optionalTag, { color: colors.mutedForeground }]}>
+                                        (Optional)
+                                    </Text>
+                                </View>
+                                <View style={styles.starsContainer}>
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <Pressable
+                                            key={star}
+                                            onPress={() => setDeliveryRating(star)}
+                                            style={styles.starBtn}
+                                        >
+                                            <Star
+                                                size={32}
+                                                color={star <= deliveryRating ? colors.success : colors.muted}
+                                                fill={star <= deliveryRating ? colors.success : 'transparent'}
+                                            />
+                                        </Pressable>
+                                    ))}
+                                </View>
+                                <Text style={[styles.ratingText, { color: colors.mutedForeground }]}>
+                                    {getRatingLabel(deliveryRating)}
+                                </Text>
+                            </View>
+                        )}
 
                         {/* Comment */}
                         <View style={styles.section}>
@@ -261,7 +300,7 @@ const createStyles = (colors: any) =>
         container: {
             borderTopLeftRadius: 20,
             borderTopRightRadius: 20,
-            maxHeight: '85%',
+            maxHeight: '90%',
         },
         header: {
             flexDirection: 'row',
@@ -338,6 +377,28 @@ const createStyles = (colors: any) =>
             textAlign: 'center',
             marginTop: 8,
             fontSize: 14,
+        },
+        deliverySection: {
+            padding: 16,
+            borderRadius: 12,
+            borderWidth: 1,
+        },
+        deliveryHeader: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginBottom: 12,
+            gap: 8,
+        },
+        deliveryIcon: {
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        optionalTag: {
+            fontSize: 12,
+            fontStyle: 'italic',
         },
         textInput: {
             borderWidth: 1,

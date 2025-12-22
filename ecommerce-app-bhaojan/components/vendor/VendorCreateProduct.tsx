@@ -116,20 +116,20 @@ export function VendorCreateProduct({
                 </Text>
 
                 {/* Main Image */}
-                <Text style={styles.inputLabel}>Product Image *</Text>
+                <Text style={styles.inputLabel}>PRODUCT IMAGE *</Text>
                 <Pressable style={styles.imagePicker} onPress={() => pickImage(true)}>
                     {productForm.image ? (
                         <Image source={{ uri: productForm.image }} style={styles.mainImage} />
                     ) : (
                         <View style={styles.imagePlaceholder}>
                             <Camera size={28} color={colors.mutedForeground} />
-                            <Text style={styles.imagePlaceholderText}>Tap to add image</Text>
+                            <Text style={styles.imagePlaceholderText}>TAP TO ADD IMAGES</Text>
                         </View>
                     )}
                 </Pressable>
 
                 {/* Additional Images */}
-                <Text style={styles.inputLabel}>Additional Images</Text>
+                <Text style={styles.inputLabel}>ADDITIONAL IMAGE</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.additionalImages}>
                     {productForm.images.map((img, index) => (
                         <View key={index} style={styles.additionalImageContainer}>
@@ -145,7 +145,7 @@ export function VendorCreateProduct({
                 </ScrollView>
 
                 {/* Title */}
-                <Text style={styles.inputLabel}>Product Title *</Text>
+                <Text style={styles.inputLabel}>PRODUCT TITLE *</Text>
                 <TextInput
                     style={styles.input}
                     placeholder="Enter product title"
@@ -155,7 +155,7 @@ export function VendorCreateProduct({
                 />
 
                 {/* Description */}
-                <Text style={styles.inputLabel}>Description</Text>
+                <Text style={styles.inputLabel}>DESCRIPTION</Text>
                 <TextInput
                     style={[styles.input, styles.textArea]}
                     placeholder="Enter product description"
@@ -168,7 +168,7 @@ export function VendorCreateProduct({
                 />
 
                 {/* Category */}
-                <Text style={styles.inputLabel}>Category *</Text>
+                <Text style={styles.inputLabel}>CATEGORY *</Text>
                 <Pressable
                     style={styles.categoryPicker}
                     onPress={() => setShowCategoryPicker(!showCategoryPicker)}
@@ -206,7 +206,7 @@ export function VendorCreateProduct({
                 {/* Price & MRP */}
                 <View style={styles.priceRow}>
                     <View style={styles.priceField}>
-                        <Text style={styles.inputLabel}>Price (₹) *</Text>
+                        <Text style={styles.inputLabel}>PRICE (₹) *</Text>
                         <TextInput
                             style={styles.input}
                             placeholder="0"
@@ -217,7 +217,7 @@ export function VendorCreateProduct({
                         />
                     </View>
                     <View style={styles.priceField}>
-                        <Text style={styles.inputLabel}>MRP (₹)</Text>
+                        <Text style={styles.inputLabel}>SELLING PRICE (₹)</Text>
                         <TextInput
                             style={styles.input}
                             placeholder="0"
@@ -229,8 +229,37 @@ export function VendorCreateProduct({
                     </View>
                 </View>
 
+                {/* Discount Preview */}
+                {(() => {
+                    const price = parseFloat(productForm.price) || 0;
+                    const mrp = parseFloat(productForm.mrp) || 0;
+                    const discountPercent = mrp > price && price > 0
+                        ? Math.round(((mrp - price) / mrp) * 100)
+                        : 0;
+                    const savings = mrp > price ? mrp - price : 0;
+
+                    if (discountPercent > 0) {
+                        return (
+                            <View style={[styles.discountPreview, { backgroundColor: colors.success + '15', borderColor: colors.success }]}>
+                                <View style={styles.discountRow}>
+                                    <View style={[styles.discountBadge, { backgroundColor: colors.success }]}>
+                                        <Text style={styles.discountBadgeText}>{discountPercent}% OFF</Text>
+                                    </View>
+                                    <Text style={[styles.savingsText, { color: colors.success }]}>
+                                        Customer saves ₹{savings.toLocaleString()}
+                                    </Text>
+                                </View>
+                                <Text style={[styles.discountNote, { color: colors.mutedForeground }]}>
+                                    This discount will be shown to customers
+                                </Text>
+                            </View>
+                        );
+                    }
+                    return null;
+                })()}
+
                 {/* Location */}
-                <Text style={styles.inputLabel}>Location</Text>
+                <Text style={styles.inputLabel}>LOCATION</Text>
                 <TextInput
                     style={styles.input}
                     placeholder="e.g., Mumbai"
@@ -240,7 +269,7 @@ export function VendorCreateProduct({
                 />
 
                 {/* Badge */}
-                <Text style={styles.inputLabel}>Badge (optional)</Text>
+                <Text style={styles.inputLabel}>BADGE (optional)</Text>
                 <TextInput
                     style={styles.input}
                     placeholder="e.g., New, Sale"
@@ -447,5 +476,34 @@ const createStyles = (colors: any) => StyleSheet.create({
         fontSize: 14,
         fontWeight: '700',
         color: colors.white,
+    },
+    discountPreview: {
+        marginTop: 12,
+        padding: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+    },
+    discountRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    discountBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 6,
+    },
+    discountBadgeText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#FFFFFF',
+    },
+    savingsText: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    discountNote: {
+        fontSize: 11,
+        marginTop: 6,
     },
 });

@@ -766,6 +766,7 @@ export const reviewsApi = {
         rating: number;
         comment?: string;
         images?: string[];
+        deliveryRating?: number;
     }) => {
         return apiRequest<Review>('/reviews', {
             method: 'POST',
