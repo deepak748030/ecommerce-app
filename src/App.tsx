@@ -12,12 +12,18 @@ import { DeliveryPartnersPage } from './pages/DeliveryPartnersPage'
 import { OrdersPage } from './pages/OrdersPage'
 import { CouponsPage } from './pages/CouponsPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage'
+import DeleteAccountPage from './pages/DeleteAccountPage'
 
 function App() {
     return (
         <BrowserRouter>
             <AuthProvider>
                 <Routes>
+                    {/* Public Routes (No Login Required) */}
+                    <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                    <Route path="/delete-account" element={<DeleteAccountPage />} />
+
                     <Route path="/login" element={<LoginPage />} />
                     <Route
                         path="/"

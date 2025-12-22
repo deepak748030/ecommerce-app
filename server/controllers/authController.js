@@ -1,5 +1,9 @@
 const User = require('../models/User');
 const Otp = require('../models/Otp');
+const Address = require('../models/Address');
+const Order = require('../models/Order');
+const WalletTransaction = require('../models/WalletTransaction');
+const Notification = require('../models/Notification');
 const { generateToken } = require('../middleware/auth');
 
 // @desc    Send OTP to phone (Login)
@@ -366,6 +370,133 @@ const logout = async (req, res) => {
     }
 };
 
+// @desc    Send OTP for account deletion
+// @route   POST /api/auth/delete-account/send-otp
+// @access  Public
+const sendDeleteOtp = async (req, res) => {
+    try {
+        const { phone } = req.body;
+
+        if (!phone) {
+            return res.status(400).json({ success: false, message: 'Phone number is required' });
+        }
+
+        const existingUser = await User.findOne({ phone });
+
+        if (!existingUser) {
+            return res.json({
+                success: true,
+                message: 'No account found',
+                response: {
+                    phone,
+                    userExists: false,
+                },
+            });
+        }
+
+        // Store OTP (hardcoded 123456 for development)
+        await Otp.findOneAndUpdate(
+            { phone },
+            { phone, otp: '123456', expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
+            { upsert: true, new: true }
+        );
+
+        res.json({
+            success: true,
+            message: 'OTP sent successfully',
+            response: {
+                phone,
+                userExists: true,
+            },
+        });
+    } catch (error) {
+        console.error('Send delete OTP error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Verify OTP for account deletion
+// @route   POST /api/auth/delete-account/verify-otp
+// @access  Public
+const verifyDeleteOtp = async (req, res) => {
+    try {
+        const { phone, otp } = req.body;
+
+        if (!phone || !otp) {
+            return res.status(400).json({ success: false, message: 'Phone and OTP are required' });
+        }
+
+        const storedOtp = await Otp.findOne({ phone });
+
+        // Check OTP (always accept 123456 for development)
+        if (otp !== '123456' && (!storedOtp || storedOtp.otp !== otp || new Date() > storedOtp.expiresAt)) {
+            return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+        }
+
+        res.json({
+            success: true,
+            message: 'OTP verified successfully',
+            response: {
+                phone,
+                verified: true,
+            },
+        });
+    } catch (error) {
+        console.error('Verify delete OTP error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Confirm and delete account
+// @route   POST /api/auth/delete-account/confirm
+// @access  Public
+const confirmDeleteAccount = async (req, res) => {
+    try {
+        const { phone } = req.body;
+
+        if (!phone) {
+            return res.status(400).json({ success: false, message: 'Phone number is required' });
+        }
+
+        const user = await User.findOne({ phone });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Delete all related data
+        const userId = user._id;
+
+        // Delete addresses
+        await Address.deleteMany({ user: userId });
+
+        // Delete wallet transactions
+        await WalletTransaction.deleteMany({ user: userId });
+
+        // Delete notifications
+        await Notification.deleteMany({ user: userId });
+
+        // Clear OTP
+        await Otp.deleteOne({ phone });
+
+        // Finally delete the user
+        await User.findByIdAndDelete(userId);
+
+        console.log(`Account deleted for phone: ${phone}`);
+
+        res.json({
+            success: true,
+            message: 'Account deleted successfully',
+            response: {
+                deleted: true,
+            },
+        });
+    } catch (error) {
+        console.error('Delete account error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 module.exports = {
     login,
     verifyOtp,
@@ -377,4 +508,7 @@ module.exports = {
     getNotificationSettings,
     updateNotificationSettings,
     logout,
+    sendDeleteOtp,
+    verifyDeleteOtp,
+    confirmDeleteAccount,
 };
