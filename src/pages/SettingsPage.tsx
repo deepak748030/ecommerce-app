@@ -159,84 +159,84 @@ export function SettingsPage() {
     ]
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-                <p className="text-muted-foreground">Manage your account settings and preferences</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-foreground">Settings</h1>
+                <p className="text-sm sm:text-base text-muted-foreground">Manage your account settings and preferences</p>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 border-b border-border pb-2">
+            <div className="flex gap-1 sm:gap-2 border-b border-border pb-2 overflow-x-auto">
                 {tabs.map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={cn(
-                            'flex items-center gap-2 px-4 py-2 rounded-t-lg transition-colors',
+                            'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-t-lg transition-colors text-sm sm:text-base whitespace-nowrap',
                             activeTab === tab.id
                                 ? 'bg-primary text-primary-foreground'
                                 : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                         )}
                     >
                         <tab.icon className="w-4 h-4" />
-                        {tab.label}
+                        <span className="hidden sm:inline">{tab.label}</span>
                     </button>
                 ))}
             </div>
 
             {/* Profile Tab */}
             {activeTab === 'profile' && (
-                <div className="bg-card border border-border rounded-xl p-6 max-w-2xl">
-                    <h2 className="text-lg font-semibold text-foreground mb-6">Profile Information</h2>
+                <div className="bg-card border border-border rounded-xl p-4 sm:p-6 max-w-2xl">
+                    <h2 className="text-base sm:text-lg font-semibold text-foreground mb-4 sm:mb-6">Profile Information</h2>
 
                     <form onSubmit={handleProfileUpdate} className="space-y-4">
                         {/* Avatar Preview */}
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden border-2 border-border">
+                        <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden border-2 border-border">
                                 {avatar ? (
                                     <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
                                 ) : (
-                                    <User className="w-10 h-10 text-muted-foreground" />
+                                    <User className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground" />
                                 )}
                             </div>
                             <div>
-                                <p className="font-medium text-foreground">{admin?.name}</p>
-                                <p className="text-sm text-muted-foreground">{admin?.role}</p>
+                                <p className="font-medium text-foreground text-sm sm:text-base">{admin?.name}</p>
+                                <p className="text-xs sm:text-sm text-muted-foreground">{admin?.role}</p>
                             </div>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-foreground mb-2">Full Name</label>
+                            <label className="block text-xs sm:text-sm font-medium text-foreground mb-1.5 sm:mb-2">Full Name</label>
                             <input
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                className="w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm sm:text-base"
                                 placeholder="Enter your name"
                                 required
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-foreground mb-2">Email Address</label>
+                            <label className="block text-xs sm:text-sm font-medium text-foreground mb-1.5 sm:mb-2">Email Address</label>
                             <input
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm sm:text-base"
                                 placeholder="Enter your email"
                                 required
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-foreground mb-2">Avatar URL</label>
+                            <label className="block text-xs sm:text-sm font-medium text-foreground mb-1.5 sm:mb-2">Avatar URL</label>
                             <input
                                 type="url"
                                 value={avatar}
                                 onChange={(e) => setAvatar(e.target.value)}
-                                className="w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm sm:text-base"
                                 placeholder="https://example.com/avatar.jpg"
                             />
                         </div>
@@ -257,7 +257,7 @@ export function SettingsPage() {
                         <button
                             type="submit"
                             disabled={profileLoading}
-                            className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                            className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm sm:text-base"
                         >
                             <Save className="w-4 h-4" />
                             {profileLoading ? 'Saving...' : 'Save Changes'}
@@ -268,39 +268,39 @@ export function SettingsPage() {
 
             {/* Password Tab */}
             {activeTab === 'password' && (
-                <div className="bg-card border border-border rounded-xl p-6 max-w-2xl">
-                    <h2 className="text-lg font-semibold text-foreground mb-6">Change Password</h2>
+                <div className="bg-card border border-border rounded-xl p-4 sm:p-6 max-w-2xl">
+                    <h2 className="text-base sm:text-lg font-semibold text-foreground mb-4 sm:mb-6">Change Password</h2>
 
                     <form onSubmit={handlePasswordUpdate} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-foreground mb-2">Current Password</label>
+                            <label className="block text-xs sm:text-sm font-medium text-foreground mb-1.5 sm:mb-2">Current Password</label>
                             <div className="relative">
                                 <input
                                     type={showCurrentPassword ? 'text' : 'password'}
                                     value={currentPassword}
                                     onChange={(e) => setCurrentPassword(e.target.value)}
-                                    className="w-full px-4 py-3 pr-12 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 pr-12 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm sm:text-base"
                                     placeholder="Enter current password"
                                     required
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                    className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                                 >
-                                    {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                    {showCurrentPassword ? <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Eye className="w-4 h-4 sm:w-5 sm:h-5" />}
                                 </button>
                             </div>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-foreground mb-2">New Password</label>
+                            <label className="block text-xs sm:text-sm font-medium text-foreground mb-1.5 sm:mb-2">New Password</label>
                             <div className="relative">
                                 <input
                                     type={showNewPassword ? 'text' : 'password'}
                                     value={newPassword}
                                     onChange={(e) => setNewPassword(e.target.value)}
-                                    className="w-full px-4 py-3 pr-12 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 pr-12 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm sm:text-base"
                                     placeholder="Enter new password"
                                     required
                                     minLength={6}
@@ -308,21 +308,21 @@ export function SettingsPage() {
                                 <button
                                     type="button"
                                     onClick={() => setShowNewPassword(!showNewPassword)}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                    className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                                 >
-                                    {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                    {showNewPassword ? <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Eye className="w-4 h-4 sm:w-5 sm:h-5" />}
                                 </button>
                             </div>
-                            <p className="text-xs text-muted-foreground mt-1">Minimum 6 characters</p>
+                            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Minimum 6 characters</p>
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-foreground mb-2">Confirm New Password</label>
+                            <label className="block text-xs sm:text-sm font-medium text-foreground mb-1.5 sm:mb-2">Confirm New Password</label>
                             <input
                                 type="password"
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
-                                className="w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm sm:text-base"
                                 placeholder="Confirm new password"
                                 required
                             />
@@ -344,7 +344,7 @@ export function SettingsPage() {
                         <button
                             type="submit"
                             disabled={passwordLoading}
-                            className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                            className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 text-sm sm:text-base"
                         >
                             <Lock className="w-4 h-4" />
                             {passwordLoading ? 'Updating...' : 'Update Password'}
@@ -355,38 +355,38 @@ export function SettingsPage() {
 
             {/* Activity Tab */}
             {activeTab === 'activity' && (
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                     {activityLoading ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
                             {[...Array(6)].map((_, i) => (
-                                <div key={i} className="bg-card border border-border rounded-xl p-6 animate-pulse">
-                                    <div className="h-4 bg-muted rounded w-1/2 mb-3" />
-                                    <div className="h-8 bg-muted rounded w-1/3" />
+                                <div key={i} className="bg-card border border-border rounded-xl p-4 sm:p-6 animate-pulse">
+                                    <div className="h-3 sm:h-4 bg-muted rounded w-1/2 mb-2 sm:mb-3" />
+                                    <div className="h-6 sm:h-8 bg-muted rounded w-1/3" />
                                 </div>
                             ))}
                         </div>
                     ) : (
                         <>
                             {/* Account Info */}
-                            <div className="bg-card border border-border rounded-xl p-6">
-                                <h2 className="text-lg font-semibold text-foreground mb-4">Account Information</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg">
-                                        <Calendar className="w-5 h-5 text-primary" />
-                                        <div>
-                                            <p className="text-sm text-muted-foreground">Account Created</p>
-                                            <p className="font-medium text-foreground">
+                            <div className="bg-card border border-border rounded-xl p-4 sm:p-6">
+                                <h2 className="text-base sm:text-lg font-semibold text-foreground mb-3 sm:mb-4">Account Information</h2>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                    <div className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-muted/50 rounded-lg">
+                                        <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                                        <div className="min-w-0">
+                                            <p className="text-xs sm:text-sm text-muted-foreground">Account Created</p>
+                                            <p className="font-medium text-foreground text-xs sm:text-base truncate">
                                                 {activity?.activity.accountCreated
                                                     ? formatDate(activity.activity.accountCreated)
                                                     : '-'}
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg">
-                                        <Clock className="w-5 h-5 text-primary" />
-                                        <div>
-                                            <p className="text-sm text-muted-foreground">Last Activity</p>
-                                            <p className="font-medium text-foreground">
+                                    <div className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-muted/50 rounded-lg">
+                                        <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                                        <div className="min-w-0">
+                                            <p className="text-xs sm:text-sm text-muted-foreground">Last Activity</p>
+                                            <p className="font-medium text-foreground text-xs sm:text-base truncate">
                                                 {activity?.activity.lastLogin
                                                     ? formatDate(activity.activity.lastLogin)
                                                     : '-'}
@@ -398,19 +398,19 @@ export function SettingsPage() {
 
                             {/* Stats Grid */}
                             <div>
-                                <h2 className="text-lg font-semibold text-foreground mb-4">Platform Overview</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <h2 className="text-base sm:text-lg font-semibold text-foreground mb-3 sm:mb-4">Platform Overview</h2>
+                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
                                     {activityStats.map((stat) => (
                                         <div
                                             key={stat.label}
-                                            className="bg-card border border-border rounded-xl p-6 flex items-center gap-4"
+                                            className="bg-card border border-border rounded-xl p-3 sm:p-6 flex items-center gap-2 sm:gap-4"
                                         >
-                                            <div className={cn('p-3 rounded-lg bg-muted', stat.color)}>
-                                                <stat.icon className="w-6 h-6" />
+                                            <div className={cn('p-2 sm:p-3 rounded-lg bg-muted flex-shrink-0', stat.color)}>
+                                                <stat.icon className="w-4 h-4 sm:w-6 sm:h-6" />
                                             </div>
-                                            <div>
-                                                <p className="text-sm text-muted-foreground">{stat.label}</p>
-                                                <p className="text-2xl font-bold text-foreground">{stat.value.toLocaleString()}</p>
+                                            <div className="min-w-0">
+                                                <p className="text-[10px] sm:text-sm text-muted-foreground truncate">{stat.label}</p>
+                                                <p className="text-lg sm:text-2xl font-bold text-foreground">{stat.value.toLocaleString()}</p>
                                             </div>
                                         </div>
                                     ))}

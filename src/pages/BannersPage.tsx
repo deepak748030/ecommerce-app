@@ -13,9 +13,8 @@ import {
     Loader2,
     Image as ImageIcon,
     Upload,
-    Link,
-    ExternalLink,
     GripVertical,
+    Tag,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import {
@@ -24,8 +23,10 @@ import {
     updateBanner,
     deleteBanner,
     toggleBannerStatus,
+    getCategoriesAdmin,
     Banner,
     Pagination,
+    Category,
 } from '../lib/api'
 
 interface BannerFormData {
@@ -34,7 +35,7 @@ interface BannerFormData {
     image: string
     badge: string
     gradient: string[]
-    linkType: 'category' | 'product' | 'search' | 'external'
+    linkType: 'category'
     linkValue: string
     order: number
 }
@@ -50,20 +51,12 @@ const defaultGradients = [
     ['#10B981', '#059669'],
 ]
 
-const linkTypes = [
-    { value: 'category', label: 'Category' },
-    { value: 'product', label: 'Product' },
-    { value: 'search', label: 'Search' },
-    { value: 'external', label: 'External Link' },
-]
-
 export function BannersPage() {
     const [banners, setBanners] = useState<Banner[]>([])
     const [pagination, setPagination] = useState<Pagination | null>(null)
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
-    const [linkTypeFilter, setLinkTypeFilter] = useState<string>('all')
     const [page, setPage] = useState(1)
     const [showModal, setShowModal] = useState(false)
     const [editingBanner, setEditingBanner] = useState<Banner | null>(null)
@@ -73,7 +66,7 @@ export function BannersPage() {
         image: '',
         badge: '',
         gradient: ['#22C55E', '#16A34A'],
-        linkType: 'search',
+        linkType: 'category',
         linkValue: '',
         order: 0,
     })
@@ -82,6 +75,8 @@ export function BannersPage() {
     const [toggleLoading, setToggleLoading] = useState<string | null>(null)
     const [imagePreview, setImagePreview] = useState<string>('')
     const [uploadLoading, setUploadLoading] = useState(false)
+    const [categories, setCategories] = useState<Category[]>([])
+    const [categoriesLoading, setCategoriesLoading] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const fetchBanners = useCallback(async () => {
@@ -92,7 +87,7 @@ export function BannersPage() {
                 limit: 10,
                 search,
                 status: statusFilter,
-                linkType: linkTypeFilter,
+                linkType: 'category',
             })
             if (response.success) {
                 setBanners(response.response.banners)
@@ -103,15 +98,33 @@ export function BannersPage() {
         } finally {
             setLoading(false)
         }
-    }, [page, search, statusFilter, linkTypeFilter])
+    }, [page, search, statusFilter])
+
+    const fetchCategories = useCallback(async () => {
+        try {
+            setCategoriesLoading(true)
+            const response = await getCategoriesAdmin({ limit: 100, status: 'active' })
+            if (response.success) {
+                setCategories(response.response.categories || [])
+            }
+        } catch (error) {
+            console.error('Error fetching categories:', error)
+        } finally {
+            setCategoriesLoading(false)
+        }
+    }, [])
 
     useEffect(() => {
         fetchBanners()
     }, [fetchBanners])
 
     useEffect(() => {
+        fetchCategories()
+    }, [fetchCategories])
+
+    useEffect(() => {
         setPage(1)
-    }, [search, statusFilter, linkTypeFilter])
+    }, [search, statusFilter])
 
     const handleOpenModal = (banner?: Banner) => {
         if (banner) {
@@ -122,7 +135,7 @@ export function BannersPage() {
                 image: banner.image,
                 badge: banner.badge || '',
                 gradient: banner.gradient || ['#22C55E', '#16A34A'],
-                linkType: banner.linkType || 'search',
+                linkType: 'category',
                 linkValue: banner.linkValue || '',
                 order: banner.order || 0,
             })
@@ -135,7 +148,7 @@ export function BannersPage() {
                 image: '',
                 badge: '',
                 gradient: ['#22C55E', '#16A34A'],
-                linkType: 'search',
+                linkType: 'category',
                 linkValue: '',
                 order: banners.length,
             })
@@ -153,11 +166,16 @@ export function BannersPage() {
             image: '',
             badge: '',
             gradient: ['#22C55E', '#16A34A'],
-            linkType: 'search',
+            linkType: 'category',
             linkValue: '',
             order: 0,
         })
         setImagePreview('')
+    }
+
+    const getCategoryName = (categoryId: string) => {
+        const category = categories.find(c => c._id === categoryId)
+        return category?.name || categoryId
     }
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -317,21 +335,6 @@ export function BannersPage() {
                             <option value="inactive">Inactive</option>
                         </select>
                     </div>
-
-                    {/* Link Type Filter */}
-                    <div className="relative">
-                        <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <select
-                            value={linkTypeFilter}
-                            onChange={(e) => setLinkTypeFilter(e.target.value)}
-                            className="pl-9 pr-8 py-2 bg-input border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring appearance-none cursor-pointer min-w-[140px]"
-                        >
-                            <option value="all">All Types</option>
-                            {linkTypes.map(type => (
-                                <option key={type.value} value={type.value}>{type.label}</option>
-                            ))}
-                        </select>
-                    </div>
                 </div>
             </div>
 
@@ -344,7 +347,7 @@ export function BannersPage() {
                                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Preview</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Details</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Badge</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Link Type</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Category</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Order</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
@@ -406,12 +409,10 @@ export function BannersPage() {
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-1.5">
-                                                {banner.linkType === 'external' ? (
-                                                    <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
-                                                ) : (
-                                                    <Link className="w-3.5 h-3.5 text-muted-foreground" />
-                                                )}
-                                                <span className="text-sm text-muted-foreground capitalize">{banner.linkType}</span>
+                                                <Tag className="w-3.5 h-3.5 text-muted-foreground" />
+                                                <span className="text-sm text-muted-foreground">
+                                                    {banner.linkValue ? getCategoryName(banner.linkValue) : '—'}
+                                                </span>
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
@@ -656,34 +657,35 @@ export function BannersPage() {
                                 </div>
                             </div>
 
-                            {/* Link Type */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-foreground mb-1">
-                                        Link Type
-                                    </label>
+                            {/* Category Selection */}
+                            <div>
+                                <label className="block text-sm font-medium text-foreground mb-1">
+                                    Select Category *
+                                </label>
+                                {categoriesLoading ? (
+                                    <div className="flex items-center gap-2 px-4 py-2 bg-input border border-border rounded-lg">
+                                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                                        <span className="text-sm text-muted-foreground">Loading categories...</span>
+                                    </div>
+                                ) : (
                                     <select
-                                        value={formData.linkType}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, linkType: e.target.value as BannerFormData['linkType'] }))}
-                                        className="w-full px-4 py-2 bg-input border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                    >
-                                        {linkTypes.map(type => (
-                                            <option key={type.value} value={type.value}>{type.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-foreground mb-1">
-                                        Link Value
-                                    </label>
-                                    <input
-                                        type="text"
                                         value={formData.linkValue}
                                         onChange={(e) => setFormData(prev => ({ ...prev, linkValue: e.target.value }))}
-                                        placeholder={formData.linkType === 'external' ? 'https://...' : 'ID or slug'}
                                         className="w-full px-4 py-2 bg-input border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                    />
-                                </div>
+                                    >
+                                        <option value="">Select a category</option>
+                                        {categories.map(category => (
+                                            <option key={category._id} value={category._id}>
+                                                {category.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                                {formData.linkValue && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        Category ID: {formData.linkValue}
+                                    </p>
+                                )}
                             </div>
 
                             {/* Order */}

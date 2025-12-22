@@ -217,7 +217,7 @@ export interface Banner {
     image: string
     badge?: string
     gradient?: string[]
-    linkType: 'category' | 'product' | 'search' | 'external'
+    linkType: 'category'
     linkValue?: string
     isActive: boolean
     order: number

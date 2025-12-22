@@ -62,7 +62,7 @@ export function DashboardLayout() {
                     {sidebarOpen && (
                         <div>
                             <h1 className="text-lg font-bold text-foreground leading-tight">The Art Of</h1>
-                            <p className="text-xl font-bold text-primary leading-tight">भ ओ ज न</p>
+                            <p className="text-xl font-bold text-primary leading-tight">भ ओ जन</p>
                         </div>
                     )}
                     <button
