@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Delivery Partner",
-    "slug": "delivery-partner",
+    "name": "भ ओ जन Delivery",
+    "slug": "bhojan-delivery",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/app-logo.png",
-    "scheme": "artofbhojan",
+    "scheme": "bhojandelivery",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -14,14 +14,15 @@
       "backgroundColor": "#FDF8F3"
     },
     "android": {
-      "package": "com.deliverypartner.app",
+      "package": "com.bhojandelivery.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/app-logo.png",
         "backgroundColor": "#FDF8F3"
       }
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bhojandelivery.app"
     },
     "web": {
       "bundler": "metro",

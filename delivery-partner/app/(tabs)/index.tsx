@@ -82,17 +82,29 @@ export default function HomeScreen() {
         if (toggleLoading) return;
 
         setToggleLoading(true);
-        setIsOnline(value);
+        const previousValue = isOnline;
+        setIsOnline(value); // Optimistic update
 
         try {
-            const result = await deliveryPartnerAuthApi.toggleOnline();
+            // Send the desired value directly instead of toggling
+            const result = await deliveryPartnerAuthApi.toggleOnline(value);
             if (result.success && result.response) {
-                setIsOnline(result.response.isOnline);
+                const newOnlineStatus = result.response.isOnline;
+                setIsOnline(newOnlineStatus);
+                // Update local partner data with new online status
+                if (partnerData) {
+                    const updatedPartnerData = { ...partnerData, isOnline: newOnlineStatus };
+                    setPartnerData(updatedPartnerData);
+                }
+                console.log('Online status updated to:', newOnlineStatus);
             } else {
-                setIsOnline(!value);
+                // Revert on failure
+                setIsOnline(previousValue);
+                console.log('Toggle failed, reverting to:', previousValue);
             }
         } catch (error) {
-            setIsOnline(!value);
+            console.log('Toggle online error:', error);
+            setIsOnline(previousValue);
         } finally {
             setToggleLoading(false);
         }
@@ -147,7 +159,7 @@ export default function HomeScreen() {
                         </View>
                         <View>
                             <Text style={styles.greeting}>Loading...</Text>
-                            <Text style={styles.subGreeting}>SwiftDrop Partner</Text>
+                            <Text style={styles.subGreeting}>भ ओ जन Delivery</Text>
                         </View>
                     </View>
                     <View style={styles.headerRight}>
@@ -178,7 +190,7 @@ export default function HomeScreen() {
                     </View>
                     <View>
                         <Text style={styles.greeting}>Hi, {partnerName}!</Text>
-                        <Text style={styles.subGreeting}>SwiftDrop Partner</Text>
+                        <Text style={styles.subGreeting}>भ ओ जन Delivery</Text>
                     </View>
                 </View>
                 <View style={styles.headerRight}>

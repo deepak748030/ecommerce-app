@@ -42,7 +42,7 @@ export default function HelpSupportScreen() {
     };
 
     const handleEmail = () => {
-        Linking.openURL('mailto:support@swiftdrop.com');
+        Linking.openURL('mailto:support@bhojandelivery.com');
     };
 
     const handleWhatsApp = () => {
@@ -95,7 +95,7 @@ export default function HelpSupportScreen() {
                         </View>
                         <View style={styles.contactInfo}>
                             <Text style={styles.contactLabel}>Email Support</Text>
-                            <Text style={styles.contactValue}>support@swiftdrop.com</Text>
+                            <Text style={styles.contactValue}>support@bhojandelivery.com</Text>
                         </View>
                         <ExternalLink size={16} color={colors.mutedForeground} />
                     </Pressable>

@@ -98,9 +98,9 @@ export default function PrivacyPolicyScreen() {
                     <Text style={styles.sectionTitle}>8. Contact Us</Text>
                     <Text style={styles.sectionText}>
                         For privacy-related inquiries, please contact:{'\n'}
-                        Email: privacy@swiftdrop.com{'\n'}
+                        Email: privacy@bhojandelivery.com{'\n'}
                         Phone: +91 123 456 7890{'\n'}
-                        Address: SwiftDrop Technologies Pvt Ltd
+                        Address: भ ओ जन Technologies Pvt Ltd
                     </Text>
                 </View>
             </ScrollView>

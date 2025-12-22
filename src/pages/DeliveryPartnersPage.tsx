@@ -126,7 +126,15 @@ export function DeliveryPartnersPage() {
 
     useEffect(() => {
         fetchPartners()
-    }, [fetchPartners])
+
+        // Auto-refresh every 10 seconds to sync online status
+        const refreshInterval = setInterval(() => {
+            fetchPartners()
+            fetchStats()
+        }, 10000)
+
+        return () => clearInterval(refreshInterval)
+    }, [fetchPartners, fetchStats])
 
     useEffect(() => {
         setPage(1)

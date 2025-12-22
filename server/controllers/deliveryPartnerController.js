@@ -364,14 +364,24 @@ const updateProfile = async (req, res) => {
 const toggleOnline = async (req, res) => {
     try {
         const partnerId = req.user._id;
+        const { isOnline: requestedStatus } = req.body; // Optional: allow setting specific status
+
         const partner = await DeliveryPartner.findById(partnerId);
 
         if (!partner) {
             return res.status(404).json({ success: false, message: 'Partner not found' });
         }
 
-        partner.isOnline = !partner.isOnline;
+        // If a specific status is provided, use it; otherwise toggle
+        if (typeof requestedStatus === 'boolean') {
+            partner.isOnline = requestedStatus;
+        } else {
+            partner.isOnline = !partner.isOnline;
+        }
+
         await partner.save();
+
+        console.log(`Partner ${partnerId} online status changed to: ${partner.isOnline}`);
 
         res.json({
             success: true,

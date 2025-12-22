@@ -68,9 +68,9 @@ export default function PhoneScreen() {
                         style={styles.logo}
                         resizeMode="contain"
                     />
-                    <Text style={[styles.title, { color: colors.foreground }]}>SwiftDrop Partner</Text>
+                    <Text style={[styles.title, { color: colors.foreground }]}>भ ओ जन Delivery</Text>
                     <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-                        Deliver happiness, earn rewards
+                        खुशियाँ पहुँचाएं, पुरस्कार कमाएं
                     </Text>
                 </View>
 

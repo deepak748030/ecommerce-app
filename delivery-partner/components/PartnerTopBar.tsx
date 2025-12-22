@@ -39,12 +39,13 @@ export default function PartnerTopBar({ showBackButton = false, title }: Partner
                     </View>
                 ) : (
                     <View style={styles.leftSection}>
-                        <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
-                            <Text style={styles.logoEmoji}>🚀</Text>
-                        </View>
+                        <Image
+                            source={require('../assets/images/app-logo.png')}
+                            style={styles.logoImage}
+                        />
                         <View>
-                            <Text style={[styles.appName, { color: colors.foreground }]}>SpeedDrop</Text>
-                            <Text style={[styles.tagline, { color: colors.mutedForeground }]}>Partner</Text>
+                            <Text style={[styles.appName, { color: colors.foreground }]}>भ ओ जन</Text>
+                            <Text style={[styles.tagline, { color: colors.mutedForeground }]}>Delivery</Text>
                         </View>
                     </View>
                 )}
@@ -87,15 +88,10 @@ const styles = StyleSheet.create({
         fontSize: 17,
         fontWeight: '700',
     },
-    logoContainer: {
+    logoImage: {
         width: 40,
         height: 40,
-        borderRadius: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    logoEmoji: {
-        fontSize: 20,
+        borderRadius: 10,
     },
     appName: {
         fontSize: 15,

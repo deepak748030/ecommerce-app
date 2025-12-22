@@ -25,7 +25,7 @@ export default function TermsOfServiceScreen() {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>1. Acceptance of Terms</Text>
                     <Text style={styles.sectionText}>
-                        By accessing and using the SwiftDrop Partner application, you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by these terms, please do not use this service.
+                        By accessing and using the भ ओ जन Delivery Partner application, you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by these terms, please do not use this service.
                     </Text>
                 </View>
 
@@ -66,7 +66,7 @@ export default function TermsOfServiceScreen() {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>5. Account Termination</Text>
                     <Text style={styles.sectionText}>
-                        SwiftDrop reserves the right to suspend or terminate your account for:{'\n'}
+                        भ ओ जन Delivery reserves the right to suspend or terminate your account for:{'\n'}
                         • Violation of these terms of service{'\n'}
                         • Fraudulent or illegal activities{'\n'}
                         • Consistent poor delivery performance{'\n'}
@@ -77,7 +77,7 @@ export default function TermsOfServiceScreen() {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>6. Limitation of Liability</Text>
                     <Text style={styles.sectionText}>
-                        SwiftDrop shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of the service. Our total liability shall not exceed the amount of earnings in your account.
+                        भ ओ जन Delivery shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your use of the service. Our total liability shall not exceed the amount of earnings in your account.
                     </Text>
                 </View>
 
@@ -92,7 +92,7 @@ export default function TermsOfServiceScreen() {
                     <Text style={styles.sectionTitle}>8. Contact Information</Text>
                     <Text style={styles.sectionText}>
                         For any questions regarding these terms, please contact us at:{'\n'}
-                        Email: legal@swiftdrop.com{'\n'}
+                        Email: legal@bhojandelivery.com{'\n'}
                         Phone: +91 123 456 7890
                     </Text>
                 </View>

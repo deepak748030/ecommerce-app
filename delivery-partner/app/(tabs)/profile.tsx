@@ -282,7 +282,7 @@ export default function ProfileScreen() {
                     <Text style={styles.logoutText}>Logout</Text>
                 </Pressable>
 
-                <Text style={styles.versionText}>SwiftDrop Partner v1.0.0</Text>
+                <Text style={styles.versionText}>भ ओ जन Delivery v1.0.0</Text>
             </ScrollView>
 
             <ConfirmationModal

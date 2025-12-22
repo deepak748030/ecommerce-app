@@ -29,11 +29,12 @@ export default function AboutScreen() {
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 {/* Logo & Name */}
                 <View style={styles.logoContainer}>
-                    <View style={styles.logoCircle}>
-                        <Package size={40} color={colors.primary} />
-                    </View>
-                    <Text style={styles.appName}>SwiftDrop Partner</Text>
-                    <Text style={styles.tagline}>Deliver with confidence</Text>
+                    <Image
+                        source={require('../assets/images/app-logo.png')}
+                        style={styles.logoImage}
+                    />
+                    <Text style={styles.appName}>भ ओ जन Delivery</Text>
+                    <Text style={styles.tagline}>विश्वास के साथ डिलीवरी</Text>
                 </View>
 
                 {/* Version Info */}
@@ -65,28 +66,28 @@ export default function AboutScreen() {
 
                 {/* Company Info */}
                 <View style={styles.companyCard}>
-                    <Text style={styles.companyName}>SwiftDrop Technologies Pvt Ltd</Text>
+                    <Text style={styles.companyName}>भ ओ जन Technologies Pvt Ltd</Text>
                     <Text style={styles.companyInfo}>
-                        SwiftDrop is a leading delivery platform connecting customers with reliable delivery partners. Our mission is to make deliveries fast, safe, and convenient for everyone.
+                        भ ओ जन Delivery एक प्रमुख डिलीवरी प्लेटफॉर्म है जो ग्राहकों को विश्वसनीय डिलीवरी पार्टनर्स से जोड़ता है। हमारा मिशन सभी के लिए डिलीवरी को तेज, सुरक्षित और सुविधाजनक बनाना है।
                     </Text>
                 </View>
 
                 {/* Links */}
                 <View style={styles.linksCard}>
-                    <Pressable style={styles.linkItem} onPress={() => Linking.openURL('https://swiftdrop.com')}>
-                        <Text style={styles.linkText}>Visit Website</Text>
+                    <Pressable style={styles.linkItem} onPress={() => Linking.openURL('https://bhojandelivery.com')}>
+                        <Text style={styles.linkText}>वेबसाइट देखें</Text>
                     </Pressable>
                     <View style={styles.divider} />
-                    <Pressable style={styles.linkItem} onPress={() => Linking.openURL('https://swiftdrop.com/careers')}>
-                        <Text style={styles.linkText}>Careers</Text>
+                    <Pressable style={styles.linkItem} onPress={() => Linking.openURL('https://bhojandelivery.com/careers')}>
+                        <Text style={styles.linkText}>करियर</Text>
                     </Pressable>
                     <View style={styles.divider} />
-                    <Pressable style={styles.linkItem} onPress={() => Linking.openURL('https://swiftdrop.com/blog')}>
-                        <Text style={styles.linkText}>Blog</Text>
+                    <Pressable style={styles.linkItem} onPress={() => Linking.openURL('https://bhojandelivery.com/blog')}>
+                        <Text style={styles.linkText}>ब्लॉग</Text>
                     </Pressable>
                 </View>
 
-                <Text style={styles.copyright}>© 2025 SwiftDrop Technologies. All rights reserved.</Text>
+                <Text style={styles.copyright}>© 2025 भ ओ जन Technologies. All rights reserved.</Text>
             </ScrollView>
         </SafeAreaView>
     );
@@ -129,13 +130,10 @@ const createStyles = (colors: any) => StyleSheet.create({
         marginBottom: 24,
         paddingTop: 20,
     },
-    logoCircle: {
+    logoImage: {
         width: 80,
         height: 80,
-        borderRadius: 40,
-        backgroundColor: colors.secondary,
-        alignItems: 'center',
-        justifyContent: 'center',
+        borderRadius: 16,
         marginBottom: 16,
     },
     appName: {

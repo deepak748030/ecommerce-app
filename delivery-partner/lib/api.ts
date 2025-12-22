@@ -323,10 +323,21 @@ export const deliveryPartnerAuthApi = {
     },
 
     // Toggle online status
-    toggleOnline: async () => {
-        return authFetch<{ isOnline: boolean }>('/delivery-partner/auth/toggle-online', {
+    toggleOnline: async (setOnline?: boolean) => {
+        const result = await authFetch<{ isOnline: boolean }>('/delivery-partner/auth/toggle-online', {
             method: 'PUT',
+            body: JSON.stringify(typeof setOnline === 'boolean' ? { isOnline: setOnline } : {}),
         });
+
+        // Update local storage with new online status
+        if (result.success && result.response) {
+            const currentData = await getPartnerData();
+            if (currentData) {
+                await setPartnerData({ ...currentData, isOnline: result.response.isOnline });
+            }
+        }
+
+        return result;
     },
 
     // Logout

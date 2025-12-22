@@ -142,7 +142,7 @@ export default function SettingsScreen() {
                                 <Globe size={18} color={colors.primary} />
                             </View>
                             <View>
-                                <Text style={styles.settingLabel}>About SwiftDrop</Text>
+                                <Text style={styles.settingLabel}>About भ ओ जन Delivery</Text>
                                 <Text style={styles.settingDesc}>Version 1.0.0</Text>
                             </View>
                         </View>
@@ -167,7 +167,7 @@ export default function SettingsScreen() {
                     </Pressable>
                 </View>
 
-                <Text style={styles.footerText}>SwiftDrop Partner v1.0.0</Text>
+                <Text style={styles.footerText}>भ ओ जन Delivery Partner v1.0.0</Text>
             </ScrollView>
 
             <ConfirmationModal
