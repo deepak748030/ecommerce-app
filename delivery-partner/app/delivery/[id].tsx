@@ -239,7 +239,7 @@ export default function DeliveryDetailScreen() {
                                 {order.status.replace('_', ' ').toUpperCase()}
                             </Text>
                         </View>
-                        <Text style={styles.timeText}>{order.estimatedTime} • {order.distance}</Text>
+                        <Text style={styles.timeText}>{order.estimatedTime}</Text>
                     </View>
                 </View>
 
@@ -327,32 +327,7 @@ export default function DeliveryDetailScreen() {
                     )}
                 </View>
 
-                {/* Vendor-Set Delivery Details */}
-                {(order.deliveryPayment !== undefined && order.deliveryPayment > 0) && (
-                    <View style={[styles.card, styles.highlightCard]}>
-                        <View style={styles.sectionHeader}>
-                            <CreditCard size={16} color={colors.success} />
-                            <Text style={[styles.sectionTitle, { color: colors.success }]}>Your Payment</Text>
-                        </View>
-                        <View style={styles.vendorDetailsGrid}>
-                            <View style={styles.vendorDetailItem}>
-                                <Text style={styles.vendorDetailLabel}>Amount</Text>
-                                <Text style={styles.vendorDetailValue}>₹{order.deliveryPayment}</Text>
-                            </View>
-                            {order.deliveryTimeMinutes !== undefined && order.deliveryTimeMinutes > 0 && (
-                                <View style={styles.vendorDetailItem}>
-                                    <Text style={styles.vendorDetailLabel}>Time</Text>
-                                    <Text style={styles.vendorDetailValue}>
-                                        {order.deliveryTimeMinutes >= 60
-                                            ? `${Math.floor(order.deliveryTimeMinutes / 60)}h ${order.deliveryTimeMinutes % 60}m`
-                                            : `${order.deliveryTimeMinutes} min`
-                                        }
-                                    </Text>
-                                </View>
-                            )}
-                        </View>
-                    </View>
-                )}
+
 
                 {/* Payment Breakdown */}
                 <View style={styles.card}>

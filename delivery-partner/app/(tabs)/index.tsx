@@ -256,32 +256,14 @@ export default function HomeScreen() {
                                 onPress={() => router.push({ pathname: '/delivery/[id]' as any, params: { id: delivery.id } })}
                             >
                                 <View style={styles.deliveryHeader}>
-                                    <Text style={styles.orderId}>#{delivery.orderId}</Text>
+                                    <View style={styles.orderIdRow}>
+                                        <Text style={styles.orderId}>#{delivery.orderId}</Text>
+
+                                    </View>
                                     <View style={[styles.statusBadge, delivery.status === 'accepted' ? styles.acceptedBadge : styles.pendingBadge]}>
                                         <Text style={styles.statusBadgeText}>{delivery.status.replace('_', ' ').toUpperCase()}</Text>
                                     </View>
                                 </View>
-
-                                {/* Vendor-set payment and time */}
-                                {delivery.deliveryPayment !== undefined && delivery.deliveryPayment > 0 && (
-                                    <View style={styles.vendorPaymentRow}>
-                                        <View style={styles.vendorPaymentItem}>
-                                            <IndianRupee size={14} color={colors.success} />
-                                            <Text style={styles.vendorPaymentText}>₹{delivery.deliveryPayment}</Text>
-                                        </View>
-                                        {delivery.deliveryTimeMinutes !== undefined && delivery.deliveryTimeMinutes > 0 && (
-                                            <View style={styles.vendorPaymentItem}>
-                                                <Clock size={14} color={colors.success} />
-                                                <Text style={styles.vendorPaymentText}>
-                                                    {delivery.deliveryTimeMinutes >= 60
-                                                        ? `${Math.floor(delivery.deliveryTimeMinutes / 60)}h ${delivery.deliveryTimeMinutes % 60}m`
-                                                        : `${delivery.deliveryTimeMinutes} min`
-                                                    }
-                                                </Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                )}
 
                                 <View style={styles.addressRow}>
                                     <MapPin size={14} color={colors.success} />
@@ -320,29 +302,15 @@ export default function HomeScreen() {
                             >
                                 <View style={styles.deliveryHeader}>
                                     <Text style={styles.orderId}>#{delivery.orderId}</Text>
-                                    <Text style={styles.distanceText}>{delivery.distance}</Text>
+                                    {delivery.deliveryTimeMinutes !== undefined && delivery.deliveryTimeMinutes > 0 && (
+                                        <Text style={styles.deliveryTimeText}>
+                                            {delivery.deliveryTimeMinutes >= 60
+                                                ? `${Math.floor(delivery.deliveryTimeMinutes / 60)}h ${delivery.deliveryTimeMinutes % 60}m`
+                                                : `${delivery.deliveryTimeMinutes} min`
+                                            }
+                                        </Text>
+                                    )}
                                 </View>
-
-                                {/* Vendor-set payment and time */}
-                                {delivery.deliveryPayment !== undefined && delivery.deliveryPayment > 0 && (
-                                    <View style={styles.vendorPaymentRow}>
-                                        <View style={styles.vendorPaymentItem}>
-                                            <IndianRupee size={14} color={colors.success} />
-                                            <Text style={styles.vendorPaymentText}>₹{delivery.deliveryPayment}</Text>
-                                        </View>
-                                        {delivery.deliveryTimeMinutes !== undefined && delivery.deliveryTimeMinutes > 0 && (
-                                            <View style={styles.vendorPaymentItem}>
-                                                <Clock size={14} color={colors.success} />
-                                                <Text style={styles.vendorPaymentText}>
-                                                    {delivery.deliveryTimeMinutes >= 60
-                                                        ? `${Math.floor(delivery.deliveryTimeMinutes / 60)}h ${delivery.deliveryTimeMinutes % 60}m`
-                                                        : `${delivery.deliveryTimeMinutes} min`
-                                                    }
-                                                </Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                )}
 
                                 <View style={styles.addressRow}>
                                     <MapPin size={14} color={colors.success} />
@@ -557,10 +525,20 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         alignItems: 'center',
         marginBottom: 10,
     },
+    orderIdRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
     orderId: {
         fontSize: 14,
         fontWeight: '700',
         color: colors.foreground,
+    },
+    deliveryTimeText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: colors.success,
     },
     statusBadge: {
         paddingHorizontal: 8,

@@ -171,7 +171,6 @@ export default function OrdersScreen() {
                     <Clock size={12} color={colors.mutedForeground} />
                     <Text style={styles.infoText}>{item.estimatedTime}</Text>
                 </View>
-                <Text style={styles.distanceText}>{item.distance}</Text>
             </View>
         </Pressable>
     );
