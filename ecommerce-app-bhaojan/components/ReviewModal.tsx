@@ -31,12 +31,21 @@ export function ReviewModal({
     onReviewSubmitted,
 }: ReviewModalProps) {
     const { colors } = useTheme();
-    const [selectedProduct, setSelectedProduct] = useState<ReviewableProduct | null>(
-        products.length === 1 ? products[0] : null
-    );
+    const [selectedProduct, setSelectedProduct] = useState<ReviewableProduct | null>(null);
     const [rating, setRating] = useState(0);
     const [comment, setComment] = useState('');
     const [submitting, setSubmitting] = useState(false);
+
+    // Update selected product when modal opens or products change
+    React.useEffect(() => {
+        if (visible && products.length > 0) {
+            if (products.length === 1) {
+                setSelectedProduct(products[0]);
+            } else {
+                setSelectedProduct(null);
+            }
+        }
+    }, [visible, products]);
 
     const handleSubmit = async () => {
         if (!selectedProduct) {
@@ -74,7 +83,7 @@ export function ReviewModal({
     };
 
     const resetAndClose = () => {
-        setSelectedProduct(products.length === 1 ? products[0] : null);
+        setSelectedProduct(null);
         setRating(0);
         setComment('');
         onClose();

@@ -18,8 +18,6 @@ const STATUS_OPTIONS = [
     { value: 'confirmed', label: 'Confirmed' },
     { value: 'processing', label: 'Processing' },
     { value: 'shipped', label: 'Shipped' },
-    { value: 'out_for_delivery', label: 'Out for Delivery' },
-    { value: 'delivered', label: 'Delivered' },
     { value: 'cancelled', label: 'Cancelled' },
 ];
 
@@ -59,8 +57,6 @@ export function VendorOrders({ orders, loading, updatingOrderId, onUpdateStatus,
             case 'confirmed':
             case 'processing': return colors.primary;
             case 'shipped':
-            case 'out_for_delivery': return colors.accent;
-            case 'delivered': return colors.success;
             case 'cancelled': return colors.destructive;
             default: return colors.mutedForeground;
         }
