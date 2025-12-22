@@ -196,16 +196,16 @@ export interface Category {
 export interface Banner {
     _id: string
     title: string
+    subtitle?: string
     image: string
-    publicId?: string
     badge?: string
-    type: 'event' | 'category'
-    eventId?: string
-    categorySlug?: string
+    gradient?: string[]
+    linkType: 'category' | 'product' | 'search' | 'external'
+    linkValue?: string
     isActive: boolean
     order: number
     createdAt: string
-    updatedAt: string
+    updatedAt?: string
 }
 
 export interface Event {
@@ -356,6 +356,7 @@ export const getBannersAdmin = async (params: {
     limit?: number
     search?: string
     status?: string
+    linkType?: string
 }) => {
     const response = await api.get('/admin/banners', { params })
     return response.data
@@ -366,26 +367,47 @@ export const getBannerByIdAdmin = async (id: string) => {
     return response.data
 }
 
-export const createBanner = async (data: FormData) => {
-    const response = await api.post('/admin/banners', data, {
-        headers: {
-            'Content-Type': 'multipart/form-data',
-        },
-    })
+export const createBanner = async (data: {
+    title: string
+    subtitle?: string
+    image: string
+    badge?: string
+    gradient?: string[]
+    linkType?: string
+    linkValue?: string
+    order?: number
+}) => {
+    const response = await api.post('/admin/banners', data)
     return response.data
 }
 
-export const updateBanner = async (id: string, data: FormData) => {
-    const response = await api.put(`/admin/banners/${id}`, data, {
-        headers: {
-            'Content-Type': 'multipart/form-data',
-        },
-    })
+export const updateBanner = async (id: string, data: {
+    title?: string
+    subtitle?: string
+    image?: string
+    badge?: string
+    gradient?: string[]
+    linkType?: string
+    linkValue?: string
+    order?: number
+    isActive?: boolean
+}) => {
+    const response = await api.put(`/admin/banners/${id}`, data)
     return response.data
 }
 
 export const deleteBanner = async (id: string) => {
     const response = await api.delete(`/admin/banners/${id}`)
+    return response.data
+}
+
+export const toggleBannerStatus = async (id: string) => {
+    const response = await api.put(`/admin/banners/${id}/toggle`)
+    return response.data
+}
+
+export const reorderBanners = async (bannerOrders: { id: string; order: number }[]) => {
+    const response = await api.put('/admin/banners/reorder', { bannerOrders })
     return response.data
 }
 

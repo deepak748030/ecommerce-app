@@ -23,4 +23,13 @@ router.put('/categories/:id', verifyAdminToken, adminController.updateCategory);
 router.delete('/categories/:id', verifyAdminToken, adminController.deleteCategory);
 router.put('/categories/:id/toggle', verifyAdminToken, adminController.toggleCategoryStatus);
 
+// Banner routes
+router.get('/banners', verifyAdminToken, adminController.getBanners);
+router.get('/banners/:id', verifyAdminToken, adminController.getBannerById);
+router.post('/banners', verifyAdminToken, adminController.createBanner);
+router.put('/banners/reorder', verifyAdminToken, adminController.reorderBanners);
+router.put('/banners/:id', verifyAdminToken, adminController.updateBanner);
+router.delete('/banners/:id', verifyAdminToken, adminController.deleteBanner);
+router.put('/banners/:id/toggle', verifyAdminToken, adminController.toggleBannerStatus);
+
 module.exports = router;

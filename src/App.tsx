@@ -7,6 +7,7 @@ import { DashboardLayout } from './components/DashboardLayout'
 import { DashboardPage } from './pages/DashboardPage'
 import { UsersPage } from './pages/UsersPage'
 import { CategoriesPage } from './pages/CategoriesPage'
+import { BannersPage } from './pages/BannersPage'
 
 function App() {
     return (
@@ -25,6 +26,7 @@ function App() {
                         <Route index element={<DashboardPage />} />
                         <Route path="users" element={<UsersPage />} />
                         <Route path="categories" element={<CategoriesPage />} />
+                        <Route path="banners" element={<BannersPage />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
