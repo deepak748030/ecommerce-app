@@ -6,6 +6,7 @@ import {
     Users,
     FolderOpen,
     Image,
+    Truck,
     Menu,
     X,
     LogOut,
@@ -20,6 +21,7 @@ const navItems = [
     { to: '/users', icon: Users, label: 'Users' },
     { to: '/categories', icon: FolderOpen, label: 'Categories' },
     { to: '/banners', icon: Image, label: 'Banners' },
+    { to: '/delivery-partners', icon: Truck, label: 'Delivery Partners' },
 ]
 
 export function DashboardLayout() {

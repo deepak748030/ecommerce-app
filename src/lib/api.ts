@@ -208,6 +208,61 @@ export interface Banner {
     updatedAt?: string
 }
 
+export interface DeliveryPartner {
+    _id: string
+    name: string
+    phone: string
+    email?: string
+    avatar?: string
+    vehicle: {
+        type: 'bike' | 'scooter' | 'car' | 'bicycle'
+        number: string
+        model: string
+        color: string
+    }
+    documents?: {
+        aadhaar?: string
+        pan?: string
+        license?: string
+        selfie?: string
+    }
+    kycStatus: 'pending' | 'submitted' | 'approved' | 'rejected'
+    kycRejectionReason?: string
+    isActive: boolean
+    isOnline: boolean
+    isVerified: boolean
+    isBlocked: boolean
+    isProfileComplete: boolean
+    stats: {
+        totalDeliveries: number
+        rating: number
+        totalRatings: number
+    }
+    earnings: {
+        today: number
+        week: number
+        month: number
+        total: number
+    }
+    memberSince: string
+    createdAt: string
+    updatedAt?: string
+}
+
+export interface DeliveryPartnerStats {
+    total: number
+    active: number
+    online: number
+    blocked: number
+    verified: number
+    pendingKyc: number
+    submittedKyc: number
+    approvedKyc: number
+    rejectedKyc: number
+    totalEarnings: number
+    totalDeliveries: number
+}
+
 export interface Event {
     _id: string
     title: string
@@ -460,6 +515,49 @@ export const getDashboardStats = async () => {
 export const getDashboardAnalytics = async (filter: 'today' | 'weekly' | 'monthly' | 'yearly' = 'monthly') => {
     const response = await api.get('/admin/analytics', { params: { filter } })
     return response.data as { success: boolean; response: DashboardAnalytics }
+}
+
+// Delivery Partner APIs
+export const getDeliveryPartnersAdmin = async (params: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: string
+    kycStatus?: string
+    isOnline?: string
+}) => {
+    const response = await api.get('/admin/delivery-partners', { params })
+    return response.data
+}
+
+export const getDeliveryPartnerByIdAdmin = async (id: string) => {
+    const response = await api.get(`/admin/delivery-partners/${id}`)
+    return response.data
+}
+
+export const getDeliveryPartnerStats = async () => {
+    const response = await api.get('/admin/delivery-partners/stats')
+    return response.data
+}
+
+export const toggleDeliveryPartnerBlock = async (id: string, reason?: string) => {
+    const response = await api.put(`/admin/delivery-partners/${id}/block`, { reason })
+    return response.data
+}
+
+export const updateDeliveryPartnerKYC = async (id: string, status: string, rejectionReason?: string) => {
+    const response = await api.put(`/admin/delivery-partners/${id}/kyc`, { status, rejectionReason })
+    return response.data
+}
+
+export const toggleDeliveryPartnerActive = async (id: string) => {
+    const response = await api.put(`/admin/delivery-partners/${id}/toggle-active`)
+    return response.data
+}
+
+export const updateDeliveryPartnerEarnings = async (id: string, amount: number, type: 'add' | 'deduct' | 'set', reason?: string) => {
+    const response = await api.put(`/admin/delivery-partners/${id}/earnings`, { amount, type, reason })
+    return response.data
 }
 
 export default api

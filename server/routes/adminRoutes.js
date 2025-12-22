@@ -32,4 +32,13 @@ router.put('/banners/:id', verifyAdminToken, adminController.updateBanner);
 router.delete('/banners/:id', verifyAdminToken, adminController.deleteBanner);
 router.put('/banners/:id/toggle', verifyAdminToken, adminController.toggleBannerStatus);
 
+// Delivery Partner routes
+router.get('/delivery-partners/stats', verifyAdminToken, adminController.getDeliveryPartnerStats);
+router.get('/delivery-partners', verifyAdminToken, adminController.getDeliveryPartners);
+router.get('/delivery-partners/:id', verifyAdminToken, adminController.getDeliveryPartnerById);
+router.put('/delivery-partners/:id/block', verifyAdminToken, adminController.toggleDeliveryPartnerBlock);
+router.put('/delivery-partners/:id/kyc', verifyAdminToken, adminController.updateDeliveryPartnerKYC);
+router.put('/delivery-partners/:id/toggle-active', verifyAdminToken, adminController.toggleDeliveryPartnerActive);
+router.put('/delivery-partners/:id/earnings', verifyAdminToken, adminController.updateDeliveryPartnerEarnings);
+
 module.exports = router;

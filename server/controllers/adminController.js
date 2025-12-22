@@ -2,6 +2,7 @@ const Admin = require('../models/Admin');
 const User = require('../models/User');
 const Category = require('../models/Category');
 const Banner = require('../models/Banner');
+const DeliveryPartner = require('../models/DeliveryPartner');
 const { generateAdminToken } = require('../middleware/adminAuth');
 
 // @desc    Admin login
@@ -758,6 +759,301 @@ const reorderBanners = async (req, res) => {
     }
 };
 
+// @desc    Get all delivery partners with pagination (optimized with lean & select)
+// @route   GET /api/admin/delivery-partners
+// @access  Private (Admin)
+const getDeliveryPartners = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const search = req.query.search || '';
+        const status = req.query.status || 'all';
+        const kycStatus = req.query.kycStatus || 'all';
+        const isOnline = req.query.isOnline;
+
+        const skip = (page - 1) * limit;
+
+        // Build query with indexed fields first
+        const query = {};
+
+        if (search) {
+            query.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { phone: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } },
+                { 'vehicle.number': { $regex: search, $options: 'i' } },
+            ];
+        }
+
+        if (status === 'active') {
+            query.isBlocked = false;
+            query.isActive = true;
+        } else if (status === 'blocked') {
+            query.isBlocked = true;
+        } else if (status === 'inactive') {
+            query.isActive = false;
+            query.isBlocked = false;
+        }
+
+        if (kycStatus !== 'all') {
+            query.kycStatus = kycStatus;
+        }
+
+        if (isOnline === 'true') {
+            query.isOnline = true;
+        } else if (isOnline === 'false') {
+            query.isOnline = false;
+        }
+
+        // Use Promise.all for parallel execution - O(1) for both queries
+        const [partners, total] = await Promise.all([
+            DeliveryPartner.find(query)
+                .select('-documents -expoPushToken -currentLocation') // Exclude heavy fields
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(), // Use lean for better performance
+            DeliveryPartner.countDocuments(query),
+        ]);
+
+        res.json({
+            success: true,
+            response: {
+                partners,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    pages: Math.ceil(total / limit),
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Get delivery partners error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get delivery partner by ID with full details
+// @route   GET /api/admin/delivery-partners/:id
+// @access  Private (Admin)
+const getDeliveryPartnerById = async (req, res) => {
+    try {
+        const partner = await DeliveryPartner.findById(req.params.id)
+            .select('-expoPushToken')
+            .lean();
+
+        if (!partner) {
+            return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+        }
+
+        res.json({
+            success: true,
+            response: { partner },
+        });
+    } catch (error) {
+        console.error('Get delivery partner by ID error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Toggle delivery partner block status
+// @route   PUT /api/admin/delivery-partners/:id/block
+// @access  Private (Admin)
+const toggleDeliveryPartnerBlock = async (req, res) => {
+    try {
+        const { reason } = req.body;
+        const partner = await DeliveryPartner.findById(req.params.id);
+
+        if (!partner) {
+            return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+        }
+
+        partner.isBlocked = !partner.isBlocked;
+        if (partner.isBlocked) {
+            partner.isOnline = false; // Force offline when blocked
+        }
+        await partner.save();
+
+        res.json({
+            success: true,
+            message: partner.isBlocked ? 'Delivery partner blocked' : 'Delivery partner unblocked',
+            response: {
+                isBlocked: partner.isBlocked,
+            },
+        });
+    } catch (error) {
+        console.error('Toggle delivery partner block error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Update delivery partner KYC status
+// @route   PUT /api/admin/delivery-partners/:id/kyc
+// @access  Private (Admin)
+const updateDeliveryPartnerKYC = async (req, res) => {
+    try {
+        const { status, rejectionReason } = req.body;
+
+        if (!['pending', 'submitted', 'approved', 'rejected'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'Invalid KYC status' });
+        }
+
+        const partner = await DeliveryPartner.findById(req.params.id);
+
+        if (!partner) {
+            return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+        }
+
+        partner.kycStatus = status;
+
+        if (status === 'approved') {
+            partner.isVerified = true;
+            partner.isActive = true;
+            partner.kycRejectionReason = '';
+        } else if (status === 'rejected') {
+            partner.isVerified = false;
+            partner.kycRejectionReason = rejectionReason || 'Documents rejected';
+        } else {
+            partner.isVerified = false;
+        }
+
+        await partner.save();
+
+        res.json({
+            success: true,
+            message: `KYC status updated to ${status}`,
+            response: {
+                kycStatus: partner.kycStatus,
+                isVerified: partner.isVerified,
+                kycRejectionReason: partner.kycRejectionReason,
+            },
+        });
+    } catch (error) {
+        console.error('Update delivery partner KYC error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Toggle delivery partner active status
+// @route   PUT /api/admin/delivery-partners/:id/toggle-active
+// @access  Private (Admin)
+const toggleDeliveryPartnerActive = async (req, res) => {
+    try {
+        const partner = await DeliveryPartner.findById(req.params.id);
+
+        if (!partner) {
+            return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+        }
+
+        partner.isActive = !partner.isActive;
+        if (!partner.isActive) {
+            partner.isOnline = false;
+        }
+        await partner.save();
+
+        res.json({
+            success: true,
+            message: partner.isActive ? 'Delivery partner activated' : 'Delivery partner deactivated',
+            response: {
+                isActive: partner.isActive,
+            },
+        });
+    } catch (error) {
+        console.error('Toggle delivery partner active error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get delivery partner stats summary
+// @route   GET /api/admin/delivery-partners/stats
+// @access  Private (Admin)
+const getDeliveryPartnerStats = async (req, res) => {
+    try {
+        // Use aggregation for O(n) single pass instead of multiple queries
+        const stats = await DeliveryPartner.aggregate([
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: 1 },
+                    active: { $sum: { $cond: [{ $and: [{ $eq: ['$isActive', true] }, { $eq: ['$isBlocked', false] }] }, 1, 0] } },
+                    online: { $sum: { $cond: ['$isOnline', 1, 0] } },
+                    blocked: { $sum: { $cond: ['$isBlocked', 1, 0] } },
+                    verified: { $sum: { $cond: ['$isVerified', 1, 0] } },
+                    pendingKyc: { $sum: { $cond: [{ $eq: ['$kycStatus', 'pending'] }, 1, 0] } },
+                    submittedKyc: { $sum: { $cond: [{ $eq: ['$kycStatus', 'submitted'] }, 1, 0] } },
+                    approvedKyc: { $sum: { $cond: [{ $eq: ['$kycStatus', 'approved'] }, 1, 0] } },
+                    rejectedKyc: { $sum: { $cond: [{ $eq: ['$kycStatus', 'rejected'] }, 1, 0] } },
+                    totalEarnings: { $sum: '$earnings.total' },
+                    totalDeliveries: { $sum: '$stats.totalDeliveries' },
+                },
+            },
+        ]);
+
+        const result = stats[0] || {
+            total: 0,
+            active: 0,
+            online: 0,
+            blocked: 0,
+            verified: 0,
+            pendingKyc: 0,
+            submittedKyc: 0,
+            approvedKyc: 0,
+            rejectedKyc: 0,
+            totalEarnings: 0,
+            totalDeliveries: 0,
+        };
+
+        res.json({
+            success: true,
+            response: result,
+        });
+    } catch (error) {
+        console.error('Get delivery partner stats error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Update delivery partner earnings (admin adjustment)
+// @route   PUT /api/admin/delivery-partners/:id/earnings
+// @access  Private (Admin)
+const updateDeliveryPartnerEarnings = async (req, res) => {
+    try {
+        const { amount, type, reason } = req.body;
+
+        if (!amount || !type) {
+            return res.status(400).json({ success: false, message: 'Amount and type are required' });
+        }
+
+        const partner = await DeliveryPartner.findById(req.params.id);
+
+        if (!partner) {
+            return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+        }
+
+        if (type === 'add') {
+            partner.earnings.total += amount;
+        } else if (type === 'deduct') {
+            partner.earnings.total = Math.max(0, partner.earnings.total - amount);
+        } else if (type === 'set') {
+            partner.earnings.total = Math.max(0, amount);
+        }
+
+        await partner.save();
+
+        res.json({
+            success: true,
+            message: 'Earnings updated successfully',
+            response: {
+                earnings: partner.earnings,
+            },
+        });
+    } catch (error) {
+        console.error('Update delivery partner earnings error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 module.exports = {
     adminLogin,
     getAdminProfile,
@@ -780,4 +1076,11 @@ module.exports = {
     deleteBanner,
     toggleBannerStatus,
     reorderBanners,
+    getDeliveryPartners,
+    getDeliveryPartnerById,
+    toggleDeliveryPartnerBlock,
+    updateDeliveryPartnerKYC,
+    toggleDeliveryPartnerActive,
+    getDeliveryPartnerStats,
+    updateDeliveryPartnerEarnings,
 };
