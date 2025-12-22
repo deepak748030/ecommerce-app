@@ -12,7 +12,6 @@ const DeleteAccountPage = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [countdown, setCountdown] = useState(0);
-    const [userExists, setUserExists] = useState(false);
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
     useEffect(() => {
@@ -46,7 +45,6 @@ const DeleteAccountPage = () => {
                     setLoading(false);
                     return;
                 }
-                setUserExists(true);
                 setStep("otp");
                 setCountdown(30);
             } else {
@@ -157,7 +155,6 @@ const DeleteAccountPage = () => {
         setPhone("");
         setOtp(["", "", "", "", "", ""]);
         setError("");
-        setUserExists(false);
     };
 
     return (

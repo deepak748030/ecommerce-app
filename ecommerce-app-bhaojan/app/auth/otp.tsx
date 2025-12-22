@@ -50,7 +50,7 @@ export default function OTPScreen() {
         }
     }, [resendTimer, canResend]);
 
-    // Get push token on mount
+    // Get push token on mount 123456
     useEffect(() => {
         const getPushToken = async () => {
             try {
