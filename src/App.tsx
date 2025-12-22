@@ -11,6 +11,7 @@ import { BannersPage } from './pages/BannersPage'
 import { DeliveryPartnersPage } from './pages/DeliveryPartnersPage'
 import { OrdersPage } from './pages/OrdersPage'
 import { CouponsPage } from './pages/CouponsPage'
+import { SettingsPage } from './pages/SettingsPage'
 
 function App() {
     return (
@@ -33,6 +34,7 @@ function App() {
                         <Route path="coupons" element={<CouponsPage />} />
                         <Route path="banners" element={<BannersPage />} />
                         <Route path="delivery-partners" element={<DeliveryPartnersPage />} />
+                        <Route path="settings" element={<SettingsPage />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>

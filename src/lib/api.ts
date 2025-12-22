@@ -19,19 +19,23 @@ api.interceptors.request.use((config) => {
     return config
 })
 
-// Handle auth errors - only redirect on explicit 401 from protected endpoints
+// Handle auth errors
+// IMPORTANT: do NOT force-logout on every 401, because some endpoints can transiently return 401
+// (cold start / slow server / race), which was logging you out when navigating.
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        // Only clear auth and redirect if it's a 401 from the server
-        // and it's not from the profile check (which happens on mount)
         if (error.response?.status === 401) {
+            const token = localStorage.getItem('admin_token')
             const isProfileCheck = error.config?.url?.includes('/admin/me')
-            if (!isProfileCheck) {
-                localStorage.removeItem('admin_token')
-                localStorage.removeItem('admin_user')
+
+            // If there is no token at all, user is effectively logged out → go to login.
+            if (!token && !isProfileCheck) {
                 window.location.href = '/login'
             }
+
+            // If token exists, keep session intact and let the UI handle the error.
+            // (No localStorage clearing, no hard redirect.)
         }
         return Promise.reject(error)
     }
@@ -752,6 +756,38 @@ export const deleteCoupon = async (id: string) => {
 
 export const toggleCouponStatus = async (id: string) => {
     const response = await api.put(`/admin/coupons/${id}/toggle`)
+    return response.data
+}
+
+// Admin Settings APIs
+export interface AdminActivity {
+    admin: Admin
+    activity: {
+        lastLogin: string
+        accountCreated: string
+        stats: {
+            totalOrders: number
+            totalUsers: number
+            totalCoupons: number
+            totalCategories: number
+            totalBanners: number
+            totalDeliveryPartners: number
+        }
+    }
+}
+
+export const updateAdminProfile = async (data: { name?: string; email?: string; avatar?: string }) => {
+    const response = await api.put('/admin/profile', data)
+    return response.data
+}
+
+export const updateAdminPassword = async (currentPassword: string, newPassword: string) => {
+    const response = await api.put('/admin/password', { currentPassword, newPassword })
+    return response.data
+}
+
+export const getAdminActivity = async () => {
+    const response = await api.get('/admin/activity')
     return response.data
 }
 

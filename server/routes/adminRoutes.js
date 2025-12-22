@@ -57,4 +57,9 @@ router.put('/coupons/:id', verifyAdminToken, adminController.updateCoupon);
 router.delete('/coupons/:id', verifyAdminToken, adminController.deleteCoupon);
 router.put('/coupons/:id/toggle', verifyAdminToken, adminController.toggleCouponStatus);
 
+// Admin settings routes
+router.put('/profile', verifyAdminToken, adminController.updateAdminProfile);
+router.put('/password', verifyAdminToken, adminController.updateAdminPassword);
+router.get('/activity', verifyAdminToken, adminController.getAdminActivity);
+
 module.exports = router;

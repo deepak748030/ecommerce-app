@@ -1625,4 +1625,140 @@ module.exports = {
     updateCoupon,
     deleteCoupon,
     toggleCouponStatus,
+    updateAdminProfile,
+    updateAdminPassword,
+    getAdminActivity,
 };
+
+// @desc    Update admin profile
+// @route   PUT /api/admin/profile
+// @access  Private (Admin)
+async function updateAdminProfile(req, res) {
+    try {
+        const { name, email, avatar } = req.body;
+        const admin = await Admin.findById(req.adminId);
+
+        if (!admin) {
+            return res.status(404).json({ success: false, message: 'Admin not found' });
+        }
+
+        if (name) admin.name = name;
+        if (email) {
+            const existingAdmin = await Admin.findOne({ email: email.toLowerCase(), _id: { $ne: req.adminId } });
+            if (existingAdmin) {
+                return res.status(400).json({ success: false, message: 'Email already in use' });
+            }
+            admin.email = email.toLowerCase();
+        }
+        if (avatar !== undefined) admin.avatar = avatar;
+
+        await admin.save();
+
+        res.json({
+            success: true,
+            message: 'Profile updated successfully',
+            response: {
+                _id: admin._id,
+                name: admin.name,
+                email: admin.email,
+                avatar: admin.avatar,
+                role: admin.role,
+            },
+        });
+    } catch (error) {
+        console.error('Update admin profile error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+}
+
+// @desc    Update admin password
+// @route   PUT /api/admin/password
+// @access  Private (Admin)
+async function updateAdminPassword(req, res) {
+    try {
+        const { currentPassword, newPassword } = req.body;
+
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ success: false, message: 'Current and new password are required' });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
+        }
+
+        const admin = await Admin.findById(req.adminId);
+
+        if (!admin) {
+            return res.status(404).json({ success: false, message: 'Admin not found' });
+        }
+
+        const isMatch = await admin.comparePassword(currentPassword);
+
+        if (!isMatch) {
+            return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+        }
+
+        admin.password = newPassword;
+        await admin.save();
+
+        res.json({
+            success: true,
+            message: 'Password updated successfully',
+        });
+    } catch (error) {
+        console.error('Update admin password error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+}
+
+// @desc    Get admin activity/stats
+// @route   GET /api/admin/activity
+// @access  Private (Admin)
+async function getAdminActivity(req, res) {
+    try {
+        const admin = await Admin.findById(req.adminId).select('name email avatar role createdAt updatedAt').lean();
+
+        if (!admin) {
+            return res.status(404).json({ success: false, message: 'Admin not found' });
+        }
+
+        // Get activity stats - count of actions performed
+        const [
+            totalOrders,
+            totalUsers,
+            totalCoupons,
+            totalCategories,
+            totalBanners,
+            totalDeliveryPartners,
+        ] = await Promise.all([
+            Order.countDocuments(),
+            User.countDocuments(),
+            Coupon.countDocuments(),
+            Category.countDocuments(),
+            Banner.countDocuments(),
+            DeliveryPartner.countDocuments(),
+        ]);
+
+        res.json({
+            success: true,
+            response: {
+                admin,
+                activity: {
+                    lastLogin: admin.updatedAt,
+                    accountCreated: admin.createdAt,
+                    stats: {
+                        totalOrders,
+                        totalUsers,
+                        totalCoupons,
+                        totalCategories,
+                        totalBanners,
+                        totalDeliveryPartners,
+                    },
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Get admin activity error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+}

@@ -14,6 +14,7 @@ import {
     ChevronRight,
     ShoppingBag,
     Ticket,
+    Settings,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { useAuth } from '../context/AuthContext'
@@ -26,6 +27,7 @@ const navItems = [
     { to: '/coupons', icon: Ticket, label: 'Coupons' },
     { to: '/banners', icon: Image, label: 'Banners' },
     { to: '/delivery-partners', icon: Truck, label: 'Delivery Partners' },
+    { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
 export function DashboardLayout() {
