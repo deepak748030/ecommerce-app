@@ -2,9 +2,11 @@ const Order = require('../models/Order');
 const Product = require('../models/Product');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
+const Coupon = require('../models/Coupon');
 const { sendOrderStatusNotification } = require('../services/notificationService');
 const { createNotification } = require('./notificationController');
 const { creditVendorWallet, debitVendorWallet, releasePendingBalance } = require('./walletController');
+const { useCoupon } = require('./couponController');
 
 // @desc    Create new order with payment
 // @route   POST /api/orders
@@ -91,6 +93,11 @@ const createOrder = async (req, res) => {
             timeline,
             status: 'pending', // Default status is pending
         });
+
+        // Increment coupon usage count if promo code was used
+        if (promoCode) {
+            await useCoupon(promoCode);
+        }
 
         // Create transaction record for the payment
         const transaction = await Transaction.create({
