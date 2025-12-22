@@ -1,5 +1,6 @@
 const Admin = require('../models/Admin');
 const User = require('../models/User');
+const Category = require('../models/Category');
 const { generateAdminToken } = require('../middleware/adminAuth');
 
 // @desc    Admin login
@@ -341,6 +342,191 @@ const getDashboardAnalytics = async (req, res) => {
     }
 };
 
+// @desc    Get all categories with pagination
+// @route   GET /api/admin/categories
+// @access  Private (Admin)
+const getCategories = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const search = req.query.search || '';
+        const status = req.query.status || 'all';
+
+        const skip = (page - 1) * limit;
+
+        const query = {};
+
+        if (search) {
+            query.name = { $regex: search, $options: 'i' };
+        }
+
+        if (status === 'active') {
+            query.isActive = true;
+        } else if (status === 'inactive') {
+            query.isActive = false;
+        }
+
+        const [categories, total] = await Promise.all([
+            Category.find(query)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Category.countDocuments(query),
+        ]);
+
+        res.json({
+            success: true,
+            response: {
+                categories,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    pages: Math.ceil(total / limit),
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Get categories error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get category by ID
+// @route   GET /api/admin/categories/:id
+// @access  Private (Admin)
+const getCategoryById = async (req, res) => {
+    try {
+        const category = await Category.findById(req.params.id).lean();
+
+        if (!category) {
+            return res.status(404).json({ success: false, message: 'Category not found' });
+        }
+
+        res.json({
+            success: true,
+            response: { category },
+        });
+    } catch (error) {
+        console.error('Get category by ID error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Create category
+// @route   POST /api/admin/categories
+// @access  Private (Admin)
+const createCategory = async (req, res) => {
+    try {
+        const { name, image, color } = req.body;
+
+        if (!name) {
+            return res.status(400).json({ success: false, message: 'Category name is required' });
+        }
+
+        const existingCategory = await Category.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
+        if (existingCategory) {
+            return res.status(400).json({ success: false, message: 'Category already exists' });
+        }
+
+        const category = await Category.create({
+            name,
+            image: image || '',
+            color: color || '#DCFCE7',
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Category created successfully',
+            response: { category },
+        });
+    } catch (error) {
+        console.error('Create category error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Update category
+// @route   PUT /api/admin/categories/:id
+// @access  Private (Admin)
+const updateCategory = async (req, res) => {
+    try {
+        const { name, image, color, isActive } = req.body;
+
+        const category = await Category.findById(req.params.id);
+
+        if (!category) {
+            return res.status(404).json({ success: false, message: 'Category not found' });
+        }
+
+        if (name) category.name = name;
+        if (image !== undefined) category.image = image;
+        if (color) category.color = color;
+        if (typeof isActive === 'boolean') category.isActive = isActive;
+
+        await category.save();
+
+        res.json({
+            success: true,
+            message: 'Category updated successfully',
+            response: { category },
+        });
+    } catch (error) {
+        console.error('Update category error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Delete category
+// @route   DELETE /api/admin/categories/:id
+// @access  Private (Admin)
+const deleteCategory = async (req, res) => {
+    try {
+        const category = await Category.findById(req.params.id);
+
+        if (!category) {
+            return res.status(404).json({ success: false, message: 'Category not found' });
+        }
+
+        await category.deleteOne();
+
+        res.json({
+            success: true,
+            message: 'Category deleted successfully',
+            response: { id: req.params.id },
+        });
+    } catch (error) {
+        console.error('Delete category error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Toggle category status
+// @route   PUT /api/admin/categories/:id/toggle
+// @access  Private (Admin)
+const toggleCategoryStatus = async (req, res) => {
+    try {
+        const category = await Category.findById(req.params.id);
+
+        if (!category) {
+            return res.status(404).json({ success: false, message: 'Category not found' });
+        }
+
+        category.isActive = !category.isActive;
+        await category.save();
+
+        res.json({
+            success: true,
+            message: category.isActive ? 'Category activated' : 'Category deactivated',
+            response: { category },
+        });
+    } catch (error) {
+        console.error('Toggle category status error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 module.exports = {
     adminLogin,
     getAdminProfile,
@@ -350,4 +536,11 @@ module.exports = {
     toggleUserBlock,
     getDashboardStats,
     getDashboardAnalytics,
+    getCategories,
+    getCategoryById,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+    toggleCategoryStatus,
 };
+a
