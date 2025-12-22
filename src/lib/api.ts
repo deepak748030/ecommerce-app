@@ -19,14 +19,19 @@ api.interceptors.request.use((config) => {
     return config
 })
 
-// Handle auth errors
+// Handle auth errors - only redirect on explicit 401 from protected endpoints
 api.interceptors.response.use(
     (response) => response,
     (error) => {
+        // Only clear auth and redirect if it's a 401 from the server
+        // and it's not from the profile check (which happens on mount)
         if (error.response?.status === 401) {
-            localStorage.removeItem('admin_token')
-            localStorage.removeItem('admin_user')
-            window.location.href = '/login'
+            const isProfileCheck = error.config?.url?.includes('/admin/me')
+            if (!isProfileCheck) {
+                localStorage.removeItem('admin_token')
+                localStorage.removeItem('admin_user')
+                window.location.href = '/login'
+            }
         }
         return Promise.reject(error)
     }
@@ -565,6 +570,108 @@ export const toggleDeliveryPartnerActive = async (id: string) => {
 
 export const updateDeliveryPartnerEarnings = async (id: string, amount: number, type: 'add' | 'deduct' | 'set', reason?: string) => {
     const response = await api.put(`/admin/delivery-partners/${id}/earnings`, { amount, type, reason })
+    return response.data
+}
+
+// Order Types
+export interface OrderItem {
+    product: string
+    name: string
+    price: number
+    quantity: number
+    image: string
+}
+
+export interface OrderUser {
+    _id: string
+    name: string
+    phone: string
+    avatar?: string
+}
+
+export interface Order {
+    _id: string
+    orderNumber: string
+    user: OrderUser
+    items: OrderItem[]
+    shippingAddress: {
+        name: string
+        phone: string
+        address: string
+        city: string
+        state: string
+        pincode: string
+    }
+    paymentMethod: 'upi' | 'card' | 'wallet' | 'cod'
+    subtotal: number
+    discount: number
+    shipping: number
+    tax: number
+    total: number
+    status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled'
+    timeline: Array<{
+        status: string
+        date: string
+        completed: boolean
+    }>
+    deliveryPartner?: {
+        _id: string
+        name: string
+        phone: string
+        avatar?: string
+        vehicleType?: string
+    }
+    deliveredAt?: string
+    estimatedDeliveryTime?: string
+    createdAt: string
+}
+
+export interface OrderStats {
+    totalOrders: number
+    totalRevenue: number
+    avgOrderValue: number
+    todayOrders: number
+    todayRevenue: number
+    pending: number
+    confirmed: number
+    processing: number
+    shipped: number
+    out_for_delivery: number
+    delivered: number
+    cancelled: number
+}
+
+// Order API Functions
+export const getOrdersAdmin = async (params: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: string
+    paymentMethod?: string
+    dateFrom?: string
+    dateTo?: string
+}) => {
+    const response = await api.get('/admin/orders', { params })
+    return response.data
+}
+
+export const getOrderStats = async () => {
+    const response = await api.get('/admin/orders/stats')
+    return response.data
+}
+
+export const getOrderById = async (id: string) => {
+    const response = await api.get(`/admin/orders/${id}`)
+    return response.data
+}
+
+export const updateOrderStatus = async (id: string, status: string) => {
+    const response = await api.put(`/admin/orders/${id}/status`, { status })
+    return response.data
+}
+
+export const assignDeliveryPartner = async (id: string, deliveryPartnerId: string) => {
+    const response = await api.put(`/admin/orders/${id}/assign`, { deliveryPartnerId })
     return response.data
 }
 

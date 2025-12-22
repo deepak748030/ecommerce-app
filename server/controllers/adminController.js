@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Category = require('../models/Category');
 const Banner = require('../models/Banner');
 const DeliveryPartner = require('../models/DeliveryPartner');
+const Order = require('../models/Order');
 const { generateAdminToken } = require('../middleware/adminAuth');
 
 // @desc    Admin login
@@ -1058,6 +1059,253 @@ const updateDeliveryPartnerEarnings = async (req, res) => {
     }
 };
 
+// =====================
+// ORDER MANAGEMENT
+// =====================
+
+// @desc    Get all orders with pagination and filters
+// @route   GET /api/admin/orders
+// @access  Private (Admin)
+const getOrders = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const search = req.query.search || '';
+        const status = req.query.status || 'all';
+        const paymentMethod = req.query.paymentMethod || 'all';
+        const dateFrom = req.query.dateFrom;
+        const dateTo = req.query.dateTo;
+
+        const skip = (page - 1) * limit;
+
+        // Build query - optimized with indexed fields
+        const query = {};
+
+        if (search) {
+            query.$or = [
+                { orderNumber: { $regex: search, $options: 'i' } },
+                { 'shippingAddress.name': { $regex: search, $options: 'i' } },
+                { 'shippingAddress.phone': { $regex: search, $options: 'i' } },
+            ];
+        }
+
+        if (status !== 'all') {
+            query.status = status;
+        }
+
+        if (paymentMethod !== 'all') {
+            query.paymentMethod = paymentMethod;
+        }
+
+        if (dateFrom || dateTo) {
+            query.createdAt = {};
+            if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+            if (dateTo) query.createdAt.$lte = new Date(dateTo + 'T23:59:59.999Z');
+        }
+
+        // Use Promise.all for parallel execution - O(1) for both operations
+        const [orders, total] = await Promise.all([
+            Order.find(query)
+                .select('orderNumber user shippingAddress items total status paymentMethod createdAt deliveredAt estimatedDeliveryTime')
+                .populate('user', 'name phone avatar')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Order.countDocuments(query),
+        ]);
+
+        res.json({
+            success: true,
+            response: {
+                orders,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    pages: Math.ceil(total / limit),
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Get orders error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get order statistics
+// @route   GET /api/admin/orders/stats
+// @access  Private (Admin)
+const getOrderStats = async (req, res) => {
+    try {
+        // Use MongoDB aggregation for optimal performance - O(n) single pass
+        const [stats] = await Order.aggregate([
+            {
+                $facet: {
+                    statusCounts: [
+                        { $group: { _id: '$status', count: { $sum: 1 } } }
+                    ],
+                    totals: [
+                        {
+                            $group: {
+                                _id: null,
+                                totalOrders: { $sum: 1 },
+                                totalRevenue: { $sum: '$total' },
+                                avgOrderValue: { $avg: '$total' },
+                            }
+                        }
+                    ],
+                    todayOrders: [
+                        {
+                            $match: {
+                                createdAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+                            }
+                        },
+                        { $count: 'count' }
+                    ],
+                    todayRevenue: [
+                        {
+                            $match: {
+                                createdAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+                            }
+                        },
+                        { $group: { _id: null, revenue: { $sum: '$total' } } }
+                    ]
+                }
+            }
+        ]);
+
+        const statusCounts = {};
+        stats.statusCounts.forEach(s => {
+            statusCounts[s._id] = s.count;
+        });
+
+        res.json({
+            success: true,
+            response: {
+                totalOrders: stats.totals[0]?.totalOrders || 0,
+                totalRevenue: stats.totals[0]?.totalRevenue || 0,
+                avgOrderValue: Math.round(stats.totals[0]?.avgOrderValue || 0),
+                todayOrders: stats.todayOrders[0]?.count || 0,
+                todayRevenue: stats.todayRevenue[0]?.revenue || 0,
+                pending: statusCounts.pending || 0,
+                confirmed: statusCounts.confirmed || 0,
+                processing: statusCounts.processing || 0,
+                shipped: statusCounts.shipped || 0,
+                out_for_delivery: statusCounts.out_for_delivery || 0,
+                delivered: statusCounts.delivered || 0,
+                cancelled: statusCounts.cancelled || 0,
+            },
+        });
+    } catch (error) {
+        console.error('Get order stats error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get order by ID
+// @route   GET /api/admin/orders/:id
+// @access  Private (Admin)
+const getOrderById = async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.id)
+            .populate('user', 'name email phone avatar')
+            .populate('deliveryPartner', 'name phone avatar vehicleType')
+            .lean();
+
+        if (!order) {
+            return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+
+        res.json({
+            success: true,
+            response: { order },
+        });
+    } catch (error) {
+        console.error('Get order by ID error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Update order status
+// @route   PUT /api/admin/orders/:id/status
+// @access  Private (Admin)
+const updateOrderStatus = async (req, res) => {
+    try {
+        const { status } = req.body;
+        const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'cancelled'];
+
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ success: false, message: 'Invalid status' });
+        }
+
+        const order = await Order.findById(req.params.id);
+
+        if (!order) {
+            return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+
+        order.status = status;
+
+        // Add to timeline
+        order.timeline.push({
+            status,
+            date: new Date(),
+            completed: true,
+        });
+
+        // Set delivered date if delivered
+        if (status === 'delivered') {
+            order.deliveredAt = new Date();
+        }
+
+        await order.save();
+
+        res.json({
+            success: true,
+            message: 'Order status updated successfully',
+            response: { order },
+        });
+    } catch (error) {
+        console.error('Update order status error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Assign delivery partner to order
+// @route   PUT /api/admin/orders/:id/assign
+// @access  Private (Admin)
+const assignDeliveryPartner = async (req, res) => {
+    try {
+        const { deliveryPartnerId } = req.body;
+
+        const [order, partner] = await Promise.all([
+            Order.findById(req.params.id),
+            DeliveryPartner.findById(deliveryPartnerId),
+        ]);
+
+        if (!order) {
+            return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+
+        if (!partner) {
+            return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+        }
+
+        order.deliveryPartner = deliveryPartnerId;
+        await order.save();
+
+        res.json({
+            success: true,
+            message: 'Delivery partner assigned successfully',
+            response: { order },
+        });
+    } catch (error) {
+        console.error('Assign delivery partner error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 module.exports = {
     adminLogin,
     getAdminProfile,
@@ -1087,4 +1335,9 @@ module.exports = {
     toggleDeliveryPartnerActive,
     getDeliveryPartnerStats,
     updateDeliveryPartnerEarnings,
+    getOrders,
+    getOrderStats,
+    getOrderById,
+    updateOrderStatus,
+    assignDeliveryPartner,
 };

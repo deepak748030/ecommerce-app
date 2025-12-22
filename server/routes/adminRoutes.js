@@ -41,4 +41,11 @@ router.put('/delivery-partners/:id/kyc', verifyAdminToken, adminController.updat
 router.put('/delivery-partners/:id/toggle-active', verifyAdminToken, adminController.toggleDeliveryPartnerActive);
 router.put('/delivery-partners/:id/earnings', verifyAdminToken, adminController.updateDeliveryPartnerEarnings);
 
+// Order routes
+router.get('/orders/stats', verifyAdminToken, adminController.getOrderStats);
+router.get('/orders', verifyAdminToken, adminController.getOrders);
+router.get('/orders/:id', verifyAdminToken, adminController.getOrderById);
+router.put('/orders/:id/status', verifyAdminToken, adminController.updateOrderStatus);
+router.put('/orders/:id/assign', verifyAdminToken, adminController.assignDeliveryPartner);
+
 module.exports = router;

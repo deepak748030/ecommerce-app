@@ -9,6 +9,7 @@ import { UsersPage } from './pages/UsersPage'
 import { CategoriesPage } from './pages/CategoriesPage'
 import { BannersPage } from './pages/BannersPage'
 import { DeliveryPartnersPage } from './pages/DeliveryPartnersPage'
+import { OrdersPage } from './pages/OrdersPage'
 
 function App() {
     return (
@@ -25,6 +26,7 @@ function App() {
                         }
                     >
                         <Route index element={<DashboardPage />} />
+                        <Route path="orders" element={<OrdersPage />} />
                         <Route path="users" element={<UsersPage />} />
                         <Route path="categories" element={<CategoriesPage />} />
                         <Route path="banners" element={<BannersPage />} />

@@ -12,12 +12,14 @@ import {
     LogOut,
     ChevronLeft,
     ChevronRight,
+    ShoppingBag,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { useAuth } from '../context/AuthContext'
 
 const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/orders', icon: ShoppingBag, label: 'Orders' },
     { to: '/users', icon: Users, label: 'Users' },
     { to: '/categories', icon: FolderOpen, label: 'Categories' },
     { to: '/banners', icon: Image, label: 'Banners' },
