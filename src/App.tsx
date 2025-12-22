@@ -6,10 +6,6 @@ import { LoginPage } from './pages/LoginPage'
 import { DashboardLayout } from './components/DashboardLayout'
 import { DashboardPage } from './pages/DashboardPage'
 import { UsersPage } from './pages/UsersPage'
-import { VendorsPage } from './pages/VendorsPage'
-import { CategoriesPage } from './pages/CategoriesPage'
-import { BannersPage } from './pages/BannersPage'
-import { EventsPage } from './pages/EventsPage'
 
 function App() {
     return (
@@ -27,10 +23,6 @@ function App() {
                     >
                         <Route index element={<DashboardPage />} />
                         <Route path="users" element={<UsersPage />} />
-                        <Route path="vendors" element={<VendorsPage />} />
-                        <Route path="categories" element={<CategoriesPage />} />
-                        <Route path="banners" element={<BannersPage />} />
-                        <Route path="events" element={<EventsPage />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>

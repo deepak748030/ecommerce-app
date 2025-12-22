@@ -40,7 +40,7 @@
     --sidebar-hover: 270 25% 18%;
     --sidebar-active: 262 83% 66%;
 
-    --radius: 0.375rem;
+    --radius: 0.5rem;
 }
 
 * {
@@ -50,7 +50,7 @@
 }
 
 html {
-    font-size: 14px;
+    font-size: 16px;
 }
 
 body {
@@ -63,8 +63,8 @@ body {
 
 /* Scrollbar Styles */
 ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 8px;
+    height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -73,7 +73,7 @@ body {
 
 ::-webkit-scrollbar-thumb {
     background: hsl(var(--muted-foreground) / 0.3);
-    border-radius: 3px;
+    border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -84,7 +84,7 @@ body {
 @keyframes fade-in {
     from {
         opacity: 0;
-        transform: translateY(8px);
+        transform: translateY(10px);
     }
 
     to {
@@ -115,16 +115,30 @@ body {
     }
 }
 
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .animate-fade-in {
-    animation: fade-in 0.2s ease-out;
+    animation: fade-in 0.3s ease-out;
 }
 
 .animate-slide-in {
-    animation: slide-in 0.2s ease-out;
+    animation: slide-in 0.3s ease-out;
 }
 
 .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
 }
 
 /* Skeleton Loading */
@@ -145,4 +159,36 @@ body {
     100% {
         background-position: 200% 0;
     }
+}
+
+/* Table styles */
+.table-container {
+    @apply overflow-x-auto;
+}
+
+/* Button base styles */
+.btn {
+    @apply inline-flex items-center justify-center gap-2 font-medium transition-all duration-200;
+}
+
+.btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
+}
+
+.btn-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80;
+}
+
+.btn-destructive {
+    @apply bg-destructive text-destructive-foreground hover:bg-destructive/90;
+}
+
+/* Input base styles */
+.input {
+    @apply w-full px-4 py-3 bg-card border border-input rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-ring transition-all;
+}
+
+/* Card styles */
+.card {
+    @apply bg-card border border-border rounded-xl p-6;
 }

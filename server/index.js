@@ -17,6 +17,7 @@ const reviewRoutes = require('./routes/reviewRoutes');
 const vendorRoutes = require('./routes/vendorRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const deliveryPartnerRoutes = require('./routes/deliveryPartnerRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -64,6 +65,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/vendor', vendorRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/delivery-partner', deliveryPartnerRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
