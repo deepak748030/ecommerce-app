@@ -34,6 +34,12 @@ const reviewSchema = new mongoose.Schema({
         type: Boolean,
         default: true,
     },
+    deliveryRating: {
+        type: Number,
+        min: 1,
+        max: 5,
+        default: null,
+    },
 }, {
     timestamps: true,
 });

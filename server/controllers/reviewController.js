@@ -1,13 +1,14 @@
 const Review = require('../models/Review');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const DeliveryPartner = require('../models/DeliveryPartner');
 
 // @desc    Create a review for a product
 // @route   POST /api/reviews
 // @access  Private
 exports.createReview = async (req, res) => {
     try {
-        const { productId, orderId, rating, comment, images } = req.body;
+        const { productId, orderId, rating, comment, images, deliveryRating } = req.body;
 
         // Validate required fields
         if (!productId || !orderId || !rating) {
@@ -75,7 +76,32 @@ exports.createReview = async (req, res) => {
             comment: comment || '',
             images: images || [],
             isVerifiedPurchase: true,
+            deliveryRating: deliveryRating || null,
         });
+
+        // Update delivery partner rating if delivery rating is provided and order has a delivery partner
+        if (deliveryRating && order.deliveryPartner) {
+            try {
+                const deliveryPartner = await DeliveryPartner.findById(order.deliveryPartner);
+                if (deliveryPartner) {
+                    const currentRating = deliveryPartner.stats.rating || 5.0;
+                    const currentTotalRatings = deliveryPartner.stats.totalRatings || 0;
+
+                    // Calculate new average rating
+                    const newTotalRatings = currentTotalRatings + 1;
+                    const newRating = ((currentRating * currentTotalRatings) + deliveryRating) / newTotalRatings;
+
+                    // Update delivery partner stats
+                    await DeliveryPartner.findByIdAndUpdate(order.deliveryPartner, {
+                        'stats.rating': Math.round(newRating * 10) / 10,
+                        'stats.totalRatings': newTotalRatings,
+                    });
+                }
+            } catch (dpError) {
+                console.error('Error updating delivery partner rating:', dpError);
+                // Don't fail the review creation if delivery partner update fails
+            }
+        }
 
         // Populate user data
         await review.populate('user', 'name avatar');
