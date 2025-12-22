@@ -137,7 +137,7 @@ const getUsers = async (req, res) => {
 
         const [users, total] = await Promise.all([
             User.find(query)
-                .select('-expoPushToken -notificationSettings -wallet')
+                .select('name email phone avatar isBlocked memberSince wallet createdAt')
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit)
@@ -168,7 +168,7 @@ const getUsers = async (req, res) => {
 // @access  Private (Admin)
 const getUserById = async (req, res) => {
     try {
-        const user = await User.findById(req.params.id).select('-expoPushToken -notificationSettings').lean();
+        const user = await User.findById(req.params.id).select('name email phone avatar isBlocked memberSince wallet createdAt updatedAt').lean();
 
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });

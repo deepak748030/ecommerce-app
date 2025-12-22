@@ -40,6 +40,13 @@ export interface Admin {
     role: string
 }
 
+export interface UserWallet {
+    balance: number
+    pendingBalance: number
+    totalEarnings: number
+    totalWithdrawn: number
+}
+
 export interface User {
     _id: string
     name: string
@@ -49,6 +56,7 @@ export interface User {
     isBlocked: boolean
     memberSince: string
     createdAt: string
+    wallet?: UserWallet
 }
 
 export interface VendorKYC {

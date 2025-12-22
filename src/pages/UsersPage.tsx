@@ -10,6 +10,10 @@ import {
     Loader2,
     RefreshCw,
     Users,
+    Wallet,
+    TrendingUp,
+    Clock,
+    ArrowDownCircle,
 } from 'lucide-react'
 import { getUsers, toggleUserBlock, User, Pagination } from '../lib/api'
 import { cn } from '../lib/utils'
@@ -28,6 +32,12 @@ function UserSkeleton() {
             </td>
             <td className="p-4"><div className="h-4 w-40 skeleton rounded" /></td>
             <td className="p-4"><div className="h-4 w-28 skeleton rounded" /></td>
+            <td className="p-4">
+                <div className="space-y-1">
+                    <div className="h-4 w-20 skeleton rounded" />
+                    <div className="h-3 w-16 skeleton rounded" />
+                </div>
+            </td>
             <td className="p-4"><div className="h-7 w-20 skeleton rounded-full" /></td>
             <td className="p-4"><div className="h-4 w-24 skeleton rounded" /></td>
             <td className="p-4">
@@ -48,10 +58,12 @@ interface UserDetailModalProps {
 function UserDetailModal({ user, onClose }: UserDetailModalProps) {
     if (!user) return null
 
+    const wallet = user.wallet || { balance: 0, pendingBalance: 0, totalEarnings: 0, totalWithdrawn: 0 }
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/70" onClick={onClose}>
             <div
-                className="bg-card border border-border rounded-2xl p-6 w-full max-w-lg animate-fade-in"
+                className="bg-card border border-border rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto animate-fade-in"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-start justify-between mb-6">
@@ -78,6 +90,44 @@ function UserDetailModal({ user, onClose }: UserDetailModalProps) {
                     )}>
                         {user.isBlocked ? 'Blocked' : 'Active'}
                     </span>
+                </div>
+
+                {/* Wallet Section */}
+                <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                        <Wallet className="w-4 h-4" />
+                        Wallet Balance
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-primary/10 border border-primary/20 rounded-xl p-4">
+                            <div className="flex items-center gap-2 text-primary mb-1">
+                                <Wallet className="w-4 h-4" />
+                                <span className="text-xs font-medium">Available</span>
+                            </div>
+                            <p className="text-xl font-bold text-foreground">₹{wallet.balance.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-warning/10 border border-warning/20 rounded-xl p-4">
+                            <div className="flex items-center gap-2 text-warning mb-1">
+                                <Clock className="w-4 h-4" />
+                                <span className="text-xs font-medium">Pending</span>
+                            </div>
+                            <p className="text-xl font-bold text-foreground">₹{wallet.pendingBalance.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-success/10 border border-success/20 rounded-xl p-4">
+                            <div className="flex items-center gap-2 text-success mb-1">
+                                <TrendingUp className="w-4 h-4" />
+                                <span className="text-xs font-medium">Total Earnings</span>
+                            </div>
+                            <p className="text-xl font-bold text-foreground">₹{wallet.totalEarnings.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-muted border border-border rounded-xl p-4">
+                            <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                                <ArrowDownCircle className="w-4 h-4" />
+                                <span className="text-xs font-medium">Withdrawn</span>
+                            </div>
+                            <p className="text-xl font-bold text-foreground">₹{wallet.totalWithdrawn.toLocaleString()}</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="space-y-3">
@@ -114,6 +164,15 @@ function UserDetailModal({ user, onClose }: UserDetailModalProps) {
             </div>
         </div>
     )
+}
+
+function formatCurrency(amount: number): string {
+    if (amount >= 100000) {
+        return `₹${(amount / 100000).toFixed(1)}L`
+    } else if (amount >= 1000) {
+        return `₹${(amount / 1000).toFixed(1)}K`
+    }
+    return `₹${amount.toLocaleString()}`
 }
 
 export function UsersPage() {
@@ -229,6 +288,7 @@ export function UsersPage() {
                                 <th className="text-left p-4 font-semibold text-muted-foreground">User</th>
                                 <th className="text-left p-4 font-semibold text-muted-foreground">Email</th>
                                 <th className="text-left p-4 font-semibold text-muted-foreground">Phone</th>
+                                <th className="text-left p-4 font-semibold text-muted-foreground">Wallet Balance</th>
                                 <th className="text-left p-4 font-semibold text-muted-foreground">Status</th>
                                 <th className="text-left p-4 font-semibold text-muted-foreground">Joined</th>
                                 <th className="text-left p-4 font-semibold text-muted-foreground">Actions</th>
@@ -239,73 +299,90 @@ export function UsersPage() {
                                 Array.from({ length: 5 }).map((_, i) => <UserSkeleton key={i} />)
                             ) : users.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="p-12 text-center text-muted-foreground">
+                                    <td colSpan={7} className="p-12 text-center text-muted-foreground">
                                         <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
                                         <p className="text-lg">No users found</p>
                                     </td>
                                 </tr>
                             ) : (
-                                users.map((user) => (
-                                    <tr key={user._id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                                        <td className="p-4">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 rounded-full bg-muted overflow-hidden flex-shrink-0">
-                                                    {user.avatar ? (
-                                                        <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-base font-medium text-muted-foreground">
-                                                            {user.name?.charAt(0).toUpperCase() || 'U'}
+                                users.map((user) => {
+                                    const wallet = user.wallet || { balance: 0, pendingBalance: 0, totalEarnings: 0, totalWithdrawn: 0 }
+                                    return (
+                                        <tr key={user._id} className="border-b border-border hover:bg-muted/30 transition-colors">
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 rounded-full bg-muted overflow-hidden flex-shrink-0">
+                                                        {user.avatar ? (
+                                                            <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-base font-medium text-muted-foreground">
+                                                                {user.name?.charAt(0).toUpperCase() || 'U'}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <span className="font-medium text-foreground">{user.name || 'No Name'}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-4 text-muted-foreground">{user.email || 'N/A'}</td>
+                                            <td className="p-4 text-muted-foreground">{user.phone}</td>
+                                            <td className="p-4">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Wallet className="w-4 h-4 text-primary" />
+                                                        <span className="font-semibold text-foreground">{formatCurrency(wallet.balance)}</span>
+                                                    </div>
+                                                    {wallet.pendingBalance > 0 && (
+                                                        <div className="flex items-center gap-1.5 text-xs">
+                                                            <Clock className="w-3 h-3 text-warning" />
+                                                            <span className="text-warning">{formatCurrency(wallet.pendingBalance)} pending</span>
                                                         </div>
                                                     )}
                                                 </div>
-                                                <span className="font-medium text-foreground">{user.name || 'No Name'}</span>
-                                            </div>
-                                        </td>
-                                        <td className="p-4 text-muted-foreground">{user.email || 'N/A'}</td>
-                                        <td className="p-4 text-muted-foreground">{user.phone}</td>
-                                        <td className="p-4">
-                                            <span className={cn(
-                                                'px-3 py-1.5 text-sm font-medium rounded-full',
-                                                user.isBlocked ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success'
-                                            )}>
-                                                {user.isBlocked ? 'Blocked' : 'Active'}
-                                            </span>
-                                        </td>
-                                        <td className="p-4 text-muted-foreground">
-                                            {new Date(user.createdAt).toLocaleDateString()}
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={() => setSelectedUser(user)}
-                                                    className="p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-                                                    title="View Details"
-                                                >
-                                                    <Eye className="w-5 h-5" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleToggleBlock(user)}
-                                                    disabled={blockingUserId === user._id}
-                                                    className={cn(
-                                                        'p-2.5 rounded-lg transition-colors',
-                                                        user.isBlocked
-                                                            ? 'text-success hover:bg-success/10'
-                                                            : 'text-destructive hover:bg-destructive/10'
-                                                    )}
-                                                    title={user.isBlocked ? 'Unblock User' : 'Block User'}
-                                                >
-                                                    {blockingUserId === user._id ? (
-                                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                                    ) : user.isBlocked ? (
-                                                        <Check className="w-5 h-5" />
-                                                    ) : (
-                                                        <Ban className="w-5 h-5" />
-                                                    )}
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
+                                            </td>
+                                            <td className="p-4">
+                                                <span className={cn(
+                                                    'px-3 py-1.5 text-sm font-medium rounded-full',
+                                                    user.isBlocked ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success'
+                                                )}>
+                                                    {user.isBlocked ? 'Blocked' : 'Active'}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-muted-foreground">
+                                                {new Date(user.createdAt).toLocaleDateString()}
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => setSelectedUser(user)}
+                                                        className="p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+                                                        title="View Details"
+                                                    >
+                                                        <Eye className="w-5 h-5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleToggleBlock(user)}
+                                                        disabled={blockingUserId === user._id}
+                                                        className={cn(
+                                                            'p-2.5 rounded-lg transition-colors',
+                                                            user.isBlocked
+                                                                ? 'text-success hover:bg-success/10'
+                                                                : 'text-destructive hover:bg-destructive/10'
+                                                        )}
+                                                        title={user.isBlocked ? 'Unblock User' : 'Block User'}
+                                                    >
+                                                        {blockingUserId === user._id ? (
+                                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                                        ) : user.isBlocked ? (
+                                                            <Check className="w-5 h-5" />
+                                                        ) : (
+                                                            <Ban className="w-5 h-5" />
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )
+                                })
                             )}
                         </tbody>
                     </table>
