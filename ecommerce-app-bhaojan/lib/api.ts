@@ -919,10 +919,14 @@ export const vendorApi = {
     },
 
     // Update order status
-    updateOrderStatus: async (orderId: string, status: string) => {
+    updateOrderStatus: async (orderId: string, status: string, deliveryPayment?: number, deliveryTimeMinutes?: number) => {
+        const body: any = { status };
+        if (deliveryPayment !== undefined) body.deliveryPayment = deliveryPayment;
+        if (deliveryTimeMinutes !== undefined) body.deliveryTimeMinutes = deliveryTimeMinutes;
+
         return apiRequest<Order>(`/vendor/orders/${orderId}/status`, {
             method: 'PUT',
-            body: JSON.stringify({ status }),
+            body: JSON.stringify(body),
         });
     },
 

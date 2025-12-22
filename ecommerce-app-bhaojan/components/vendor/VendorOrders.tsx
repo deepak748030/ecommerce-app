@@ -12,7 +12,9 @@ import { useTheme } from '@/hooks/useTheme';
 import { ShoppingBag, ChevronDown, CheckCircle } from 'lucide-react-native';
 import { VendorOrder, getImageUrl } from '@/lib/api';
 import { VendorOrderSkeleton } from '@/components/Skeleton';
+import { ShippingModal } from './ShippingModal';
 
+// Removed 'delivered' - vendors cannot mark as delivered
 const STATUS_OPTIONS = [
     { value: 'pending', label: 'Pending' },
     { value: 'confirmed', label: 'Confirmed' },
@@ -25,7 +27,7 @@ interface Props {
     orders: VendorOrder[];
     loading: boolean;
     updatingOrderId: string | null;
-    onUpdateStatus: (orderId: string, newStatus: string) => void;
+    onUpdateStatus: (orderId: string, newStatus: string, deliveryPayment?: number, deliveryTimeMinutes?: number) => void;
     onLoadMore?: () => void;
     loadingMore?: boolean;
     hasMore?: boolean;
@@ -35,6 +37,8 @@ export function VendorOrders({ orders, loading, updatingOrderId, onUpdateStatus,
     const { colors } = useTheme();
     const styles = createStyles(colors);
     const [showStatusPicker, setShowStatusPicker] = useState<string | null>(null);
+    const [showShippingModal, setShowShippingModal] = useState(false);
+    const [selectedOrderForShipping, setSelectedOrderForShipping] = useState<VendorOrder | null>(null);
 
     const handleEndReached = useCallback(() => {
         if (onLoadMore && hasMore && !loadingMore) {
@@ -66,9 +70,34 @@ export function VendorOrders({ orders, loading, updatingOrderId, onUpdateStatus,
         return status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     };
 
-    const handleStatusUpdate = (orderId: string, newStatus: string) => {
+    const handleStatusUpdate = (orderId: string, newStatus: string, order: VendorOrder) => {
         setShowStatusPicker(null);
+
+        // If shipping, show the modal to get payment and time
+        if (newStatus === 'shipped') {
+            console.log('Opening shipping modal for order:', order.orderNumber);
+            setSelectedOrderForShipping(order);
+            // Use setTimeout to ensure state updates properly
+            setTimeout(() => {
+                setShowShippingModal(true);
+            }, 100);
+            return;
+        }
+
         onUpdateStatus(orderId, newStatus);
+    };
+
+    const handleShippingConfirm = (deliveryPayment: number, deliveryTimeMinutes: number) => {
+        if (selectedOrderForShipping) {
+            onUpdateStatus(selectedOrderForShipping._id, 'shipped', deliveryPayment, deliveryTimeMinutes);
+            setShowShippingModal(false);
+            setSelectedOrderForShipping(null);
+        }
+    };
+
+    const handleShippingModalClose = () => {
+        setShowShippingModal(false);
+        setSelectedOrderForShipping(null);
     };
 
     const renderOrderCard = ({ item }: { item: VendorOrder }) => (
@@ -140,7 +169,7 @@ export function VendorOrders({ orders, loading, updatingOrderId, onUpdateStatus,
                                 styles.statusOption,
                                 item.status === option.value && styles.statusOptionSelected
                             ]}
-                            onPress={() => handleStatusUpdate(item._id, option.value)}
+                            onPress={() => handleStatusUpdate(item._id, option.value, item)}
                         >
                             <View style={[styles.statusDotSmall, { backgroundColor: getStatusColor(option.value) }]} />
                             <Text style={[
@@ -180,16 +209,25 @@ export function VendorOrders({ orders, loading, updatingOrderId, onUpdateStatus,
     }
 
     return (
-        <FlatList
-            data={orders}
-            keyExtractor={(item) => item._id}
-            renderItem={renderOrderCard}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            onEndReached={handleEndReached}
-            onEndReachedThreshold={0.3}
-            ListFooterComponent={renderFooter}
-        />
+        <>
+            <FlatList
+                data={orders}
+                keyExtractor={(item) => item._id}
+                renderItem={renderOrderCard}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                onEndReached={handleEndReached}
+                onEndReachedThreshold={0.3}
+                ListFooterComponent={renderFooter}
+            />
+            <ShippingModal
+                visible={showShippingModal}
+                orderNumber={selectedOrderForShipping?.orderNumber || ''}
+                onClose={handleShippingModalClose}
+                onConfirm={handleShippingConfirm}
+                loading={updatingOrderId === selectedOrderForShipping?._id}
+            />
+        </>
     );
 }
 

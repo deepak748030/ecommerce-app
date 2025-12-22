@@ -236,7 +236,7 @@ export default function HomeScreen() {
                     </View>
                   </View>
                   <View style={styles.bannerImageContainer}>
-                    {banner.image.startsWith('http') ? (
+                    {banner.image.startsWith('http') || banner.image.startsWith('data:image') ? (
                       <Image source={{ uri: banner.image }} style={styles.bannerImageReal} />
                     ) : (
                       <Text style={styles.bannerImage}>{banner.image}</Text>

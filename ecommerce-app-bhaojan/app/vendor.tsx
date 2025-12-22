@@ -119,10 +119,10 @@ export default function VendorScreen() {
         }, [])
     );
 
-    const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
+    const handleUpdateOrderStatus = async (orderId: string, newStatus: string, deliveryPayment?: number, deliveryTimeMinutes?: number) => {
         setUpdatingOrderId(orderId);
         try {
-            const result = await vendorApi.updateOrderStatus(orderId, newStatus);
+            const result = await vendorApi.updateOrderStatus(orderId, newStatus, deliveryPayment, deliveryTimeMinutes);
             if (result.success) {
                 setInfoModalData({
                     title: 'Success',

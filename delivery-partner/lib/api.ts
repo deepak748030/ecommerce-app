@@ -383,6 +383,9 @@ export interface DeliveryOrder {
     createdAt: string;
     deliveredAt?: string;
     isAcceptedByMe?: boolean;
+    // Vendor-set delivery details
+    deliveryPayment?: number;
+    deliveryTimeMinutes?: number;
 }
 
 // Paginated response interface

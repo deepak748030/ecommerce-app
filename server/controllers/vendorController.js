@@ -404,8 +404,14 @@ const updateVendorOrderStatus = async (req, res) => {
 
         // Save delivery payment and time when shipping
         if (status === 'shipped') {
-            order.deliveryPayment = parseFloat(deliveryPayment) || 0;
-            order.deliveryTimeMinutes = parseInt(deliveryTimeMinutes) || 30;
+            const parsedPayment = parseFloat(deliveryPayment) || 0;
+            const parsedMinutes = parseInt(deliveryTimeMinutes) || 30;
+            order.deliveryPayment = parsedPayment;
+            order.deliveryTimeMinutes = parsedMinutes;
+
+            // Keep existing fields in sync so delivery partner app (and earnings) show correct values everywhere
+            order.deliveryFee = parsedPayment || order.deliveryFee;
+            order.estimatedDeliveryTime = `${parsedMinutes} min`;
         }
 
         // Update timeline based on status

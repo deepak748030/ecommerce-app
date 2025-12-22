@@ -5,6 +5,19 @@ const Notification = require('../models/Notification');
 const { generateToken } = require('../middleware/auth');
 const { sendPushNotificationByToken } = require('../services/notificationService');
 
+const getDeliveryAmount = (order) => {
+    const payment = typeof order.deliveryPayment === 'number' ? order.deliveryPayment : 0;
+    if (payment > 0) return payment;
+    const fee = typeof order.deliveryFee === 'number' ? order.deliveryFee : null;
+    return fee ?? 40;
+};
+
+const getEstimatedTimeText = (order) => {
+    const minutes = typeof order.deliveryTimeMinutes === 'number' ? order.deliveryTimeMinutes : 0;
+    if (minutes > 0) return `${minutes} min`;
+    return order.estimatedDeliveryTime || '30-45 min';
+};
+
 // @desc    Send OTP to phone (Login/Signup)
 // @route   POST /api/delivery-partner/auth/login
 // @access  Public
@@ -456,12 +469,15 @@ const getAvailableOrders = async (req, res) => {
             deliveryAddress: `${order.shippingAddress.address}, ${order.shippingAddress.city}`,
             customerName: order.shippingAddress.name,
             // Don't show phone number for unaccepted orders
-            amount: order.deliveryFee || 40,
+            amount: getDeliveryAmount(order),
             tip: order.deliveryTip || 0,
             distance: '2.5 km',
-            estimatedTime: order.estimatedDeliveryTime || '30-45 min',
+            estimatedTime: getEstimatedTimeText(order),
             items: order.items.length,
             createdAt: order.createdAt,
+            // Vendor-set delivery details
+            deliveryPayment: order.deliveryPayment,
+            deliveryTimeMinutes: order.deliveryTimeMinutes,
         }));
 
         res.json({
@@ -515,12 +531,15 @@ const getActiveOrders = async (req, res) => {
             deliveryAddress: `${order.shippingAddress.address}, ${order.shippingAddress.city}`,
             customerName: order.shippingAddress.name,
             customerPhone: order.shippingAddress.phone,
-            amount: order.deliveryFee || 40,
+            amount: getDeliveryAmount(order),
             tip: order.deliveryTip || 0,
             distance: '2.5 km',
-            estimatedTime: order.estimatedDeliveryTime || '30-45 min',
+            estimatedTime: getEstimatedTimeText(order),
             items: order.items.length,
             createdAt: order.createdAt,
+            // Vendor-set delivery details
+            deliveryPayment: order.deliveryPayment,
+            deliveryTimeMinutes: order.deliveryTimeMinutes,
         }));
 
         res.json({
@@ -658,10 +677,10 @@ const getOrderById = async (req, res) => {
             // Only show phone numbers if order is accepted by this delivery partner
             customerPhone: isAcceptedByMe ? order.shippingAddress.phone : null,
             vendorPhone: isAcceptedByMe ? '9876543210' : null, // Vendor phone (can be dynamic if you have vendor model)
-            amount: order.deliveryFee || 40,
+            amount: getDeliveryAmount(order),
             tip: order.deliveryTip || 0,
             distance: '2.5 km',
-            estimatedTime: order.estimatedDeliveryTime || '30-45 min',
+            estimatedTime: getEstimatedTimeText(order),
             items: formattedItems,
             itemCount: order.items.length,
             paymentMethod: order.paymentMethod,
@@ -670,6 +689,9 @@ const getOrderById = async (req, res) => {
             createdAt: order.createdAt,
             deliveredAt: order.deliveredAt,
             isAcceptedByMe,
+            // Vendor-set delivery details
+            deliveryPayment: order.deliveryPayment,
+            deliveryTimeMinutes: order.deliveryTimeMinutes,
         };
 
         res.json({
@@ -970,7 +992,7 @@ const verifyDeliveryOtp = async (req, res) => {
         // Update partner earnings
         const partner = await DeliveryPartner.findById(partnerId);
         if (partner) {
-            const earning = (order.deliveryFee || 40) + (order.deliveryTip || 0);
+            const earning = getDeliveryAmount(order) + (order.deliveryTip || 0);
             partner.earnings.today = (partner.earnings.today || 0) + earning;
             partner.earnings.total = (partner.earnings.total || 0) + earning;
             await partner.save();
@@ -1041,13 +1063,16 @@ const getOrderHistory = async (req, res) => {
             pickupAddress: order.items[0]?.product?.fullLocation || order.items[0]?.product?.location || 'Store Location, Main Market',
             deliveryAddress: `${order.shippingAddress.address}, ${order.shippingAddress.city}`,
             customerName: order.shippingAddress.name,
-            amount: order.deliveryFee || 40,
+            amount: getDeliveryAmount(order),
             tip: order.deliveryTip || 0,
             distance: '2.5 km',
-            estimatedTime: order.estimatedDeliveryTime || '30-45 min',
+            estimatedTime: getEstimatedTimeText(order),
             items: order.items.length,
             createdAt: order.createdAt,
             deliveredAt: order.deliveredAt,
+            // Vendor-set delivery details
+            deliveryPayment: order.deliveryPayment,
+            deliveryTimeMinutes: order.deliveryTimeMinutes,
         }));
 
         res.json({
@@ -1096,22 +1121,30 @@ const getEarnings = async (req, res) => {
         monthStart.setHours(0, 0, 0, 0);
 
         // Aggregate earnings from delivered orders
+        const deliveryAmountExpr = {
+            $cond: [
+                { $gt: [{ $ifNull: ['$deliveryPayment', 0] }, 0] },
+                { $ifNull: ['$deliveryPayment', 0] },
+                { $ifNull: ['$deliveryFee', 40] },
+            ],
+        };
+
         const [todayEarnings, weekEarnings, monthEarnings, totalEarnings, todayDeliveries, totalDeliveries, totalTips] = await Promise.all([
             Order.aggregate([
                 { $match: { deliveryPartner: partnerId, status: 'delivered', deliveredAt: { $gte: todayStart, $lte: todayEnd } } },
-                { $group: { _id: null, total: { $sum: { $add: [{ $ifNull: ['$deliveryFee', 40] }, { $ifNull: ['$deliveryTip', 0] }] } } } }
+                { $group: { _id: null, total: { $sum: { $add: [deliveryAmountExpr, { $ifNull: ['$deliveryTip', 0] }] } } } }
             ]),
             Order.aggregate([
                 { $match: { deliveryPartner: partnerId, status: 'delivered', deliveredAt: { $gte: weekStart } } },
-                { $group: { _id: null, total: { $sum: { $add: [{ $ifNull: ['$deliveryFee', 40] }, { $ifNull: ['$deliveryTip', 0] }] } } } }
+                { $group: { _id: null, total: { $sum: { $add: [deliveryAmountExpr, { $ifNull: ['$deliveryTip', 0] }] } } } }
             ]),
             Order.aggregate([
                 { $match: { deliveryPartner: partnerId, status: 'delivered', deliveredAt: { $gte: monthStart } } },
-                { $group: { _id: null, total: { $sum: { $add: [{ $ifNull: ['$deliveryFee', 40] }, { $ifNull: ['$deliveryTip', 0] }] } } } }
+                { $group: { _id: null, total: { $sum: { $add: [deliveryAmountExpr, { $ifNull: ['$deliveryTip', 0] }] } } } }
             ]),
             Order.aggregate([
                 { $match: { deliveryPartner: partnerId, status: 'delivered' } },
-                { $group: { _id: null, total: { $sum: { $add: [{ $ifNull: ['$deliveryFee', 40] }, { $ifNull: ['$deliveryTip', 0] }] } } } }
+                { $group: { _id: null, total: { $sum: { $add: [deliveryAmountExpr, { $ifNull: ['$deliveryTip', 0] }] } } } }
             ]),
             Order.countDocuments({ deliveryPartner: partnerId, status: 'delivered', deliveredAt: { $gte: todayStart, $lte: todayEnd } }),
             Order.countDocuments({ deliveryPartner: partnerId, status: 'delivered' }),
@@ -1164,7 +1197,15 @@ const getEarningsHistory = async (req, res) => {
             {
                 $group: {
                     _id: { $dateToString: { format: '%Y-%m-%d', date: '$deliveredAt' } },
-                    amount: { $sum: { $ifNull: ['$deliveryFee', 40] } },
+                    amount: {
+                        $sum: {
+                            $cond: [
+                                { $gt: [{ $ifNull: ['$deliveryPayment', 0] }, 0] },
+                                { $ifNull: ['$deliveryPayment', 0] },
+                                { $ifNull: ['$deliveryFee', 40] },
+                            ],
+                        },
+                    },
                     tips: { $sum: { $ifNull: ['$deliveryTip', 0] } },
                     deliveries: { $sum: 1 },
                 }

@@ -327,11 +327,38 @@ export default function DeliveryDetailScreen() {
                     )}
                 </View>
 
+                {/* Vendor-Set Delivery Details */}
+                {(order.deliveryPayment !== undefined && order.deliveryPayment > 0) && (
+                    <View style={[styles.card, styles.highlightCard]}>
+                        <View style={styles.sectionHeader}>
+                            <CreditCard size={16} color={colors.success} />
+                            <Text style={[styles.sectionTitle, { color: colors.success }]}>Your Payment</Text>
+                        </View>
+                        <View style={styles.vendorDetailsGrid}>
+                            <View style={styles.vendorDetailItem}>
+                                <Text style={styles.vendorDetailLabel}>Amount</Text>
+                                <Text style={styles.vendorDetailValue}>₹{order.deliveryPayment}</Text>
+                            </View>
+                            {order.deliveryTimeMinutes !== undefined && order.deliveryTimeMinutes > 0 && (
+                                <View style={styles.vendorDetailItem}>
+                                    <Text style={styles.vendorDetailLabel}>Time</Text>
+                                    <Text style={styles.vendorDetailValue}>
+                                        {order.deliveryTimeMinutes >= 60
+                                            ? `${Math.floor(order.deliveryTimeMinutes / 60)}h ${order.deliveryTimeMinutes % 60}m`
+                                            : `${order.deliveryTimeMinutes} min`
+                                        }
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+                    </View>
+                )}
+
                 {/* Payment Breakdown */}
                 <View style={styles.card}>
                     <View style={styles.sectionHeader}>
                         <CreditCard size={16} color={colors.primary} />
-                        <Text style={styles.sectionTitle}>Payment</Text>
+                        <Text style={styles.sectionTitle}>Order Payment</Text>
                     </View>
                     {order.paymentMethod && (
                         <View style={styles.paymentRow}>
@@ -485,6 +512,29 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         borderRadius: 12,
         padding: 14,
         marginBottom: 12,
+    },
+    highlightCard: {
+        borderWidth: 2,
+        borderColor: colors.success,
+        backgroundColor: colors.success + '10',
+    },
+    vendorDetailsGrid: {
+        flexDirection: 'row',
+        gap: 20,
+        marginTop: 8,
+    },
+    vendorDetailItem: {
+        flex: 1,
+    },
+    vendorDetailLabel: {
+        fontSize: 12,
+        color: colors.mutedForeground,
+        marginBottom: 4,
+    },
+    vendorDetailValue: {
+        fontSize: 22,
+        fontWeight: '800',
+        color: colors.success,
     },
     cardHeader: {
         flexDirection: 'row',

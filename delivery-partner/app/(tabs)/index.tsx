@@ -261,6 +261,28 @@ export default function HomeScreen() {
                                         <Text style={styles.statusBadgeText}>{delivery.status.replace('_', ' ').toUpperCase()}</Text>
                                     </View>
                                 </View>
+
+                                {/* Vendor-set payment and time */}
+                                {delivery.deliveryPayment !== undefined && delivery.deliveryPayment > 0 && (
+                                    <View style={styles.vendorPaymentRow}>
+                                        <View style={styles.vendorPaymentItem}>
+                                            <IndianRupee size={14} color={colors.success} />
+                                            <Text style={styles.vendorPaymentText}>₹{delivery.deliveryPayment}</Text>
+                                        </View>
+                                        {delivery.deliveryTimeMinutes !== undefined && delivery.deliveryTimeMinutes > 0 && (
+                                            <View style={styles.vendorPaymentItem}>
+                                                <Clock size={14} color={colors.success} />
+                                                <Text style={styles.vendorPaymentText}>
+                                                    {delivery.deliveryTimeMinutes >= 60
+                                                        ? `${Math.floor(delivery.deliveryTimeMinutes / 60)}h ${delivery.deliveryTimeMinutes % 60}m`
+                                                        : `${delivery.deliveryTimeMinutes} min`
+                                                    }
+                                                </Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                )}
+
                                 <View style={styles.addressRow}>
                                     <MapPin size={14} color={colors.success} />
                                     <Text style={styles.addressText} numberOfLines={1}>{delivery.pickupAddress}</Text>
@@ -300,6 +322,28 @@ export default function HomeScreen() {
                                     <Text style={styles.orderId}>#{delivery.orderId}</Text>
                                     <Text style={styles.distanceText}>{delivery.distance}</Text>
                                 </View>
+
+                                {/* Vendor-set payment and time */}
+                                {delivery.deliveryPayment !== undefined && delivery.deliveryPayment > 0 && (
+                                    <View style={styles.vendorPaymentRow}>
+                                        <View style={styles.vendorPaymentItem}>
+                                            <IndianRupee size={14} color={colors.success} />
+                                            <Text style={styles.vendorPaymentText}>₹{delivery.deliveryPayment}</Text>
+                                        </View>
+                                        {delivery.deliveryTimeMinutes !== undefined && delivery.deliveryTimeMinutes > 0 && (
+                                            <View style={styles.vendorPaymentItem}>
+                                                <Clock size={14} color={colors.success} />
+                                                <Text style={styles.vendorPaymentText}>
+                                                    {delivery.deliveryTimeMinutes >= 60
+                                                        ? `${Math.floor(delivery.deliveryTimeMinutes / 60)}h ${delivery.deliveryTimeMinutes % 60}m`
+                                                        : `${delivery.deliveryTimeMinutes} min`
+                                                    }
+                                                </Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                )}
+
                                 <View style={styles.addressRow}>
                                     <MapPin size={14} color={colors.success} />
                                     <Text style={styles.addressText} numberOfLines={1}>{delivery.pickupAddress}</Text>
@@ -486,6 +530,26 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         borderRadius: 12,
         padding: 12,
         marginBottom: 10,
+    },
+    vendorPaymentRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+        backgroundColor: colors.success + '15',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        marginBottom: 10,
+    },
+    vendorPaymentItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    vendorPaymentText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: colors.success,
     },
     deliveryHeader: {
         flexDirection: 'row',
