@@ -185,12 +185,12 @@ export interface DashboardAnalytics {
 export interface Category {
     _id: string
     name: string
-    slug: string
-    description?: string
+    image?: string
+    color?: string
+    itemsCount?: number
     isActive: boolean
-    order: number
     createdAt: string
-    updatedAt: string
+    updatedAt?: string
 }
 
 export interface Banner {
@@ -323,10 +323,8 @@ export const getCategoryByIdAdmin = async (id: string) => {
 
 export const createCategory = async (data: {
     name: string
-    slug: string
-    description?: string
-    isActive?: boolean
-    order?: number
+    image?: string
+    color?: string
 }) => {
     const response = await api.post('/admin/categories', data)
     return response.data
@@ -334,12 +332,16 @@ export const createCategory = async (data: {
 
 export const updateCategory = async (id: string, data: {
     name?: string
-    slug?: string
-    description?: string
+    image?: string
+    color?: string
     isActive?: boolean
-    order?: number
 }) => {
     const response = await api.put(`/admin/categories/${id}`, data)
+    return response.data
+}
+
+export const toggleCategoryStatus = async (id: string) => {
+    const response = await api.put(`/admin/categories/${id}/toggle`)
     return response.data
 }
 

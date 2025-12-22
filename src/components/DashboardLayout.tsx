@@ -4,6 +4,7 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
     LayoutDashboard,
     Users,
+    FolderOpen,
     Menu,
     X,
     LogOut,
@@ -16,6 +17,7 @@ import { useAuth } from '../context/AuthContext'
 const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/users', icon: Users, label: 'Users' },
+    { to: '/categories', icon: FolderOpen, label: 'Categories' },
 ]
 
 export function DashboardLayout() {

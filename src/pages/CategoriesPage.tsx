@@ -1,0 +1,480 @@
+import { useState, useEffect, useCallback } from 'react'
+import {
+    Search,
+    Filter,
+    Plus,
+    Edit2,
+    Trash2,
+    ToggleLeft,
+    ToggleRight,
+    X,
+    ChevronLeft,
+    ChevronRight,
+    Loader2,
+    FolderOpen,
+} from 'lucide-react'
+import { cn } from '../lib/utils'
+import {
+    getCategoriesAdmin,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+    toggleCategoryStatus,
+    Category,
+    Pagination,
+} from '../lib/api'
+
+interface CategoryFormData {
+    name: string
+    image: string
+    color: string
+}
+
+const defaultColors = [
+    '#DCFCE7', '#FEF3C7', '#DBEAFE', '#FCE7F3', '#E0E7FF',
+    '#F3E8FF', '#CFFAFE', '#FED7AA', '#D1FAE5', '#FEE2E2',
+]
+
+export function CategoriesPage() {
+    const [categories, setCategories] = useState<Category[]>([])
+    const [pagination, setPagination] = useState<Pagination | null>(null)
+    const [loading, setLoading] = useState(true)
+    const [search, setSearch] = useState('')
+    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+    const [page, setPage] = useState(1)
+    const [showModal, setShowModal] = useState(false)
+    const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+    const [formData, setFormData] = useState<CategoryFormData>({
+        name: '',
+        image: '',
+        color: '#DCFCE7',
+    })
+    const [formLoading, setFormLoading] = useState(false)
+    const [deleteLoading, setDeleteLoading] = useState<string | null>(null)
+    const [toggleLoading, setToggleLoading] = useState<string | null>(null)
+
+    const fetchCategories = useCallback(async () => {
+        try {
+            setLoading(true)
+            const response = await getCategoriesAdmin({
+                page,
+                limit: 10,
+                search,
+                status: statusFilter,
+            })
+            if (response.success) {
+                setCategories(response.response.categories)
+                setPagination(response.response.pagination)
+            }
+        } catch (error) {
+            console.error('Error fetching categories:', error)
+        } finally {
+            setLoading(false)
+        }
+    }, [page, search, statusFilter])
+
+    useEffect(() => {
+        fetchCategories()
+    }, [fetchCategories])
+
+    useEffect(() => {
+        setPage(1)
+    }, [search, statusFilter])
+
+    const handleOpenModal = (category?: Category) => {
+        if (category) {
+            setEditingCategory(category)
+            setFormData({
+                name: category.name,
+                image: category.image || '',
+                color: category.color || '#DCFCE7',
+            })
+        } else {
+            setEditingCategory(null)
+            setFormData({ name: '', image: '', color: '#DCFCE7' })
+        }
+        setShowModal(true)
+    }
+
+    const handleCloseModal = () => {
+        setShowModal(false)
+        setEditingCategory(null)
+        setFormData({ name: '', image: '', color: '#DCFCE7' })
+    }
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!formData.name.trim()) return
+
+        try {
+            setFormLoading(true)
+            if (editingCategory) {
+                await updateCategory(editingCategory._id, formData)
+            } else {
+                await createCategory(formData)
+            }
+            handleCloseModal()
+            fetchCategories()
+        } catch (error) {
+            console.error('Error saving category:', error)
+        } finally {
+            setFormLoading(false)
+        }
+    }
+
+    const handleDelete = async (id: string) => {
+        if (!window.confirm('Are you sure you want to delete this category?')) return
+
+        try {
+            setDeleteLoading(id)
+            await deleteCategory(id)
+            fetchCategories()
+        } catch (error) {
+            console.error('Error deleting category:', error)
+        } finally {
+            setDeleteLoading(null)
+        }
+    }
+
+    const handleToggleStatus = async (id: string) => {
+        try {
+            setToggleLoading(id)
+            await toggleCategoryStatus(id)
+            fetchCategories()
+        } catch (error) {
+            console.error('Error toggling status:', error)
+        } finally {
+            setToggleLoading(null)
+        }
+    }
+
+    const SkeletonRow = () => (
+        <tr className="border-b border-border/50">
+            <td className="px-4 py-3"><div className="skeleton h-10 w-10 rounded-lg" /></td>
+            <td className="px-4 py-3"><div className="skeleton h-4 w-32 rounded" /></td>
+            <td className="px-4 py-3"><div className="skeleton h-6 w-6 rounded-full" /></td>
+            <td className="px-4 py-3"><div className="skeleton h-4 w-16 rounded" /></td>
+            <td className="px-4 py-3"><div className="skeleton h-6 w-16 rounded-full" /></td>
+            <td className="px-4 py-3"><div className="skeleton h-4 w-24 rounded" /></td>
+            <td className="px-4 py-3"><div className="skeleton h-8 w-24 rounded" /></td>
+        </tr>
+    )
+
+    return (
+        <div className="space-y-4 animate-fade-in">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h1 className="text-xl lg:text-2xl font-bold text-foreground">Categories</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Manage product categories
+                    </p>
+                </div>
+                <button
+                    onClick={() => handleOpenModal()}
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+                >
+                    <Plus className="w-4 h-4" />
+                    Add Category
+                </button>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-card border border-border rounded-xl p-3">
+                <div className="flex flex-col sm:flex-row gap-3">
+                    {/* Search */}
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <input
+                            type="text"
+                            placeholder="Search categories..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full pl-9 pr-4 py-2 bg-input border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                    </div>
+
+                    {/* Status Filter */}
+                    <div className="relative">
+                        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                            className="pl-9 pr-8 py-2 bg-input border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring appearance-none cursor-pointer min-w-[140px]"
+                        >
+                            <option value="all">All Status</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            {/* Table */}
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full">
+                        <thead className="bg-muted/50">
+                            <tr className="border-b border-border">
+                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Image</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Color</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Items</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Created</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/50">
+                            {loading ? (
+                                <>
+                                    <SkeletonRow />
+                                    <SkeletonRow />
+                                    <SkeletonRow />
+                                    <SkeletonRow />
+                                    <SkeletonRow />
+                                </>
+                            ) : categories.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} className="px-4 py-12 text-center">
+                                        <FolderOpen className="w-10 h-10 mx-auto text-muted-foreground/50 mb-2" />
+                                        <p className="text-sm text-muted-foreground">No categories found</p>
+                                    </td>
+                                </tr>
+                            ) : (
+                                categories.map((category) => (
+                                    <tr key={category._id} className="hover:bg-muted/30 transition-colors">
+                                        <td className="px-4 py-3">
+                                            {category.image ? (
+                                                <img
+                                                    src={category.image}
+                                                    alt={category.name}
+                                                    className="w-10 h-10 rounded-lg object-cover"
+                                                />
+                                            ) : (
+                                                <div
+                                                    className="w-10 h-10 rounded-lg flex items-center justify-center"
+                                                    style={{ backgroundColor: category.color || '#DCFCE7' }}
+                                                >
+                                                    <FolderOpen className="w-5 h-5 text-gray-700" />
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="text-sm font-medium text-foreground">{category.name}</span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div
+                                                className="w-6 h-6 rounded-full border border-border"
+                                                style={{ backgroundColor: category.color || '#DCFCE7' }}
+                                                title={category.color}
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="text-sm text-muted-foreground">{category.itemsCount || 0}</span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span
+                                                className={cn(
+                                                    'px-2 py-1 text-xs font-medium rounded-full',
+                                                    category.isActive
+                                                        ? 'bg-success/20 text-success'
+                                                        : 'bg-muted text-muted-foreground'
+                                                )}
+                                            >
+                                                {category.isActive ? 'Active' : 'Inactive'}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className="text-sm text-muted-foreground">
+                                                {new Date(category.createdAt).toLocaleDateString()}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    onClick={() => handleToggleStatus(category._id)}
+                                                    disabled={toggleLoading === category._id}
+                                                    className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
+                                                    title={category.isActive ? 'Deactivate' : 'Activate'}
+                                                >
+                                                    {toggleLoading === category._id ? (
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                    ) : category.isActive ? (
+                                                        <ToggleRight className="w-4 h-4 text-success" />
+                                                    ) : (
+                                                        <ToggleLeft className="w-4 h-4 text-muted-foreground" />
+                                                    )}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleOpenModal(category)}
+                                                    className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+                                                    title="Edit"
+                                                >
+                                                    <Edit2 className="w-4 h-4 text-primary" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(category._id)}
+                                                    disabled={deleteLoading === category._id}
+                                                    className="p-1.5 rounded-lg hover:bg-destructive/20 transition-colors disabled:opacity-50"
+                                                    title="Delete"
+                                                >
+                                                    {deleteLoading === category._id ? (
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                    ) : (
+                                                        <Trash2 className="w-4 h-4 text-destructive" />
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Pagination */}
+                {pagination && pagination.pages > 1 && (
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+                        <p className="text-xs text-muted-foreground">
+                            Showing {((page - 1) * pagination.limit) + 1} to {Math.min(page * pagination.limit, pagination.total)} of {pagination.total}
+                        </p>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setPage(p => Math.max(1, p - 1))}
+                                disabled={page === 1}
+                                className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
+                                let pageNum: number
+                                if (pagination.pages <= 5) {
+                                    pageNum = i + 1
+                                } else if (page <= 3) {
+                                    pageNum = i + 1
+                                } else if (page >= pagination.pages - 2) {
+                                    pageNum = pagination.pages - 4 + i
+                                } else {
+                                    pageNum = page - 2 + i
+                                }
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setPage(pageNum)}
+                                        className={cn(
+                                            'w-8 h-8 rounded-lg text-xs font-medium transition-colors',
+                                            page === pageNum
+                                                ? 'bg-primary text-primary-foreground'
+                                                : 'hover:bg-muted'
+                                        )}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                )
+                            })}
+                            <button
+                                onClick={() => setPage(p => Math.min(pagination.pages, p + 1))}
+                                disabled={page === pagination.pages}
+                                className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Modal */}
+            {showModal && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                    <div className="bg-card border border-border rounded-xl w-full max-w-md animate-fade-in">
+                        <div className="flex items-center justify-between p-4 border-b border-border">
+                            <h2 className="text-lg font-semibold">
+                                {editingCategory ? 'Edit Category' : 'Add Category'}
+                            </h2>
+                            <button
+                                onClick={handleCloseModal}
+                                className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-foreground mb-1.5">
+                                    Category Name
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData(f => ({ ...f, name: e.target.value }))}
+                                    placeholder="Enter category name"
+                                    className="w-full px-3 py-2 bg-input border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-foreground mb-1.5">
+                                    Image URL (optional)
+                                </label>
+                                <input
+                                    type="url"
+                                    value={formData.image}
+                                    onChange={(e) => setFormData(f => ({ ...f, image: e.target.value }))}
+                                    placeholder="https://example.com/image.png"
+                                    className="w-full px-3 py-2 bg-input border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-foreground mb-1.5">
+                                    Color
+                                </label>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    {defaultColors.map((color) => (
+                                        <button
+                                            key={color}
+                                            type="button"
+                                            onClick={() => setFormData(f => ({ ...f, color }))}
+                                            className={cn(
+                                                'w-8 h-8 rounded-full border-2 transition-all',
+                                                formData.color === color
+                                                    ? 'border-primary scale-110'
+                                                    : 'border-transparent hover:scale-105'
+                                            )}
+                                            style={{ backgroundColor: color }}
+                                        />
+                                    ))}
+                                    <input
+                                        type="color"
+                                        value={formData.color}
+                                        onChange={(e) => setFormData(f => ({ ...f, color: e.target.value }))}
+                                        className="w-8 h-8 rounded-full border-0 cursor-pointer"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex gap-2 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={handleCloseModal}
+                                    className="flex-1 px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors text-sm font-medium"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={formLoading || !formData.name.trim()}
+                                    className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                                >
+                                    {formLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                                    {editingCategory ? 'Update' : 'Create'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+} 

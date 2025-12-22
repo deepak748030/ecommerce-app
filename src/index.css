@@ -53,6 +53,13 @@ html {
     font-size: 16px;
 }
 
+/* Reduce sizes for large screens only */
+@media (min-width: 1024px) {
+    html {
+        font-size: 14px;
+    }
+}
+
 body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     background-color: hsl(var(--background));
