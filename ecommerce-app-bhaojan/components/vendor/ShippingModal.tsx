@@ -35,7 +35,9 @@ export function ShippingModal({ visible, orderNumber, onClose, onConfirm, loadin
     const styles = createStyles(colors);
 
     const [deliveryPayment, setDeliveryPayment] = useState('');
-    const [selectedTime, setSelectedTime] = useState<number>(30);
+    const [selectedTime, setSelectedTime] = useState<number | null>(30);
+    const [customTime, setCustomTime] = useState('');
+    const [useCustomTime, setUseCustomTime] = useState(false);
     const [error, setError] = useState('');
 
     const handleConfirm = () => {
@@ -44,15 +46,46 @@ export function ShippingModal({ visible, orderNumber, onClose, onConfirm, loadin
             setError('Please enter a valid payment amount');
             return;
         }
+
+        let finalTime: number;
+        if (useCustomTime) {
+            const customTimeValue = parseInt(customTime);
+            if (isNaN(customTimeValue) || customTimeValue <= 0) {
+                setError('Please enter a valid delivery time');
+                return;
+            }
+            finalTime = customTimeValue;
+        } else {
+            if (!selectedTime) {
+                setError('Please select a delivery time');
+                return;
+            }
+            finalTime = selectedTime;
+        }
+
         setError('');
-        onConfirm(payment, selectedTime);
+        onConfirm(payment, finalTime);
     };
 
     const handleClose = () => {
         setDeliveryPayment('');
         setSelectedTime(30);
+        setCustomTime('');
+        setUseCustomTime(false);
         setError('');
         onClose();
+    };
+
+    const handleTimeOptionPress = (value: number) => {
+        setSelectedTime(value);
+        setUseCustomTime(false);
+        setCustomTime('');
+    };
+
+    const handleCustomTimeChange = (text: string) => {
+        setCustomTime(text.replace(/[^0-9]/g, ''));
+        setUseCustomTime(true);
+        setSelectedTime(null);
     };
 
     return (
@@ -119,20 +152,36 @@ export function ShippingModal({ visible, orderNumber, onClose, onConfirm, loadin
                                             key={option.value}
                                             style={[
                                                 styles.timeOption,
-                                                selectedTime === option.value && styles.timeOptionSelected,
+                                                selectedTime === option.value && !useCustomTime && styles.timeOptionSelected,
                                             ]}
-                                            onPress={() => setSelectedTime(option.value)}
+                                            onPress={() => handleTimeOptionPress(option.value)}
                                         >
                                             <Text
                                                 style={[
                                                     styles.timeOptionText,
-                                                    selectedTime === option.value && styles.timeOptionTextSelected,
+                                                    selectedTime === option.value && !useCustomTime && styles.timeOptionTextSelected,
                                                 ]}
                                             >
                                                 {option.label}
                                             </Text>
                                         </Pressable>
                                     ))}
+                                </View>
+
+                                {/* Custom Time Input */}
+                                <View style={styles.customTimeSection}>
+                                    <Text style={styles.orText}>OR</Text>
+                                    <View style={[styles.inputWrapper, useCustomTime && styles.inputWrapperActive]}>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Enter custom time"
+                                            placeholderTextColor={colors.mutedForeground}
+                                            keyboardType="numeric"
+                                            value={customTime}
+                                            onChangeText={handleCustomTimeChange}
+                                        />
+                                        <Text style={styles.timeSuffix}>min</Text>
+                                    </View>
                                 </View>
                             </View>
                         </View>
@@ -285,6 +334,26 @@ const createStyles = (colors: any) => StyleSheet.create({
     },
     timeOptionTextSelected: {
         color: '#fff',
+    },
+    customTimeSection: {
+        marginTop: 12,
+        alignItems: 'center',
+        gap: 10,
+    },
+    orText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: colors.mutedForeground,
+    },
+    inputWrapperActive: {
+        borderColor: colors.primary,
+        borderWidth: 2,
+    },
+    timeSuffix: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: colors.mutedForeground,
+        marginLeft: 8,
     },
     actions: {
         flexDirection: 'row',

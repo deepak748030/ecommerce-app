@@ -24,7 +24,34 @@ const login = async (req, res) => {
             { upsert: true, new: true }
         );
 
-        const existingUser = await User.findOne({ phone });
+        // Check for existing user (exclude soft-deleted users within 7 days)
+        const existingUser = await User.findOne({
+            phone,
+            $or: [
+                { isDeleted: { $ne: true } },
+                { isDeleted: true, scheduledDeletionDate: { $lte: new Date() } }
+            ]
+        });
+
+        // Check if user is in deletion period
+        const deletedUser = await User.findOne({
+            phone,
+            isDeleted: true,
+            scheduledDeletionDate: { $gt: new Date() }
+        });
+
+        if (deletedUser) {
+            const daysRemaining = Math.ceil((deletedUser.scheduledDeletionDate - new Date()) / (1000 * 60 * 60 * 24));
+            return res.status(400).json({
+                success: false,
+                message: `This account is scheduled for deletion. You can register again after ${daysRemaining} day(s).`,
+                response: {
+                    phone,
+                    isDeleted: true,
+                    daysRemaining,
+                }
+            });
+        }
 
         res.json({
             success: true,
@@ -62,8 +89,38 @@ const verifyOtp = async (req, res) => {
         // Clear OTP
         await Otp.deleteOne({ phone });
 
+        // Check if user is in deletion period
+        const deletedUser = await User.findOne({
+            phone,
+            isDeleted: true,
+            scheduledDeletionDate: { $gt: new Date() }
+        });
+
+        if (deletedUser) {
+            const daysRemaining = Math.ceil((deletedUser.scheduledDeletionDate - new Date()) / (1000 * 60 * 60 * 24));
+            return res.status(400).json({
+                success: false,
+                message: `This account is scheduled for deletion. You can register again after ${daysRemaining} day(s).`,
+            });
+        }
+
+        // Check if there's a soft-deleted user past the 7-day period - reactivate it
+        const expiredDeletedUser = await User.findOne({
+            phone,
+            isDeleted: true,
+            scheduledDeletionDate: { $lte: new Date() }
+        });
+
+        if (expiredDeletedUser) {
+            // Permanently delete the old account data so user can re-register fresh
+            await Address.deleteMany({ user: expiredDeletedUser._id });
+            await WalletTransaction.deleteMany({ user: expiredDeletedUser._id });
+            await Notification.deleteMany({ user: expiredDeletedUser._id });
+            await User.findByIdAndDelete(expiredDeletedUser._id);
+        }
+
         // Find or create user
-        let user = await User.findOne({ phone });
+        let user = await User.findOne({ phone, isDeleted: { $ne: true } });
         const isNewUser = !user;
 
         if (!user) {
@@ -447,7 +504,7 @@ const verifyDeleteOtp = async (req, res) => {
     }
 };
 
-// @desc    Confirm and delete account
+// @desc    Confirm and delete account (soft delete with 7-day grace period)
 // @route   POST /api/auth/delete-account/confirm
 // @access  Public
 const confirmDeleteAccount = async (req, res) => {
@@ -458,37 +515,34 @@ const confirmDeleteAccount = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Phone number is required' });
         }
 
-        const user = await User.findOne({ phone });
+        const user = await User.findOne({ phone, isDeleted: { $ne: true } });
 
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
-        // Delete all related data
-        const userId = user._id;
+        // Calculate scheduled deletion date (7 days from now)
+        const scheduledDeletionDate = new Date();
+        scheduledDeletionDate.setDate(scheduledDeletionDate.getDate() + 7);
 
-        // Delete addresses
-        await Address.deleteMany({ user: userId });
-
-        // Delete wallet transactions
-        await WalletTransaction.deleteMany({ user: userId });
-
-        // Delete notifications
-        await Notification.deleteMany({ user: userId });
+        // Soft delete - mark user as deleted
+        user.isDeleted = true;
+        user.deletedAt = new Date();
+        user.scheduledDeletionDate = scheduledDeletionDate;
+        user.expoPushToken = ''; // Clear push token
+        await user.save();
 
         // Clear OTP
         await Otp.deleteOne({ phone });
 
-        // Finally delete the user
-        await User.findByIdAndDelete(userId);
-
-        console.log(`Account deleted for phone: ${phone}`);
+        console.log(`Account soft-deleted for phone: ${phone}, scheduled for permanent deletion on: ${scheduledDeletionDate}`);
 
         res.json({
             success: true,
-            message: 'Account deleted successfully',
+            message: 'Your account and associated data will be permanently deleted within 7 days.',
             response: {
                 deleted: true,
+                scheduledDeletionDate,
             },
         });
     } catch (error) {
