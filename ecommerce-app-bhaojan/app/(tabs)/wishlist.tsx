@@ -2,32 +2,29 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
+import { useWishlist } from '@/hooks/useWishlist';
 import { Heart } from 'lucide-react-native';
 import EventCard from '@/components/EventCard';
 import { Product, productsApi } from '@/lib/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { WishlistSkeleton } from '@/components/Skeleton';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 20) / 2;
-const FAVORITES_KEY = 'favorites';
 
 export default function WishlistScreen() {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
+    const { favorites, isLoaded, removeFavorite, isFavorite, toggleFavorite } = useWishlist();
     const [wishlistItems, setWishlistItems] = useState<Product[]>([]);
-    const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
     const fetchWishlistProducts = useCallback(async () => {
-        try {
-            const stored = await AsyncStorage.getItem(FAVORITES_KEY);
-            const ids = stored ? JSON.parse(stored) : [];
-            setFavoriteIds(ids);
+        if (!isLoaded) return;
 
-            if (ids.length === 0) {
+        try {
+            if (favorites.length === 0) {
                 setWishlistItems([]);
                 setLoading(false);
                 setRefreshing(false);
@@ -37,8 +34,8 @@ export default function WishlistScreen() {
             // Fetch all products and filter by favorite IDs
             const response = await productsApi.getAll({ limit: 100 });
             if (response.success && response.response?.data) {
-                const favorites = response.response.data.filter(p => ids.includes(p._id));
-                setWishlistItems(favorites);
+                const favoriteProducts = response.response.data.filter(p => favorites.includes(p._id));
+                setWishlistItems(favoriteProducts);
             }
         } catch (error) {
             console.error('Error fetching wishlist:', error);
@@ -46,7 +43,7 @@ export default function WishlistScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, []);
+    }, [favorites, isLoaded]);
 
     useEffect(() => {
         fetchWishlistProducts();
@@ -57,27 +54,16 @@ export default function WishlistScreen() {
         fetchWishlistProducts();
     }, [fetchWishlistProducts]);
 
-    const removeItem = async (id: string) => {
-        try {
-            const updatedIds = favoriteIds.filter(fid => fid !== id);
-            setFavoriteIds(updatedIds);
-            setWishlistItems(prev => prev.filter(item => item._id !== id));
-            await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(updatedIds));
-        } catch (error) {
-            console.error('Error removing from wishlist:', error);
-        }
-    };
-
     const styles = createStyles(colors);
 
-    if (loading) {
+    if (loading || !isLoaded) {
         return (
             <View style={styles.container}>
                 <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
                     <Text style={styles.title}>Wishlist</Text>
                     <View style={styles.badge}>
                         <Heart size={12} color={colors.white} fill={colors.white} />
-                        <Text style={styles.badgeText}>0</Text>
+                        <Text style={styles.badgeText}>{favorites.length}</Text>
                     </View>
                 </View>
                 <WishlistSkeleton />
@@ -91,7 +77,7 @@ export default function WishlistScreen() {
                 <Text style={styles.title}>Wishlist</Text>
                 <View style={styles.badge}>
                     <Heart size={12} color={colors.white} fill={colors.white} />
-                    <Text style={styles.badgeText}>{wishlistItems.length}</Text>
+                    <Text style={styles.badgeText}>{favorites.length}</Text>
                 </View>
             </View>
 
@@ -122,14 +108,12 @@ export default function WishlistScreen() {
                             <View key={item._id} style={styles.cardWrapper}>
                                 <EventCard
                                     event={item}
-                                    isFavorite={true}
-                                    onToggleFavorite={() => removeItem(item._id)}
+                                    isFavorite={isFavorite(item._id)}
+                                    onToggleFavorite={() => removeFavorite(item._id)}
                                 />
                             </View>
                         ))}
                     </View>
-
-
                 </ScrollView>
             )}
         </View>

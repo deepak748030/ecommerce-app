@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { router, useFocusEffect } from 'expo-router';
@@ -11,6 +11,7 @@ import { ActionModal } from '@/components/ActionModal';
 import { authApi, getStoredUser, getToken, AuthUser } from '@/lib/api';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { ProfileSkeleton } from '@/components/Skeleton';
+import { CachedImage } from '@/components/CachedImage';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -178,7 +179,7 @@ export default function ProfileScreen() {
           <View style={styles.avatarRow}>
             <Pressable style={styles.avatarContainer} onPress={pickImage}>
               {userAvatar ? (
-                <Image source={{ uri: userAvatar }} style={styles.avatar} />
+                <CachedImage uri={userAvatar} style={styles.avatar} />
               ) : (
                 <View style={styles.avatarPlaceholder}>
                   <Text style={styles.avatarInitial}>{userName.charAt(0).toUpperCase()}</Text>

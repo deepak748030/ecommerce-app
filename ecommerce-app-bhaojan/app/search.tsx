@@ -3,21 +3,21 @@ import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, Refres
 import { Search, ListFilter, X, TrendingUp, TrendingDown, ArrowLeft } from 'lucide-react-native';
 import EventCard from '@/components/EventCard';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useWishlist } from '@/hooks/useWishlist';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { productsApi, categoriesApi, Product, Category } from '@/lib/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SearchScreenSkeleton } from '@/components/Skeleton';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 20) / 2;
-const FAVORITES_KEY = 'favorites';
 const PAGE_SIZE = 10;
 
 export default function SearchScreen() {
   const params = useLocalSearchParams<{ category?: string }>();
   const { colors } = useTheme();
+  const { isFavorite, toggleFavorite } = useWishlist();
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -34,7 +34,6 @@ export default function SearchScreen() {
   const [minRating, setMinRating] = useState('all');
   const [priceSort, setPriceSort] = useState<'none' | 'low_to_high' | 'high_to_low'>('none');
 
-  const [favorites, setFavorites] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   // API data states
@@ -157,21 +156,6 @@ export default function SearchScreen() {
     }
   }, [params.category]);
 
-  // Load favorites
-  useEffect(() => {
-    const loadFavorites = async () => {
-      try {
-        const stored = await AsyncStorage.getItem(FAVORITES_KEY);
-        if (stored) {
-          setFavorites(JSON.parse(stored));
-        }
-      } catch (error) {
-        setFavorites([]);
-      }
-    };
-    loadFavorites();
-  }, []);
-
   // Products are now filtered server-side, so we just use them directly
   const filteredProducts = products;
 
@@ -180,21 +164,6 @@ export default function SearchScreen() {
     setPage(1);
     await fetchData(1, false);
   }, [fetchData]);
-
-  const handleToggleFavorite = async (productId: string) => {
-    try {
-      let updatedFavorites: string[];
-      if (favorites.includes(productId)) {
-        updatedFavorites = favorites.filter(id => id !== productId);
-      } else {
-        updatedFavorites = [...favorites, productId];
-      }
-      setFavorites(updatedFavorites);
-      await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(updatedFavorites));
-    } catch (error) {
-      console.error('Error toggling favorite:', error);
-    }
-  };
 
   const openFilters = () => {
     // Sync temp states with applied states when opening modal
@@ -328,8 +297,8 @@ export default function SearchScreen() {
                 <View key={product._id} style={styles.eventCardContainer}>
                   <EventCard
                     event={product}
-                    isFavorite={favorites.includes(product._id)}
-                    onToggleFavorite={() => handleToggleFavorite(product._id)}
+                    isFavorite={isFavorite(product._id)}
+                    onToggleFavorite={() => toggleFavorite(product._id)}
                   />
                 </View>
               ))}

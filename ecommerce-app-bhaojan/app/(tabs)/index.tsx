@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Image, Animated, NativeSyntheticEvent, NativeScrollEvent, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Animated, NativeSyntheticEvent, NativeScrollEvent, RefreshControl } from 'react-native';
 import { ArrowRight, Sparkles, Flame, Zap } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useWishlist } from '@/hooks/useWishlist';
 import TopBar from '@/components/TopBar';
 import EventCard from '@/components/EventCard';
+import { CachedImage } from '@/components/CachedImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { categoriesApi, productsApi, bannersApi, Product, Category, Banner, getImageUrl } from '@/lib/api';
 import { router } from 'expo-router';
@@ -56,8 +58,8 @@ const defaultBanners = [
 
 export default function HomeScreen() {
   const { colors, isDark } = useTheme();
+  const { isFavorite, toggleFavorite } = useWishlist();
   const [currentBanner, setCurrentBanner] = useState(0);
-  const [wishlist, setWishlist] = useState<string[]>([]);
   const bannerScrollRef = useRef<ScrollView>(null);
 
   // API data states
@@ -127,9 +129,6 @@ export default function HomeScreen() {
     setCurrentBanner(index);
   };
 
-  const toggleWishlist = (id: string) => {
-    setWishlist(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
-  };
 
   const handleBannerPress = (banner: Banner) => {
     if (banner.linkType === 'category') {
@@ -237,7 +236,7 @@ export default function HomeScreen() {
                   </View>
                   <View style={styles.bannerImageContainer}>
                     {banner.image.startsWith('http') || banner.image.startsWith('data:image') ? (
-                      <Image source={{ uri: banner.image }} style={styles.bannerImageReal} />
+                      <CachedImage uri={banner.image} style={styles.bannerImageReal} />
                     ) : (
                       <Text style={styles.bannerImage}>{banner.image}</Text>
                     )}
@@ -280,7 +279,7 @@ export default function HomeScreen() {
           {categories.map((category) => (
             <Pressable key={category._id} style={styles.categoryCard} onPress={() => handleCategoryPress(category)}>
               <View style={[styles.categoryIconContainer, { backgroundColor: category.color || '#E0E7FF' }]}>
-                <Image source={{ uri: getImageUrl(category.image) }} style={styles.categoryImage} />
+                <CachedImage uri={getImageUrl(category.image)} style={styles.categoryImage} />
               </View>
               <Text style={styles.categoryName}>{category.name}</Text>
             </Pressable>
@@ -310,8 +309,8 @@ export default function HomeScreen() {
                 <View key={product._id} style={styles.productCardContainer}>
                   <EventCard
                     event={product}
-                    isFavorite={wishlist.includes(product._id)}
-                    onToggleFavorite={() => toggleWishlist(product._id)}
+                    isFavorite={isFavorite(product._id)}
+                    onToggleFavorite={() => toggleFavorite(product._id)}
                   />
                 </View>
               ))}
@@ -338,8 +337,8 @@ export default function HomeScreen() {
                 <View key={product._id} style={styles.gridProductCard}>
                   <EventCard
                     event={product}
-                    isFavorite={wishlist.includes(product._id)}
-                    onToggleFavorite={() => toggleWishlist(product._id)}
+                    isFavorite={isFavorite(product._id)}
+                    onToggleFavorite={() => toggleFavorite(product._id)}
                   />
                 </View>
               ))}

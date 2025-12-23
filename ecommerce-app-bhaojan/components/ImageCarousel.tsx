@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, ScrollView, Image, Pressable, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Dimensions } from 'react-native';
 import { ArrowLeft, Heart } from 'lucide-react-native';
 import { colors } from '@/lib/colors';
+import { CachedImage } from './CachedImage';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -46,7 +47,11 @@ export function ImageCarousel({
                 scrollEventThrottle={16}
             >
                 {images.map((image, index) => (
-                    <Image key={index} source={{ uri: image }} style={[styles.image, { height }]} />
+                    <CachedImage
+                        key={index}
+                        uri={image}
+                        style={{ width: screenWidth, height }}
+                    />
                 ))}
             </ScrollView>
 

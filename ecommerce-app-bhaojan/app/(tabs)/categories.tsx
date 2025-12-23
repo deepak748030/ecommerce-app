@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { Search, ChevronRight, Sparkles } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { categoriesApi, Category, getImageUrl } from '@/lib/api';
 import { CategoryCardSkeleton } from '@/components/Skeleton';
+import { CachedImage } from '@/components/CachedImage';
 
 export default function CategoriesScreen() {
     const insets = useSafeAreaInsets();
@@ -104,7 +105,7 @@ export default function CategoriesScreen() {
                                 onPress={() => handleCategoryPress(category)}
                             >
                                 <View style={[styles.categoryIconBg, { backgroundColor: category.color || '#E0E7FF' }]}>
-                                    <Image source={{ uri: getImageUrl(category.image) }} style={styles.categoryImage} />
+                                    <CachedImage uri={getImageUrl(category.image)} style={styles.categoryImage} />
                                 </View>
                                 <View style={styles.categoryInfo}>
                                     <Text style={styles.categoryName} numberOfLines={1}>{category.name}</Text>

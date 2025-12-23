@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Image, Dimensions, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Star, ShoppingCart, Minus, Plus, ChevronRight, ArrowLeft, Heart } from 'lucide-react-native';
-import { getFavorites, toggleFavorite } from '@/lib/mockData';
 import { productsApi, reviewsApi, Product, Review, getImageUrl } from '@/lib/api';
 import { ImageCarousel } from '@/components/ImageCarousel';
 import { useTheme } from '@/hooks/useTheme';
 import { useCart } from '@/hooks/useCart';
+import { useWishlist } from '@/hooks/useWishlist';
 import { ActionModal } from '@/components/ActionModal';
 import { ProductDetailsSkeleton } from '@/components/Skeleton';
+import { CachedImage } from '@/components/CachedImage';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -36,7 +37,7 @@ export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams();
   const { colors } = useTheme();
   const { addToCart } = useCart();
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const { isFavorite, toggleFavorite } = useWishlist();
   const [quantity, setQuantity] = useState(1);
   const [product, setProduct] = useState<ProductDisplay | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -128,12 +129,6 @@ export default function ProductDetailsScreen() {
     };
 
     fetchProduct();
-
-    const loadFavorites = async () => {
-      const favs = await getFavorites();
-      setFavorites(favs);
-    };
-    loadFavorites();
   }, [id]);
 
   const styles = createStyles(colors);
@@ -164,13 +159,11 @@ export default function ProductDetailsScreen() {
     );
   }
 
-  const handleToggleFavorite = async () => {
-    await toggleFavorite(product.id);
-    const updatedFavorites = await getFavorites();
-    setFavorites(updatedFavorites);
+  const handleToggleFavorite = () => {
+    toggleFavorite(product.id);
   };
 
-  const isFavorite = favorites.includes(product.id);
+  const isProductFavorite = isFavorite(product.id);
   const discountPercent = product.mrp > product.price
     ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
     : 0;
@@ -245,7 +238,7 @@ export default function ProductDetailsScreen() {
           badge={product.badge}
           showBackButton={true}
           showFavoriteButton={true}
-          isFavorite={isFavorite}
+          isFavorite={isProductFavorite}
           onBackPress={() => router.back()}
           onFavoritePress={handleToggleFavorite}
           height={260}
@@ -363,8 +356,8 @@ export default function ProductDetailsScreen() {
                 {reviews.slice(0, 3).map((review) => (
                   <View key={review.id} style={[styles.reviewItem, { borderBottomColor: colors.border }]}>
                     <View style={styles.reviewHeader}>
-                      <Image
-                        source={{ uri: review.userAvatar || 'https://via.placeholder.com/100' }}
+                      <CachedImage
+                        uri={review.userAvatar || 'https://via.placeholder.com/100'}
                         style={styles.reviewerAvatar}
                       />
                       <View style={styles.reviewerInfo}>

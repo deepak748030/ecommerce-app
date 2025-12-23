@@ -1,21 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Image, Dimensions, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Dimensions, RefreshControl, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
+import { useWishlist } from '@/hooks/useWishlist';
 import { useLocalSearchParams, router } from 'expo-router';
 import { ArrowLeft, Star, Heart, SlidersHorizontal, Search } from 'lucide-react-native';
 import { productsApi, categoriesApi, Product, Category, getImageUrl } from '@/lib/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ProductCardSkeleton } from '@/components/Skeleton';
+import { CachedImage } from '@/components/CachedImage';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 25) / 2;
-const FAVORITES_KEY = 'favorites';
 const PAGE_LIMIT = 10;
 
 export default function CategoryProductsScreen() {
     const insets = useSafeAreaInsets();
     const { colors, isDark } = useTheme();
+    const { isFavorite, toggleFavorite } = useWishlist();
     const { id } = useLocalSearchParams<{ id: string }>();
 
     const [products, setProducts] = useState<Product[]>([]);
@@ -25,7 +26,6 @@ export default function CategoryProductsScreen() {
     const [loadingMore, setLoadingMore] = useState(false);
     const [hasMore, setHasMore] = useState(true);
     const [page, setPage] = useState(1);
-    const [favorites, setFavorites] = useState<string[]>([]);
 
     const fetchData = useCallback(async (pageNum: number = 1, refresh: boolean = false) => {
         if (!id) return;
@@ -62,21 +62,6 @@ export default function CategoryProductsScreen() {
         fetchData();
     }, [fetchData]);
 
-    // Load favorites
-    useEffect(() => {
-        const loadFavorites = async () => {
-            try {
-                const stored = await AsyncStorage.getItem(FAVORITES_KEY);
-                if (stored) {
-                    setFavorites(JSON.parse(stored));
-                }
-            } catch (error) {
-                setFavorites([]);
-            }
-        };
-        loadFavorites();
-    }, []);
-
     const onRefresh = useCallback(() => {
         setRefreshing(true);
         setPage(1);
@@ -92,21 +77,6 @@ export default function CategoryProductsScreen() {
         }
     }, [loadingMore, hasMore, loading, page, fetchData]);
 
-    const handleToggleFavorite = async (productId: string) => {
-        try {
-            let updatedFavorites: string[];
-            if (favorites.includes(productId)) {
-                updatedFavorites = favorites.filter(fid => fid !== productId);
-            } else {
-                updatedFavorites = [...favorites, productId];
-            }
-            setFavorites(updatedFavorites);
-            await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(updatedFavorites));
-        } catch (error) {
-            console.error('Error toggling favorite:', error);
-        }
-    };
-
     const styles = createStyles(colors, isDark);
 
     const handleProductPress = (productId: string) => {
@@ -119,7 +89,10 @@ export default function CategoryProductsScreen() {
             onPress={() => handleProductPress(item._id)}
         >
             <View style={styles.imageContainer}>
-                <Image source={{ uri: getImageUrl(item.image) }} style={styles.productImage} />
+                <CachedImage
+                    uri={getImageUrl(item.image)}
+                    style={styles.productImage}
+                />
                 {item.badge && (
                     <View style={styles.badge}>
                         <Text style={styles.badgeText}>{item.badge}</Text>
@@ -127,12 +100,12 @@ export default function CategoryProductsScreen() {
                 )}
                 <Pressable
                     style={styles.heartButton}
-                    onPress={() => handleToggleFavorite(item._id)}
+                    onPress={() => toggleFavorite(item._id)}
                 >
                     <Heart
                         size={18}
-                        color={favorites.includes(item._id) ? '#ff4757' : colors.mutedForeground}
-                        fill={favorites.includes(item._id) ? '#ff4757' : 'transparent'}
+                        color={isFavorite(item._id) ? '#ff4757' : colors.mutedForeground}
+                        fill={isFavorite(item._id) ? '#ff4757' : 'transparent'}
                     />
                 </Pressable>
             </View>

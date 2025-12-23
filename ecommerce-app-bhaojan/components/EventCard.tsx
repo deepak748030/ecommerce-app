@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Heart, Star, ShoppingBag } from 'lucide-react-native';
 import { Product, getImageUrl } from '@/lib/api';
 import { router } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
+import { CachedImage } from './CachedImage';
 
 interface EventCardProps {
   event: Product;
@@ -29,7 +30,7 @@ export default function EventCard({ event, isFavorite = false, onToggleFavorite 
       android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
     >
       <View style={styles.imageContainer}>
-        <Image source={{ uri: imageUri }} style={styles.image} />
+        <CachedImage uri={imageUri} style={styles.image} />
 
         {event.badge && (
           <View style={styles.badge}>
@@ -59,7 +60,7 @@ export default function EventCard({ event, isFavorite = false, onToggleFavorite 
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.title} numberOfLines={2}>
+        <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
           {event.title}
         </Text>
 
