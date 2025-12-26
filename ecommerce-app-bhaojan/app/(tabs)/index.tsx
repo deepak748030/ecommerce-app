@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Animated, NativeSyntheticEvent, NativeScrollEvent, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Animated, NativeSyntheticEvent, NativeScrollEvent, RefreshControl, FlatList, ActivityIndicator } from 'react-native';
 import { ArrowRight, Sparkles, Flame, Zap } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useWishlist } from '@/hooks/useWishlist';
@@ -9,12 +9,13 @@ import { CachedImage } from '@/components/CachedImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { categoriesApi, productsApi, bannersApi, Product, Category, Banner, getImageUrl } from '@/lib/api';
 import { router } from 'expo-router';
-import { HomeScreenSkeleton, Skeleton } from '@/components/Skeleton';
+import { HomeScreenSkeleton } from '@/components/Skeleton';
 
 const { width } = Dimensions.get('window');
 const BANNER_WIDTH = width - 32;
 const CARD_WIDTH = (width - 20) / 2;
 const SCROLL_THRESHOLD = 50;
+const PAGE_LIMIT = 4;
 
 // Default banners in case API fails
 const defaultBanners = [
@@ -70,6 +71,16 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Pagination states for trending
+  const [trendingPage, setTrendingPage] = useState(1);
+  const [trendingHasMore, setTrendingHasMore] = useState(true);
+  const [trendingLoadingMore, setTrendingLoadingMore] = useState(false);
+
+  // Pagination states for fashion picks
+  const [fashionPage, setFashionPage] = useState(1);
+  const [fashionHasMore, setFashionHasMore] = useState(true);
+  const [fashionLoadingMore, setFashionLoadingMore] = useState(false);
+
   // Animation for search bar visibility
   const searchBarAnimation = useRef(new Animated.Value(1)).current;
   const lastScrollY = useRef(0);
@@ -77,11 +88,12 @@ export default function HomeScreen() {
 
   const fetchData = useCallback(async () => {
     try {
-      // Fetch banners, categories and products in parallel
-      const [bannersRes, categoriesRes, productsRes] = await Promise.all([
+      // Fetch banners, categories, trending and fashion picks in parallel
+      const [bannersRes, categoriesRes, trendingRes, fashionRes] = await Promise.all([
         bannersApi.getAll(),
         categoriesApi.getAll(),
-        productsApi.getAll({ limit: 20 }),
+        productsApi.getTrending(PAGE_LIMIT, 1),
+        productsApi.getFashionPicks(PAGE_LIMIT, 1),
       ]);
 
       if (bannersRes.success && bannersRes.response?.data && bannersRes.response.data.length > 0) {
@@ -92,19 +104,16 @@ export default function HomeScreen() {
         setCategories(categoriesRes.response.data);
       }
 
-      if (productsRes.success && productsRes.response?.data) {
-        const allProducts = productsRes.response.data;
+      if (trendingRes.success && trendingRes.response?.data) {
+        setTrendingProducts(trendingRes.response.data);
+        setTrendingPage(1);
+        setTrendingHasMore(trendingRes.response.data.length >= PAGE_LIMIT);
+      }
 
-        // Filter trending products (first 4 or products with high rating)
-        const trending = allProducts.filter(p => p.rating >= 4.5).slice(0, 4);
-        setTrendingProducts(trending.length > 0 ? trending : allProducts.slice(0, 4));
-
-        // Filter fashion products or get remaining products
-        const fashion = allProducts.filter(p => {
-          const categoryName = typeof p.category === 'object' ? p.category.name : p.category;
-          return categoryName?.toLowerCase().includes('fashion');
-        }).slice(0, 4);
-        setFashionProducts(fashion.length > 0 ? fashion : allProducts.slice(4, 8));
+      if (fashionRes.success && fashionRes.response?.data) {
+        setFashionProducts(fashionRes.response.data);
+        setFashionPage(1);
+        setFashionHasMore(fashionRes.response.data.length >= PAGE_LIMIT);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -122,6 +131,64 @@ export default function HomeScreen() {
     setRefreshing(true);
     fetchData();
   }, [fetchData]);
+
+  // Load more trending products
+  const loadMoreTrending = useCallback(async () => {
+    if (trendingLoadingMore || !trendingHasMore) return;
+
+    setTrendingLoadingMore(true);
+    try {
+      const nextPage = trendingPage + 1;
+      const res = await productsApi.getTrending(PAGE_LIMIT, nextPage);
+      if (res.success && res.response?.data) {
+        setTrendingProducts(prev => [...prev, ...res.response!.data]);
+        setTrendingPage(nextPage);
+        setTrendingHasMore(res.response.data.length >= PAGE_LIMIT);
+      }
+    } catch (error) {
+      console.error('Error loading more trending:', error);
+    } finally {
+      setTrendingLoadingMore(false);
+    }
+  }, [trendingPage, trendingHasMore, trendingLoadingMore]);
+
+  // Load more fashion picks
+  const loadMoreFashion = useCallback(async () => {
+    if (fashionLoadingMore || !fashionHasMore) return;
+
+    setFashionLoadingMore(true);
+    try {
+      const nextPage = fashionPage + 1;
+      const res = await productsApi.getFashionPicks(PAGE_LIMIT, nextPage);
+      if (res.success && res.response?.data) {
+        setFashionProducts(prev => [...prev, ...res.response!.data]);
+        setFashionPage(nextPage);
+        setFashionHasMore(res.response.data.length >= PAGE_LIMIT);
+      }
+    } catch (error) {
+      console.error('Error loading more fashion:', error);
+    } finally {
+      setFashionLoadingMore(false);
+    }
+  }, [fashionPage, fashionHasMore, fashionLoadingMore]);
+
+  // Handle horizontal scroll end for trending
+  const handleTrendingScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const isCloseToEnd = contentOffset.x + layoutMeasurement.width >= contentSize.width - 100;
+    if (isCloseToEnd && trendingHasMore && !trendingLoadingMore) {
+      loadMoreTrending();
+    }
+  }, [trendingHasMore, trendingLoadingMore, loadMoreTrending]);
+
+  // Handle horizontal scroll end for fashion
+  const handleFashionScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const isCloseToEnd = contentOffset.x + layoutMeasurement.width >= contentSize.width - 100;
+    if (isCloseToEnd && fashionHasMore && !fashionLoadingMore) {
+      loadMoreFashion();
+    }
+  }, [fashionHasMore, fashionLoadingMore, loadMoreFashion]);
 
   const handleBannerScroll = (event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
@@ -145,7 +212,8 @@ export default function HomeScreen() {
   };
 
   const handleMainScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const currentScrollY = event.nativeEvent.contentOffset.y;
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const currentScrollY = contentOffset.y;
     const scrollDiff = currentScrollY - lastScrollY.current;
 
     // Scrolling down - hide search bar
@@ -168,6 +236,12 @@ export default function HomeScreen() {
     }
 
     lastScrollY.current = currentScrollY;
+
+    // Infinite scroll for fashion picks - trigger when near bottom
+    const isCloseToBottom = currentScrollY + layoutMeasurement.height >= contentSize.height - 200;
+    if (isCloseToBottom && fashionHasMore && !fashionLoadingMore) {
+      loadMoreFashion();
+    }
   };
 
   const styles = createStyles(colors, isDark);
@@ -286,7 +360,7 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
 
-        {/* Trending Products */}
+        {/* Trending Products with Infinite Scroll */}
         {trendingProducts.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
@@ -304,6 +378,8 @@ export default function HomeScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.productsContainer}
+              onMomentumScrollEnd={handleTrendingScrollEnd}
+              scrollEventThrottle={16}
             >
               {trendingProducts.map((product) => (
                 <View key={product._id} style={styles.productCardContainer}>
@@ -314,11 +390,16 @@ export default function HomeScreen() {
                   />
                 </View>
               ))}
+              {trendingLoadingMore && (
+                <View style={styles.loadingMoreContainer}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              )}
             </ScrollView>
           </>
         )}
 
-        {/* Fashion Products */}
+        {/* Fashion Products - 2 per row with vertical scroll */}
         {fashionProducts.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
@@ -332,9 +413,9 @@ export default function HomeScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.gridContainer}>
+            <View style={styles.fashionGridContainer}>
               {fashionProducts.map((product) => (
-                <View key={product._id} style={styles.gridProductCard}>
+                <View key={product._id} style={styles.fashionGridItem}>
                   <EventCard
                     event={product}
                     isFavorite={isFavorite(product._id)}
@@ -343,6 +424,11 @@ export default function HomeScreen() {
                 </View>
               ))}
             </View>
+            {fashionLoadingMore && (
+              <View style={styles.fashionLoadingContainer}>
+                <ActivityIndicator size="small" color={colors.primary} />
+              </View>
+            )}
           </>
         )}
       </ScrollView>
@@ -506,26 +592,47 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 30,
   },
   categoryName: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
     color: colors.foreground,
     textAlign: 'center',
+    fontWeight: '600',
   },
   productsContainer: {
-    gap: 12,
-    marginBottom: 20,
+    gap: 10,
+    paddingRight: 10,
   },
   productCardContainer: {
     width: CARD_WIDTH,
   },
+  loadingMoreContainer: {
+    width: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 8,
+    gap: 10,
+    marginBottom: 20,
   },
   gridProductCard: {
     width: CARD_WIDTH,
-    marginBottom: 8,
+  },
+  fashionGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginBottom: 16,
+  },
+  fashionGridItem: {
+    width: (width - 32) / 2,
+    marginBottom: 12,
+  },
+  fashionLoadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    marginBottom: 20,
   },
 });

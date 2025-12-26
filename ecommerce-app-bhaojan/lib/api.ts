@@ -330,6 +330,15 @@ export const productsApi = {
         return apiRequest<{ count: number; total: number; data: Product[] }>(`/products/category/${categoryId}?${query.toString()}`);
     },
 
+    // Home screen APIs with pagination
+    getTrending: async (limit: number = 10, page: number = 1) => {
+        return apiRequest<{ count: number; total: number; page: number; pages: number; data: Product[] }>(`/products/home/trending?limit=${limit}&page=${page}`);
+    },
+
+    getFashionPicks: async (limit: number = 10, page: number = 1) => {
+        return apiRequest<{ count: number; total: number; page: number; pages: number; data: Product[] }>(`/products/home/fashion-picks?limit=${limit}&page=${page}`);
+    },
+
     create: async (data: Partial<Product>) => {
         return apiRequest<Product>('/products', {
             method: 'POST',

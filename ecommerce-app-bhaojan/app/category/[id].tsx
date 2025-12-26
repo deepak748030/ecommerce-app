@@ -4,10 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useLocalSearchParams, router } from 'expo-router';
-import { ArrowLeft, Star, Heart, SlidersHorizontal, Search } from 'lucide-react-native';
-import { productsApi, categoriesApi, Product, Category, getImageUrl } from '@/lib/api';
+import { ArrowLeft, SlidersHorizontal, Search } from 'lucide-react-native';
+import { productsApi, categoriesApi, Product, Category } from '@/lib/api';
 import { ProductCardSkeleton } from '@/components/Skeleton';
-import { CachedImage } from '@/components/CachedImage';
+import EventCard from '@/components/EventCard';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 25) / 2;
@@ -38,7 +38,7 @@ export default function CategoryProductsScreen() {
                 }
             }
 
-            const productsRes = await productsApi.getByCategory(id);
+            const productsRes = await productsApi.getByCategory(id, { limit: PAGE_LIMIT, page: pageNum });
 
             if (productsRes.success && productsRes.response?.data) {
                 const newProducts = productsRes.response.data;
@@ -79,51 +79,14 @@ export default function CategoryProductsScreen() {
 
     const styles = createStyles(colors, isDark);
 
-    const handleProductPress = (productId: string) => {
-        router.push(`/event/${productId}`);
-    };
-
     const renderProduct = ({ item }: { item: Product }) => (
-        <Pressable
-            style={styles.productCard}
-            onPress={() => handleProductPress(item._id)}
-        >
-            <View style={styles.imageContainer}>
-                <CachedImage
-                    uri={getImageUrl(item.image)}
-                    style={styles.productImage}
-                />
-                {item.badge && (
-                    <View style={styles.badge}>
-                        <Text style={styles.badgeText}>{item.badge}</Text>
-                    </View>
-                )}
-                <Pressable
-                    style={styles.heartButton}
-                    onPress={() => toggleFavorite(item._id)}
-                >
-                    <Heart
-                        size={18}
-                        color={isFavorite(item._id) ? '#ff4757' : colors.mutedForeground}
-                        fill={isFavorite(item._id) ? '#ff4757' : 'transparent'}
-                    />
-                </Pressable>
-            </View>
-            <View style={styles.productInfo}>
-                <Text style={styles.productTitle} numberOfLines={2}>{item.title}</Text>
-                <View style={styles.ratingRow}>
-                    <Star size={12} color="#FBBF24" fill="#FBBF24" />
-                    <Text style={styles.rating}>{item.rating}</Text>
-                    <Text style={styles.reviews}>({item.reviews})</Text>
-                </View>
-                <View style={styles.priceRow}>
-                    <Text style={styles.price}>₹{item.price.toLocaleString()}</Text>
-                    {item.mrp > item.price && (
-                        <Text style={styles.mrp}>₹{item.mrp.toLocaleString()}</Text>
-                    )}
-                </View>
-            </View>
-        </Pressable>
+        <View style={styles.productCardContainer}>
+            <EventCard
+                event={item}
+                isFavorite={isFavorite(item._id)}
+                onToggleFavorite={() => toggleFavorite(item._id)}
+            />
+        </View>
     );
 
     const renderFooter = () => {
@@ -275,88 +238,8 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         justifyContent: 'space-between',
         gap: 12,
     },
-    productCard: {
+    productCardContainer: {
         width: CARD_WIDTH,
-        backgroundColor: colors.card,
-        borderRadius: 16,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: colors.border,
-    },
-    imageContainer: {
-        position: 'relative',
-        width: '100%',
-        height: CARD_WIDTH,
-    },
-    productImage: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
-    },
-    badge: {
-        position: 'absolute',
-        top: 8,
-        left: 8,
-        backgroundColor: colors.primary,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 6,
-    },
-    badgeText: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: '#FFFFFF',
-    },
-    heartButton: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: colors.background,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    productInfo: {
-        padding: 12,
-    },
-    productTitle: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: colors.foreground,
-        marginBottom: 6,
-        lineHeight: 18,
-    },
-    ratingRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        marginBottom: 6,
-    },
-    rating: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: colors.foreground,
-    },
-    reviews: {
-        fontSize: 11,
-        color: colors.mutedForeground,
-    },
-    priceRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-    },
-    price: {
-        fontSize: 16,
-        fontWeight: '800',
-        color: colors.primary,
-    },
-    mrp: {
-        fontSize: 12,
-        color: colors.mutedForeground,
-        textDecorationLine: 'line-through',
     },
     emptyState: {
         flex: 1,
