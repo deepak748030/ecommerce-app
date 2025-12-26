@@ -5,6 +5,7 @@ const Banner = require('../models/Banner');
 const DeliveryPartner = require('../models/DeliveryPartner');
 const Order = require('../models/Order');
 const Coupon = require('../models/Coupon');
+const Product = require('../models/Product');
 const { generateAdminToken } = require('../middleware/adminAuth');
 
 // @desc    Admin login
@@ -1717,6 +1718,252 @@ const toggleCouponStatus = async (req, res) => {
     }
 };
 
+// @desc    Get all products with pagination and filters
+// @route   GET /api/admin/products
+// @access  Private (Admin)
+const getProductsAdmin = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const search = req.query.search || '';
+        const status = req.query.status || 'all';
+        const category = req.query.category || '';
+        const trending = req.query.trending || '';
+        const fashionPick = req.query.fashionPick || '';
+        const minPrice = parseFloat(req.query.minPrice) || 0;
+        const maxPrice = parseFloat(req.query.maxPrice) || Infinity;
+
+        const skip = (page - 1) * limit;
+
+        // Build query
+        const query = {};
+
+        if (search) {
+            query.$or = [
+                { title: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } },
+                { badge: { $regex: search, $options: 'i' } },
+            ];
+        }
+
+        if (status === 'active') {
+            query.isActive = true;
+        } else if (status === 'inactive') {
+            query.isActive = false;
+        }
+
+        if (category) {
+            query.category = category;
+        }
+
+        if (trending === 'true') {
+            query.isTrending = true;
+        } else if (trending === 'false') {
+            query.isTrending = false;
+        }
+
+        if (fashionPick === 'true') {
+            query.isFashionPick = true;
+        } else if (fashionPick === 'false') {
+            query.isFashionPick = false;
+        }
+
+        if (minPrice > 0 || maxPrice < Infinity) {
+            query.price = {};
+            if (minPrice > 0) query.price.$gte = minPrice;
+            if (maxPrice < Infinity) query.price.$lte = maxPrice;
+        }
+
+        const [products, total] = await Promise.all([
+            Product.find(query)
+                .populate('category', 'name color')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Product.countDocuments(query),
+        ]);
+
+        res.json({
+            success: true,
+            response: {
+                products,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    pages: Math.ceil(total / limit),
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Get products admin error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get product by ID
+// @route   GET /api/admin/products/:id
+// @access  Private (Admin)
+const getProductByIdAdmin = async (req, res) => {
+    try {
+        const product = await Product.findById(req.params.id)
+            .populate('category', 'name color')
+            .lean();
+
+        if (!product) {
+            return res.status(404).json({ success: false, message: 'Product not found' });
+        }
+
+        res.json({
+            success: true,
+            response: { product },
+        });
+    } catch (error) {
+        console.error('Get product by ID error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get product stats
+// @route   GET /api/admin/products/stats
+// @access  Private (Admin)
+const getProductStats = async (req, res) => {
+    try {
+        const [
+            totalProducts,
+            activeProducts,
+            inactiveProducts,
+            trendingProducts,
+            fashionPickProducts,
+        ] = await Promise.all([
+            Product.countDocuments(),
+            Product.countDocuments({ isActive: true }),
+            Product.countDocuments({ isActive: false }),
+            Product.countDocuments({ isTrending: true, isActive: true }),
+            Product.countDocuments({ isFashionPick: true, isActive: true }),
+        ]);
+
+        res.json({
+            success: true,
+            response: {
+                totalProducts,
+                activeProducts,
+                inactiveProducts,
+                trendingProducts,
+                fashionPickProducts,
+            },
+        });
+    } catch (error) {
+        console.error('Get product stats error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Toggle product trending status
+// @route   PUT /api/admin/products/:id/trending
+// @access  Private (Admin)
+const toggleProductTrending = async (req, res) => {
+    try {
+        const product = await Product.findById(req.params.id);
+
+        if (!product) {
+            return res.status(404).json({ success: false, message: 'Product not found' });
+        }
+
+        product.isTrending = !product.isTrending;
+        await product.save();
+
+        res.json({
+            success: true,
+            message: product.isTrending ? 'Added to Trending Now' : 'Removed from Trending Now',
+            response: { product },
+        });
+    } catch (error) {
+        console.error('Toggle product trending error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Toggle product fashion pick status
+// @route   PUT /api/admin/products/:id/fashion-pick
+// @access  Private (Admin)
+const toggleProductFashionPick = async (req, res) => {
+    try {
+        const product = await Product.findById(req.params.id);
+
+        if (!product) {
+            return res.status(404).json({ success: false, message: 'Product not found' });
+        }
+
+        product.isFashionPick = !product.isFashionPick;
+        await product.save();
+
+        res.json({
+            success: true,
+            message: product.isFashionPick ? 'Added to Fashion Picks' : 'Removed from Fashion Picks',
+            response: { product },
+        });
+    } catch (error) {
+        console.error('Toggle product fashion pick error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Toggle product active status
+// @route   PUT /api/admin/products/:id/toggle
+// @access  Private (Admin)
+const toggleProductStatus = async (req, res) => {
+    try {
+        const product = await Product.findById(req.params.id);
+
+        if (!product) {
+            return res.status(404).json({ success: false, message: 'Product not found' });
+        }
+
+        product.isActive = !product.isActive;
+        await product.save();
+
+        res.json({
+            success: true,
+            message: product.isActive ? 'Product activated' : 'Product deactivated',
+            response: { product },
+        });
+    } catch (error) {
+        console.error('Toggle product status error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Delete product
+// @route   DELETE /api/admin/products/:id
+// @access  Private (Admin)
+const deleteProductAdmin = async (req, res) => {
+    try {
+        const product = await Product.findById(req.params.id);
+
+        if (!product) {
+            return res.status(404).json({ success: false, message: 'Product not found' });
+        }
+
+        // Update category items count
+        await Category.findByIdAndUpdate(product.category, {
+            $inc: { itemsCount: -1 }
+        });
+
+        await product.deleteOne();
+
+        res.json({
+            success: true,
+            message: 'Product deleted successfully',
+            response: { id: req.params.id },
+        });
+    } catch (error) {
+        console.error('Delete product admin error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 module.exports = {
     adminLogin,
     getAdminProfile,
@@ -1761,6 +2008,14 @@ module.exports = {
     updateAdminProfile,
     updateAdminPassword,
     getAdminActivity,
+    // Product admin functions
+    getProductsAdmin,
+    getProductByIdAdmin,
+    getProductStats,
+    toggleProductTrending,
+    toggleProductFashionPick,
+    toggleProductStatus,
+    deleteProductAdmin,
 };
 
 // @desc    Update admin profile

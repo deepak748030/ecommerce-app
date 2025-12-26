@@ -71,6 +71,15 @@ const productSchema = new mongoose.Schema({
         type: Boolean,
         default: true,
     },
+    // Home screen section flags
+    isTrending: {
+        type: Boolean,
+        default: false,
+    },
+    isFashionPick: {
+        type: Boolean,
+        default: false,
+    },
     // Track who created the product (admin only)
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
@@ -82,6 +91,8 @@ const productSchema = new mongoose.Schema({
 
 // Index for faster queries
 productSchema.index({ category: 1, isActive: 1 });
+productSchema.index({ isTrending: 1, isActive: 1 });
+productSchema.index({ isFashionPick: 1, isActive: 1 });
 productSchema.index({ title: 'text', description: 'text' });
 
 module.exports = mongoose.model('Product', productSchema);

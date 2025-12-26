@@ -57,6 +57,15 @@ router.put('/coupons/:id', verifyAdminToken, adminController.updateCoupon);
 router.delete('/coupons/:id', verifyAdminToken, adminController.deleteCoupon);
 router.put('/coupons/:id/toggle', verifyAdminToken, adminController.toggleCouponStatus);
 
+// Product routes
+router.get('/products/stats', verifyAdminToken, adminController.getProductStats);
+router.get('/products', verifyAdminToken, adminController.getProductsAdmin);
+router.get('/products/:id', verifyAdminToken, adminController.getProductByIdAdmin);
+router.put('/products/:id/trending', verifyAdminToken, adminController.toggleProductTrending);
+router.put('/products/:id/fashion-pick', verifyAdminToken, adminController.toggleProductFashionPick);
+router.put('/products/:id/toggle', verifyAdminToken, adminController.toggleProductStatus);
+router.delete('/products/:id', verifyAdminToken, adminController.deleteProductAdmin);
+
 // Admin settings routes
 router.put('/profile', verifyAdminToken, adminController.updateAdminProfile);
 router.put('/password', verifyAdminToken, adminController.updateAdminPassword);
