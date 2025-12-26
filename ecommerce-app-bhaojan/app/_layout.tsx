@@ -6,12 +6,18 @@ import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import * as Notifications from 'expo-notifications';
 import { addNotificationFromPush } from '@/lib/mockData';
+import { initializeTheme } from '@/lib/themeStore';
 
 export default function RootLayout() {
   useFrameworkReady();
 
   // Initialize push notifications with deep linking support
   usePushNotifications();
+
+  // Initialize theme from storage on app start
+  useEffect(() => {
+    initializeTheme();
+  }, []);
 
   // Request notification permission on app start and listen for incoming notifications
   useEffect(() => {

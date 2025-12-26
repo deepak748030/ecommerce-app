@@ -9,7 +9,7 @@ import { getToken } from '@/lib/api';
 const { width, height } = Dimensions.get('window');
 
 export default function SplashScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   // Animation values
@@ -24,6 +24,22 @@ export default function SplashScreen() {
   const icon3 = useRef(new Animated.Value(0)).current;
   const icon4 = useRef(new Animated.Value(0)).current;
   const fadeOut = useRef(new Animated.Value(1)).current;
+
+  // Theme-based colors
+  const themeColors = {
+    background: isDark ? colors.background : '#FDF8F3',
+    gradientStart: isDark ? colors.background : '#FDF8F3',
+    gradientMid: isDark ? colors.card : '#FEF3E2',
+    gradientEnd: isDark ? colors.background : '#FDF8F3',
+    circleColor1: isDark ? colors.primary + '20' : '#D97706' + '15',
+    circleColor2: isDark ? colors.accent + '15' : '#EA580C' + '10',
+    accent: isDark ? colors.primary : '#D97706',
+    subtitleColor: isDark ? colors.mutedForeground : '#78716C',
+    titleColor: isDark ? colors.foreground : '#92400E',
+    englishTitleColor: isDark ? colors.mutedForeground : '#78716C',
+    taglineBg: isDark ? colors.primary + '20' : '#D97706' + '20',
+    taglineBorder: isDark ? colors.primary + '40' : '#D97706' + '40',
+  };
 
   useEffect(() => {
     const checkAuthAndNavigate = async () => {
@@ -121,21 +137,21 @@ export default function SplashScreen() {
   );
 
   return (
-    <Animated.View style={[styles.container, { backgroundColor: '#FDF8F3', opacity: fadeOut }]}>
+    <Animated.View style={[styles.container, { backgroundColor: themeColors.background, opacity: fadeOut }]}>
       <LinearGradient
-        colors={['#FDF8F3', '#FEF3E2', '#FDF8F3']}
+        colors={[themeColors.gradientStart, themeColors.gradientMid, themeColors.gradientEnd] as const}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       />
 
-      <View style={[styles.bgCircle, styles.bgCircle1, { backgroundColor: '#D97706' + '15' }]} />
-      <View style={[styles.bgCircle, styles.bgCircle2, { backgroundColor: '#EA580C' + '10' }]} />
+      <View style={[styles.bgCircle, styles.bgCircle1, { backgroundColor: themeColors.circleColor1 }]} />
+      <View style={[styles.bgCircle, styles.bgCircle2, { backgroundColor: themeColors.circleColor2 }]} />
 
-      <FloatingIcon icon={Utensils} animValue={icon1} style={styles.icon1} color="#D97706" size={22} />
-      <FloatingIcon icon={Leaf} animValue={icon2} style={styles.icon2} color="#22C55E" size={20} />
+      <FloatingIcon icon={Utensils} animValue={icon1} style={styles.icon1} color={themeColors.accent} size={22} />
+      <FloatingIcon icon={Leaf} animValue={icon2} style={styles.icon2} color={colors.primary} size={20} />
       <FloatingIcon icon={Heart} animValue={icon3} style={styles.icon3} color="#FF6B6B" size={18} />
-      <FloatingIcon icon={Star} animValue={icon4} style={styles.icon4} color="#F59E0B" size={20} />
+      <FloatingIcon icon={Star} animValue={icon4} style={styles.icon4} color={isDark ? colors.warning : '#F59E0B'} size={20} />
 
       <View style={styles.content}>
         <Animated.View style={[styles.logoContainer, { transform: [{ scale: logoScale }] }]}>
@@ -152,30 +168,30 @@ export default function SplashScreen() {
             { opacity: titleOpacity, transform: [{ translateY: titleTranslate }] },
           ]}
         >
-          <Text style={styles.appNameEnglish}>The Art Of</Text>
-          <Text style={styles.appNameHindi}>भ ओ जन</Text>
+          <Text style={[styles.appNameEnglish, { color: themeColors.englishTitleColor }]}>The Art Of</Text>
+          <Text style={[styles.appNameHindi, { color: themeColors.titleColor }]}>भ ओ जन</Text>
         </Animated.View>
 
-        <Animated.Text style={[styles.subtitle, { color: '#78716C', opacity: subtitleOpacity }]}>
+        <Animated.Text style={[styles.subtitle, { color: themeColors.subtitleColor, opacity: subtitleOpacity }]}>
           Celebrate The Joy Of Food
         </Animated.Text>
 
         <Animated.View
           style={[styles.taglineContainer, { opacity: taglineOpacity, transform: [{ scale: taglineScale }] }]}
         >
-          <View style={[styles.taglineBackground, { backgroundColor: '#D97706' + '20', borderColor: '#D97706' + '40' }]}>
-            <Sparkles size={14} color="#D97706" style={styles.sparkleLeft} />
-            <Text style={[styles.tagline, { color: '#D97706' }]}>स्वाद का कला</Text>
-            <Sparkles size={14} color="#D97706" style={styles.sparkleRight} />
+          <View style={[styles.taglineBackground, { backgroundColor: themeColors.taglineBg, borderColor: themeColors.taglineBorder }]}>
+            <Sparkles size={14} color={themeColors.accent} style={styles.sparkleLeft} />
+            <Text style={[styles.tagline, { color: themeColors.accent }]}>स्वाद का कला</Text>
+            <Sparkles size={14} color={themeColors.accent} style={styles.sparkleRight} />
           </View>
         </Animated.View>
       </View>
 
       <Animated.View style={[styles.loadingContainer, { opacity: subtitleOpacity }]}>
         <View style={styles.loadingDots}>
-          <View style={[styles.dot, styles.dot1, { backgroundColor: '#D97706' }]} />
-          <View style={[styles.dot, styles.dot2, { backgroundColor: '#D97706' }]} />
-          <View style={[styles.dot, styles.dot3, { backgroundColor: '#D97706' }]} />
+          <View style={[styles.dot, styles.dot1, { backgroundColor: themeColors.accent }]} />
+          <View style={[styles.dot, styles.dot2, { backgroundColor: themeColors.accent }]} />
+          <View style={[styles.dot, styles.dot3, { backgroundColor: themeColors.accent }]} />
         </View>
       </Animated.View>
     </Animated.View>
@@ -230,14 +246,12 @@ const styles = StyleSheet.create({
   appNameEnglish: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#78716C',
     letterSpacing: 2,
     marginBottom: 4,
   },
   appNameHindi: {
     fontSize: 38,
     fontWeight: '800',
-    color: '#92400E',
     letterSpacing: 4,
   },
   subtitle: {

@@ -127,6 +127,24 @@ export default function HomeScreen() {
     fetchData();
   }, [fetchData]);
 
+  // Auto-scroll banner every 2 seconds with infinite loop
+  useEffect(() => {
+    if (banners.length <= 1) return;
+
+    const autoScrollInterval = setInterval(() => {
+      setCurrentBanner((prev) => {
+        const nextIndex = (prev + 1) % banners.length;
+        bannerScrollRef.current?.scrollTo({
+          x: nextIndex * (BANNER_WIDTH + 12),
+          animated: true,
+        });
+        return nextIndex;
+      });
+    }, 2000);
+
+    return () => clearInterval(autoScrollInterval);
+  }, [banners.length]);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchData();
@@ -468,7 +486,7 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 14,
   },
   bannerBadgeText: {
-    color: colors.foreground,
+    color: '#1A1A1A',
     fontSize: 11,
     fontWeight: '800',
   },
