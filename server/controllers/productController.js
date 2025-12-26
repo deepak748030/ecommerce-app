@@ -377,7 +377,8 @@ const getProductsByCategory = async (req, res) => {
 // @access  Public
 const getTrendingProducts = async (req, res) => {
     try {
-        const { limit = 10 } = req.query;
+        const { limit = 10, page = 1 } = req.query;
+        const skip = (parseInt(page) - 1) * parseInt(limit);
 
         const products = await Product.find({
             isActive: true,
@@ -385,13 +386,22 @@ const getTrendingProducts = async (req, res) => {
         })
             .populate('category', 'name color')
             .sort({ createdAt: -1 })
+            .skip(skip)
             .limit(parseInt(limit));
+
+        const total = await Product.countDocuments({
+            isActive: true,
+            isTrending: true
+        });
 
         res.json({
             success: true,
             message: 'Trending products fetched successfully',
             response: {
                 count: products.length,
+                total,
+                page: parseInt(page),
+                pages: Math.ceil(total / parseInt(limit)),
                 data: products,
             },
         });
@@ -406,7 +416,8 @@ const getTrendingProducts = async (req, res) => {
 // @access  Public
 const getFashionPicksProducts = async (req, res) => {
     try {
-        const { limit = 10 } = req.query;
+        const { limit = 10, page = 1 } = req.query;
+        const skip = (parseInt(page) - 1) * parseInt(limit);
 
         const products = await Product.find({
             isActive: true,
@@ -414,13 +425,22 @@ const getFashionPicksProducts = async (req, res) => {
         })
             .populate('category', 'name color')
             .sort({ createdAt: -1 })
+            .skip(skip)
             .limit(parseInt(limit));
+
+        const total = await Product.countDocuments({
+            isActive: true,
+            isFashionPick: true
+        });
 
         res.json({
             success: true,
             message: 'Fashion picks fetched successfully',
             response: {
                 count: products.length,
+                total,
+                page: parseInt(page),
+                pages: Math.ceil(total / parseInt(limit)),
                 data: products,
             },
         });
