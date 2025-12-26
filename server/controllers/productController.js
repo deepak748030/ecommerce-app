@@ -372,6 +372,64 @@ const getProductsByCategory = async (req, res) => {
     }
 };
 
+// @desc    Get trending products
+// @route   GET /api/products/home/trending
+// @access  Public
+const getTrendingProducts = async (req, res) => {
+    try {
+        const { limit = 10 } = req.query;
+
+        const products = await Product.find({
+            isActive: true,
+            isTrending: true
+        })
+            .populate('category', 'name color')
+            .sort({ createdAt: -1 })
+            .limit(parseInt(limit));
+
+        res.json({
+            success: true,
+            message: 'Trending products fetched successfully',
+            response: {
+                count: products.length,
+                data: products,
+            },
+        });
+    } catch (error) {
+        console.error('Get trending products error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get fashion picks products
+// @route   GET /api/products/home/fashion-picks
+// @access  Public
+const getFashionPicksProducts = async (req, res) => {
+    try {
+        const { limit = 10 } = req.query;
+
+        const products = await Product.find({
+            isActive: true,
+            isFashionPick: true
+        })
+            .populate('category', 'name color')
+            .sort({ createdAt: -1 })
+            .limit(parseInt(limit));
+
+        res.json({
+            success: true,
+            message: 'Fashion picks fetched successfully',
+            response: {
+                count: products.length,
+                data: products,
+            },
+        });
+    } catch (error) {
+        console.error('Get fashion picks error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 module.exports = {
     getProducts,
     getProduct,
@@ -379,4 +437,6 @@ module.exports = {
     updateProduct,
     deleteProduct,
     getProductsByCategory,
+    getTrendingProducts,
+    getFashionPicksProducts,
 };

@@ -7,13 +7,19 @@ const {
     updateProduct,
     deleteProduct,
     getProductsByCategory,
+    getTrendingProducts,
+    getFashionPicksProducts,
 } = require('../controllers/productController');
 const { verifyToken } = require('../middleware/auth');
 
+// Public routes - Home screen endpoints (must be before /:id)
+router.get('/home/trending', getTrendingProducts);
+router.get('/home/fashion-picks', getFashionPicksProducts);
+
 // Public routes
 router.get('/', getProducts);
-router.get('/:id', getProduct);
 router.get('/category/:categoryId', getProductsByCategory);
+router.get('/:id', getProduct);
 
 // Protected routes (Admin only)
 router.post('/', verifyToken, createProduct);
