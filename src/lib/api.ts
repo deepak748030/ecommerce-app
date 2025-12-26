@@ -759,6 +759,89 @@ export const toggleCouponStatus = async (id: string) => {
     return response.data
 }
 
+// Product Types
+export interface Product {
+    _id: string
+    title: string
+    description: string
+    price: number
+    mrp: number
+    category: {
+        _id: string
+        name: string
+        color?: string
+    }
+    image: string
+    images: string[]
+    badge: string
+    location: string
+    fullLocation: string
+    rating: number
+    reviews: number
+    date: string
+    time: string
+    services: string[]
+    isActive: boolean
+    isTrending: boolean
+    isFashionPick: boolean
+    createdAt: string
+    updatedAt?: string
+}
+
+export interface ProductStats {
+    totalProducts: number
+    activeProducts: number
+    inactiveProducts: number
+    trendingProducts: number
+    fashionPickProducts: number
+}
+
+// Product API Functions
+export const getProductsAdmin = async (params: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: string
+    category?: string
+    trending?: string
+    fashionPick?: string
+    minPrice?: number
+    maxPrice?: number
+}) => {
+    const response = await api.get('/admin/products', { params })
+    return response.data
+}
+
+export const getProductStats = async () => {
+    const response = await api.get('/admin/products/stats')
+    return response.data
+}
+
+export const getProductByIdAdmin = async (id: string) => {
+    const response = await api.get(`/admin/products/${id}`)
+    return response.data
+}
+
+export const toggleProductTrending = async (id: string) => {
+    const response = await api.put(`/admin/products/${id}/trending`)
+    return response.data
+}
+
+export const toggleProductFashionPick = async (id: string) => {
+    const response = await api.put(`/admin/products/${id}/fashion-pick`)
+    return response.data
+}
+
+export const toggleProductStatus = async (id: string) => {
+    const response = await api.put(`/admin/products/${id}/toggle`)
+    return response.data
+}
+
+export const deleteProductAdmin = async (id: string) => {
+    const response = await api.delete(`/admin/products/${id}`)
+    return response.data
+}
+
 // Admin Settings APIs
 export interface AdminActivity {
     admin: Admin

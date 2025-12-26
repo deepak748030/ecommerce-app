@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "भ ओ जन Delivery",
-    "slug": "bhojan-delivery",
+    "slug": "bhaojan-delivery",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/app-logo.png",
@@ -14,7 +14,7 @@
       "backgroundColor": "#FDF8F3"
     },
     "android": {
-      "package": "com.bhojandelivery.app",
+      "package": "com.bhaojandelivery.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/app-logo.png",
         "backgroundColor": "#FDF8F3"
@@ -40,7 +40,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "ef457bce-c704-4800-a6dc-d44fd23f7869"
+        "projectId": "bfe669fe-d044-4cff-8ee0-653d2be28961"
       }
     }
   }

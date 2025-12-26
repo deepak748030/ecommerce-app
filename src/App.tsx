@@ -13,6 +13,7 @@ import { OrdersPage } from './pages/OrdersPage'
 import { CouponsPage } from './pages/CouponsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage'
+import { ProductsPage } from './pages/ProductsPage'
 import DeleteAccountPage from './pages/DeleteAccountPage'
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
                     >
                         <Route index element={<DashboardPage />} />
                         <Route path="orders" element={<OrdersPage />} />
+                        <Route path="products" element={<ProductsPage />} />
                         <Route path="users" element={<UsersPage />} />
                         <Route path="categories" element={<CategoriesPage />} />
                         <Route path="coupons" element={<CouponsPage />} />

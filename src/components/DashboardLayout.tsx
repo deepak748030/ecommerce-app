@@ -15,6 +15,7 @@ import {
     ShoppingBag,
     Ticket,
     Settings,
+    Package,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { useAuth } from '../context/AuthContext'
@@ -22,6 +23,7 @@ import { useAuth } from '../context/AuthContext'
 const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/orders', icon: ShoppingBag, label: 'Orders' },
+    { to: '/products', icon: Package, label: 'Products' },
     { to: '/users', icon: Users, label: 'Users' },
     { to: '/categories', icon: FolderOpen, label: 'Categories' },
     { to: '/coupons', icon: Ticket, label: 'Coupons' },
