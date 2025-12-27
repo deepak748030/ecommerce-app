@@ -71,4 +71,9 @@ router.put('/profile', verifyAdminToken, adminController.updateAdminProfile);
 router.put('/password', verifyAdminToken, adminController.updateAdminPassword);
 router.get('/activity', verifyAdminToken, adminController.getAdminActivity);
 
+// Withdrawal routes
+router.get('/withdrawals/stats', verifyAdminToken, adminController.getWithdrawalStats);
+router.get('/withdrawals', verifyAdminToken, adminController.getWithdrawals);
+router.put('/withdrawals/:id/status', verifyAdminToken, adminController.updateWithdrawalStatus);
+
 module.exports = router;

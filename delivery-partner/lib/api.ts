@@ -511,3 +511,84 @@ export const earningsApi = {
         });
     },
 };
+
+// Wallet Balance Response
+export interface WalletBalance {
+    balance: number;
+    pendingBalance: number;
+    totalEarnings: number;
+    totalWithdrawn: number;
+    currency: string;
+    currencySymbol: string;
+}
+
+// Withdrawal Request Types
+export interface WithdrawalRequest {
+    _id: string;
+    requestId: string;
+    requesterType: 'vendor' | 'delivery_partner';
+    amount: number;
+    paymentMethod: 'upi' | 'bank_transfer' | 'paytm' | 'phonepe' | 'googlepay';
+    paymentDetails: {
+        upiId?: string;
+        accountHolderName?: string;
+        accountNumber?: string;
+        ifscCode?: string;
+        bankName?: string;
+        mobileNumber?: string;
+    };
+    status: 'pending' | 'processing' | 'completed' | 'rejected';
+    adminNotes?: string;
+    rejectionReason?: string;
+    transactionReference?: string;
+    balanceBefore: number;
+    balanceAfter?: number;
+    createdAt: string;
+    updatedAt: string;
+    processedAt?: string;
+}
+
+export interface WithdrawalHistoryResponse {
+    count: number;
+    total: number;
+    page: number;
+    pages: number;
+    data: WithdrawalRequest[];
+}
+
+// Wallet API
+export const walletApi = {
+    // Get wallet balance
+    getWalletBalance: async () => {
+        return authFetch<WalletBalance>('/delivery-partner/wallet/balance', {
+            method: 'GET',
+        });
+    },
+
+    // Request withdrawal
+    requestWithdrawal: async (data: {
+        amount: number;
+        paymentMethod: 'upi' | 'bank_transfer' | 'paytm' | 'phonepe' | 'googlepay';
+        upiId?: string;
+        accountHolderName?: string;
+        accountNumber?: string;
+        ifscCode?: string;
+        bankName?: string;
+        mobileNumber?: string;
+    }) => {
+        return authFetch<{
+            request: WithdrawalRequest;
+            wallet: WalletBalance;
+        }>('/delivery-partner/wallet/withdraw', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+
+    // Get withdrawal history
+    getWithdrawalHistory: async (page: number = 1, limit: number = 20) => {
+        return authFetch<WithdrawalHistoryResponse>(`/delivery-partner/wallet/withdrawals?page=${page}&limit=${limit}`, {
+            method: 'GET',
+        });
+    },
+};

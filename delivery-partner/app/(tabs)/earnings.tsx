@@ -1,20 +1,23 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Wallet, Package, Star, ChevronRight, IndianRupee } from 'lucide-react-native';
+import { Wallet, Package, Star, ChevronRight, IndianRupee, ArrowUpRight } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../hooks/useTheme';
-import { earningsApi, EarningsSummary, EarningsHistoryItem } from '../../lib/api';
+import { earningsApi, walletApi, EarningsSummary, EarningsHistoryItem, WalletBalance } from '../../lib/api';
 import { router } from 'expo-router';
+import { WithdrawModal, WithdrawData } from '../../components/WithdrawModal';
 
 export default function EarningsScreen() {
     const { colors, isDark } = useTheme();
     const styles = createStyles(colors, isDark);
 
     const [earnings, setEarnings] = useState<EarningsSummary | null>(null);
+    const [walletBalance, setWalletBalance] = useState<WalletBalance | null>(null);
     const [history, setHistory] = useState<EarningsHistoryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [withdrawModalVisible, setWithdrawModalVisible] = useState(false);
 
     const fetchData = useCallback(async (isRefresh: boolean = false) => {
         try {
@@ -24,9 +27,10 @@ export default function EarningsScreen() {
                 setLoading(true);
             }
 
-            const [earningsResult, historyResult] = await Promise.all([
+            const [earningsResult, historyResult, walletResult] = await Promise.all([
                 earningsApi.getEarnings(),
                 earningsApi.getEarningsHistory(1, 5),
+                walletApi.getWalletBalance(),
             ]);
 
             if (earningsResult.success && earningsResult.response) {
@@ -35,6 +39,10 @@ export default function EarningsScreen() {
 
             if (historyResult.success && historyResult.response) {
                 setHistory(historyResult.response.data || []);
+            }
+
+            if (walletResult.success && walletResult.response) {
+                setWalletBalance(walletResult.response);
             }
         } catch (error) {
             console.error('Error fetching earnings:', error);
@@ -53,6 +61,19 @@ export default function EarningsScreen() {
     const handleRefresh = useCallback(() => {
         fetchData(true);
     }, [fetchData]);
+
+    const handleWithdraw = async (data: WithdrawData): Promise<{ success: boolean; message?: string }> => {
+        try {
+            const result = await walletApi.requestWithdrawal(data);
+            if (result.success) {
+                fetchData(true);
+                return { success: true };
+            }
+            return { success: false, message: result.message || 'Failed to process withdrawal' };
+        } catch (error) {
+            return { success: false, message: 'Something went wrong' };
+        }
+    };
 
     const renderSkeleton = () => (
         <View style={styles.skeletonContainer}>
@@ -111,9 +132,37 @@ export default function EarningsScreen() {
                     />
                 }
             >
-                {/* Main Earnings Card */}
-                <View style={styles.mainCard}>
-                    <Text style={styles.mainLabel}>Total This Month</Text>
+                {/* Wallet Balance Card */}
+                {walletBalance && (
+                    <View style={styles.mainCard}>
+                        <View style={styles.walletHeader}>
+                            <Text style={styles.mainLabel}>Wallet Balance</Text>
+                            {walletBalance.balance >= 100 && (
+                                <Pressable style={styles.withdrawBtn} onPress={() => setWithdrawModalVisible(true)}>
+                                    <ArrowUpRight size={14} color={colors.primary} />
+                                    <Text style={styles.withdrawBtnText}>Withdraw</Text>
+                                </Pressable>
+                            )}
+                        </View>
+                        <Text style={styles.mainAmount}>₹{walletBalance.balance.toLocaleString()}</Text>
+                        <View style={styles.mainDivider} />
+                        <View style={styles.mainStats}>
+                            <View style={styles.mainStatItem}>
+                                <Text style={styles.mainStatValue}>₹{walletBalance.pendingBalance || 0}</Text>
+                                <Text style={styles.mainStatLabel}>Pending</Text>
+                            </View>
+                            <View style={styles.mainStatDivider} />
+                            <View style={styles.mainStatItem}>
+                                <Text style={styles.mainStatValue}>₹{walletBalance.totalWithdrawn || 0}</Text>
+                                <Text style={styles.mainStatLabel}>Withdrawn</Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
+
+                {/* Monthly Earnings Card */}
+                <View style={[styles.mainCard, { backgroundColor: colors.accent }]}>
+                    <Text style={styles.mainLabel}>This Month</Text>
                     <Text style={styles.mainAmount}>₹{(earnings?.thisMonth || 0).toLocaleString()}</Text>
                     <View style={styles.mainDivider} />
                     <View style={styles.mainStats}>
@@ -180,6 +229,14 @@ export default function EarningsScreen() {
                     ))
                 )}
             </ScrollView>
+
+            {/* Withdraw Modal */}
+            <WithdrawModal
+                visible={withdrawModalVisible}
+                onClose={() => setWithdrawModalVisible(false)}
+                availableBalance={walletBalance?.balance || 0}
+                onSubmit={handleWithdraw}
+            />
         </SafeAreaView>
     );
 }
@@ -359,5 +416,25 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         height: 14,
         backgroundColor: 'rgba(255,255,255,0.3)',
         borderRadius: 4,
+    },
+    walletHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    withdrawBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.primaryForeground,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 12,
+        gap: 4,
+    },
+    withdrawBtnText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: colors.primary,
     },
 });

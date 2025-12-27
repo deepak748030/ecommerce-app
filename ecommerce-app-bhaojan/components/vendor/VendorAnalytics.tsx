@@ -6,10 +6,6 @@ import {
     ScrollView,
     Image,
     TouchableOpacity,
-    Modal,
-    TextInput,
-    Alert,
-    ActivityIndicator,
 } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import {
@@ -20,10 +16,10 @@ import {
     Wallet,
     Clock,
     ArrowUpRight,
-    X,
 } from 'lucide-react-native';
 import { VendorAnalytics as VendorAnalyticsType, getImageUrl, vendorApi } from '@/lib/api';
 import { VendorAnalyticsSkeleton } from '@/components/Skeleton';
+import { WithdrawModal, WithdrawData } from './WithdrawModal';
 
 interface Props {
     analytics: VendorAnalyticsType | null;
@@ -35,9 +31,6 @@ export function VendorAnalytics({ analytics, loading, onRefresh }: Props) {
     const { colors } = useTheme();
     const styles = createStyles(colors);
     const [withdrawModalVisible, setWithdrawModalVisible] = useState(false);
-    const [withdrawAmount, setWithdrawAmount] = useState('');
-    const [upiId, setUpiId] = useState('');
-    const [withdrawing, setWithdrawing] = useState(false);
 
     const getStatusColor = (status: string) => {
         switch (status.toLowerCase()) {
@@ -56,41 +49,16 @@ export function VendorAnalytics({ analytics, loading, onRefresh }: Props) {
         return status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     };
 
-    const handleWithdraw = async () => {
-        const amount = parseFloat(withdrawAmount);
-        if (isNaN(amount) || amount <= 0) {
-            Alert.alert('Error', 'Please enter a valid amount');
-            return;
-        }
-        if (amount < 100) {
-            Alert.alert('Error', 'Minimum withdrawal amount is ₹100');
-            return;
-        }
-        if (!upiId.trim()) {
-            Alert.alert('Error', 'Please enter your UPI ID');
-            return;
-        }
-        if (!analytics?.wallet || amount > analytics.wallet.balance) {
-            Alert.alert('Error', 'Insufficient balance');
-            return;
-        }
-
-        setWithdrawing(true);
+    const handleWithdraw = async (data: WithdrawData): Promise<{ success: boolean; message?: string }> => {
         try {
-            const result = await vendorApi.requestWithdrawal({ amount, upiId: upiId.trim() });
+            const result = await vendorApi.requestWithdrawal(data);
             if (result.success) {
-                Alert.alert('Success', `Withdrawal request of ₹${amount} submitted successfully!`);
-                setWithdrawModalVisible(false);
-                setWithdrawAmount('');
-                setUpiId('');
                 onRefresh?.();
-            } else {
-                Alert.alert('Error', result.message || 'Failed to process withdrawal');
+                return { success: true };
             }
+            return { success: false, message: result.message || 'Failed to process withdrawal' };
         } catch (error) {
-            Alert.alert('Error', 'Something went wrong');
-        } finally {
-            setWithdrawing(false);
+            return { success: false, message: 'Something went wrong' };
         }
     };
 
@@ -148,61 +116,12 @@ export function VendorAnalytics({ analytics, loading, onRefresh }: Props) {
             </View>
 
             {/* Withdraw Modal */}
-            <Modal
+            <WithdrawModal
                 visible={withdrawModalVisible}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setWithdrawModalVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-                        <View style={styles.modalHeader}>
-                            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Withdraw Funds</Text>
-                            <TouchableOpacity onPress={() => setWithdrawModalVisible(false)}>
-                                <X size={24} color={colors.mutedForeground} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <Text style={[styles.modalLabel, { color: colors.mutedForeground }]}>
-                            Available: ₹{wallet.balance.toLocaleString('en-IN')}
-                        </Text>
-
-                        <Text style={[styles.inputLabel, { color: colors.foreground }]}>Amount (₹)</Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
-                            placeholder="Enter amount (min ₹100)"
-                            placeholderTextColor={colors.mutedForeground}
-                            value={withdrawAmount}
-                            onChangeText={setWithdrawAmount}
-                            keyboardType="numeric"
-                        />
-
-                        <Text style={[styles.inputLabel, { color: colors.foreground }]}>UPI ID</Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: colors.muted, color: colors.foreground, borderColor: colors.border }]}
-                            placeholder="yourname@upi"
-                            placeholderTextColor={colors.mutedForeground}
-                            value={upiId}
-                            onChangeText={setUpiId}
-                            autoCapitalize="none"
-                        />
-
-                        <TouchableOpacity
-                            style={[styles.submitBtn, { backgroundColor: colors.primary }]}
-                            onPress={handleWithdraw}
-                            disabled={withdrawing}
-                        >
-                            {withdrawing ? (
-                                <ActivityIndicator color={colors.primaryForeground} />
-                            ) : (
-                                <Text style={[styles.submitBtnText, { color: colors.primaryForeground }]}>
-                                    Request Withdrawal
-                                </Text>
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
+                onClose={() => setWithdrawModalVisible(false)}
+                availableBalance={wallet.balance}
+                onSubmit={handleWithdraw}
+            />
 
             {/* Stats Cards */}
             <View style={styles.statsGrid}>

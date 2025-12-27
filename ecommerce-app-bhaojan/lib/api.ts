@@ -945,9 +945,18 @@ export const vendorApi = {
     },
 
     // Request wallet withdrawal
-    requestWithdrawal: async (data: { amount: number; upiId?: string; accountDetails?: string }) => {
+    requestWithdrawal: async (data: {
+        amount: number;
+        paymentMethod: 'upi' | 'bank_transfer' | 'paytm' | 'phonepe' | 'googlepay';
+        upiId?: string;
+        accountHolderName?: string;
+        accountNumber?: string;
+        ifscCode?: string;
+        bankName?: string;
+        mobileNumber?: string;
+    }) => {
         return apiRequest<{
-            transaction: any;
+            request: any;
             wallet: {
                 balance: number;
                 pendingBalance: number;
@@ -959,4 +968,53 @@ export const vendorApi = {
             body: JSON.stringify(data),
         });
     },
+
+    // Get wallet balance
+    getWalletBalance: async () => {
+        return apiRequest<{
+            balance: number;
+            pendingBalance: number;
+            totalEarnings: number;
+            totalWithdrawn: number;
+            currency: string;
+            currencySymbol: string;
+        }>('/wallet/balance');
+    },
+
+    // Get withdrawal history
+    getWithdrawalHistory: async (page: number = 1, limit: number = 20) => {
+        return apiRequest<{
+            count: number;
+            total: number;
+            page: number;
+            pages: number;
+            data: WithdrawalRequest[];
+        }>(`/wallet/withdrawals?page=${page}&limit=${limit}`);
+    },
 };
+
+// Withdrawal Request Types
+export interface WithdrawalRequest {
+    _id: string;
+    requestId: string;
+    requesterType: 'vendor' | 'delivery_partner';
+    amount: number;
+    paymentMethod: 'upi' | 'bank_transfer' | 'paytm' | 'phonepe' | 'googlepay';
+    paymentDetails: {
+        upiId?: string;
+        accountHolderName?: string;
+        accountNumber?: string;
+        ifscCode?: string;
+        bankName?: string;
+        mobileNumber?: string;
+    };
+    status: 'pending' | 'processing' | 'completed' | 'rejected';
+    adminNotes?: string;
+    rejectionReason?: string;
+    transactionReference?: string;
+    balanceBefore: number;
+    balanceAfter?: number;
+    createdAt: string;
+    updatedAt: string;
+    processedAt?: string;
+}

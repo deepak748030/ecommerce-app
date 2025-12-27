@@ -6,6 +6,7 @@ const DeliveryPartner = require('../models/DeliveryPartner');
 const Order = require('../models/Order');
 const Coupon = require('../models/Coupon');
 const Product = require('../models/Product');
+const WithdrawalRequest = require('../models/WithdrawalRequest');
 const { generateAdminToken } = require('../middleware/adminAuth');
 const { uploadCategoryImage, uploadBannerImage, isBase64Image, deleteImage } = require('../services/cloudinaryService');
 
@@ -2217,3 +2218,272 @@ async function getAdminActivity(req, res) {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 }
+
+// @desc    Get withdrawal requests with pagination
+// @route   GET /api/admin/withdrawals
+// @access  Private (Admin)
+const getWithdrawals = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const search = req.query.search || '';
+        const status = req.query.status || 'all';
+        const requesterType = req.query.requesterType || 'all';
+
+        const skip = (page - 1) * limit;
+
+        // Build query
+        const query = {};
+
+        if (status !== 'all') {
+            query.status = status;
+        }
+
+        if (requesterType !== 'all') {
+            query.requesterType = requesterType;
+        }
+
+        // Get withdrawals with populated user/partner info
+        let withdrawals = await WithdrawalRequest.find(query)
+            .populate('user', 'name phone avatar')
+            .populate('deliveryPartner', 'name phone avatar')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean();
+
+        // Filter by search if provided
+        if (search) {
+            const searchLower = search.toLowerCase();
+            withdrawals = withdrawals.filter(w => {
+                const name = w.user?.name || w.deliveryPartner?.name || '';
+                const phone = w.user?.phone || w.deliveryPartner?.phone || '';
+                const requestId = w.requestId || '';
+                return (
+                    name.toLowerCase().includes(searchLower) ||
+                    phone.includes(search) ||
+                    requestId.toLowerCase().includes(searchLower)
+                );
+            });
+        }
+
+        const total = await WithdrawalRequest.countDocuments(query);
+
+        res.json({
+            success: true,
+            response: {
+                withdrawals,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    pages: Math.ceil(total / limit),
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Get withdrawals error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get withdrawal stats
+// @route   GET /api/admin/withdrawals/stats
+// @access  Private (Admin)
+const getWithdrawalStats = async (req, res) => {
+    try {
+        const [pending, processing, completed, rejected] = await Promise.all([
+            WithdrawalRequest.aggregate([
+                { $match: { status: 'pending' } },
+                { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$amount' } } }
+            ]),
+            WithdrawalRequest.aggregate([
+                { $match: { status: 'processing' } },
+                { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$amount' } } }
+            ]),
+            WithdrawalRequest.aggregate([
+                { $match: { status: 'completed' } },
+                { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$amount' } } }
+            ]),
+            WithdrawalRequest.aggregate([
+                { $match: { status: 'rejected' } },
+                { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$amount' } } }
+            ]),
+        ]);
+
+        res.json({
+            success: true,
+            response: {
+                pending: pending[0]?.count || 0,
+                processing: processing[0]?.count || 0,
+                completed: completed[0]?.count || 0,
+                rejected: rejected[0]?.count || 0,
+                pendingAmount: pending[0]?.amount || 0,
+                processingAmount: processing[0]?.amount || 0,
+                completedAmount: completed[0]?.amount || 0,
+                rejectedAmount: rejected[0]?.amount || 0,
+            },
+        });
+    } catch (error) {
+        console.error('Get withdrawal stats error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Update withdrawal status
+// @route   PUT /api/admin/withdrawals/:id/status
+// @access  Private (Admin)
+const updateWithdrawalStatus = async (req, res) => {
+    try {
+        const { status, adminNotes, transactionReference, rejectionReason } = req.body;
+
+        const withdrawal = await WithdrawalRequest.findById(req.params.id);
+
+        if (!withdrawal) {
+            return res.status(404).json({ success: false, message: 'Withdrawal request not found' });
+        }
+
+        // Validate status transition
+        const validTransitions = {
+            pending: ['processing', 'completed', 'rejected'],
+            processing: ['completed', 'rejected'],
+            completed: [],
+            rejected: [],
+        };
+
+        if (!validTransitions[withdrawal.status]?.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot change status from ${withdrawal.status} to ${status}`,
+            });
+        }
+
+        // If completing, require transaction reference
+        if (status === 'completed' && !transactionReference) {
+            return res.status(400).json({
+                success: false,
+                message: 'Transaction reference is required for completion',
+            });
+        }
+
+        // If rejecting, require rejection reason
+        if (status === 'rejected' && !rejectionReason) {
+            return res.status(400).json({
+                success: false,
+                message: 'Rejection reason is required',
+            });
+        }
+
+        // Update withdrawal
+        withdrawal.status = status;
+        withdrawal.adminNotes = adminNotes || withdrawal.adminNotes;
+        withdrawal.processedBy = req.admin._id;
+        withdrawal.processedAt = new Date();
+
+        if (status === 'completed') {
+            withdrawal.transactionReference = transactionReference;
+
+            // Update balance for user/partner
+            if (withdrawal.requesterType === 'vendor') {
+                const user = await User.findById(withdrawal.user);
+                if (user) {
+                    withdrawal.balanceAfter = user.wallet?.balance || 0;
+                    user.wallet.totalWithdrawn = (user.wallet.totalWithdrawn || 0) + withdrawal.amount;
+                    await user.save();
+                }
+            } else {
+                const partner = await DeliveryPartner.findById(withdrawal.deliveryPartner);
+                if (partner) {
+                    withdrawal.balanceAfter = partner.earnings?.balance || 0;
+                }
+            }
+        }
+
+        if (status === 'rejected') {
+            withdrawal.rejectionReason = rejectionReason;
+
+            // Refund the amount back to wallet
+            if (withdrawal.requesterType === 'vendor') {
+                const user = await User.findById(withdrawal.user);
+                if (user && user.wallet) {
+                    user.wallet.balance = (user.wallet.balance || 0) + withdrawal.amount;
+                    await user.save();
+                }
+            } else {
+                const partner = await DeliveryPartner.findById(withdrawal.deliveryPartner);
+                if (partner) {
+                    partner.earnings = partner.earnings || { balance: 0, today: 0, week: 0, month: 0, total: 0 };
+                    partner.earnings.balance = (partner.earnings.balance || 0) + withdrawal.amount;
+                    await partner.save();
+                }
+            }
+        }
+
+        await withdrawal.save();
+
+        res.json({
+            success: true,
+            message: `Withdrawal ${status} successfully`,
+            response: { withdrawal },
+        });
+    } catch (error) {
+        console.error('Update withdrawal status error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+module.exports = {
+    adminLogin,
+    getAdminProfile,
+    setupDefaultAdmin,
+    getUsers,
+    getUserById,
+    toggleUserBlock,
+    getDashboardStats,
+    getDashboardAnalytics,
+    getCategories,
+    getCategoryById,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+    toggleCategoryStatus,
+    getBanners,
+    getBannerById,
+    createBanner,
+    updateBanner,
+    deleteBanner,
+    toggleBannerStatus,
+    reorderBanners,
+    getDeliveryPartnerStats,
+    getDeliveryPartners,
+    getDeliveryPartnerById,
+    toggleDeliveryPartnerBlock,
+    updateDeliveryPartnerKYC,
+    toggleDeliveryPartnerActive,
+    updateDeliveryPartnerEarnings,
+    getOrderStats,
+    getOrders,
+    getOrderById,
+    updateOrderStatus,
+    assignDeliveryPartner,
+    getCouponStats,
+    getCoupons,
+    getCouponById,
+    createCoupon,
+    updateCoupon,
+    deleteCoupon,
+    toggleCouponStatus,
+    getProductStats,
+    getProductsAdmin,
+    getProductByIdAdmin,
+    toggleProductTrending,
+    toggleProductFashionPick,
+    toggleProductStatus,
+    deleteProductAdmin,
+    updateAdminProfile,
+    updateAdminPassword,
+    getAdminActivity,
+    getWithdrawals,
+    getWithdrawalStats,
+    updateWithdrawalStatus,
+};
