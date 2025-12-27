@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Switch, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Bell, Moon, Shield, HelpCircle, FileText, Mail, Trash2, Globe, Lock, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '../hooks/useTheme';
 import { router } from 'expo-router';
 import { ConfirmationModal } from '../components/ConfirmationModal';
+import { ActionModal } from '../components/ActionModal';
 import { deliveryPartnerAuthApi } from '../lib/api';
 
 export default function SettingsScreen() {
@@ -14,17 +15,19 @@ export default function SettingsScreen() {
     const [soundEnabled, setSoundEnabled] = useState(true);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [showInfoModal, setShowInfoModal] = useState(false);
+    const [infoModalData, setInfoModalData] = useState({ title: '', message: '', type: 'info' as 'info' | 'success' | 'error' });
 
     const handleDeleteAccount = async () => {
         setDeleting(true);
         try {
-            // Call delete account API
-            Alert.alert('Account Deletion', 'Your account deletion request has been submitted. It will be processed within 7 days.');
+            setInfoModalData({ title: 'Account Deletion', message: 'Your account deletion request has been submitted. It will be processed within 7 days.', type: 'info' });
+            setShowInfoModal(true);
             setShowDeleteModal(false);
             await deliveryPartnerAuthApi.logout();
-            router.replace('/auth/phone');
         } catch (error) {
-            Alert.alert('Error', 'Failed to delete account. Please try again.');
+            setInfoModalData({ title: 'Error', message: 'Failed to delete account. Please try again.', type: 'error' });
+            setShowInfoModal(true);
         } finally {
             setDeleting(false);
         }
@@ -179,6 +182,21 @@ export default function SettingsScreen() {
                 confirmText="Delete Account"
                 cancelText="Cancel"
                 confirmDestructive={true}
+            />
+
+            {/* Info Modal */}
+            <ActionModal
+                isVisible={showInfoModal}
+                onClose={() => {
+                    setShowInfoModal(false);
+                    if (infoModalData.title === 'Account Deletion') {
+                        router.replace('/auth/phone');
+                    }
+                }}
+                type={infoModalData.type}
+                title={infoModalData.title}
+                message={infoModalData.message}
+                buttons={[{ text: 'OK', onPress: () => { }, primary: true }]}
             />
         </SafeAreaView>
     );

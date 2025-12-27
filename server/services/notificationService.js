@@ -489,6 +489,59 @@ const updatePushToken = async (userId, expoPushToken, userType = 'user') => {
     }
 };
 
+/**
+ * Send withdrawal status notification to vendor or delivery partner
+ * @param {string} requesterType - 'vendor' or 'delivery_partner'
+ * @param {object|string} requesterOrId - User/Partner object or ID
+ * @param {object} withdrawal - Withdrawal request details
+ * @param {string} status - 'completed' or 'rejected'
+ */
+const sendWithdrawalStatusNotification = async (requesterType, requesterOrId, withdrawal, status) => {
+    try {
+        let requester = requesterOrId;
+
+        // If requesterOrId is a string (ID), fetch the requester
+        if (typeof requesterOrId === 'string') {
+            if (requesterType === 'vendor') {
+                requester = await User.findById(requesterOrId);
+            } else {
+                requester = await DeliveryPartner.findById(requesterOrId);
+            }
+        }
+
+        if (!requester || !requester.expoPushToken) {
+            console.log(`${requesterType} has no push token for withdrawal notification`);
+            return { success: false, error: 'No push token' };
+        }
+
+        const notification = status === 'completed' ? {
+            title: '✅ Withdrawal Successful!',
+            body: `Your withdrawal of ₹${withdrawal.amount} has been processed successfully. Check your ${withdrawal.paymentMethod?.toUpperCase()} for the funds.`,
+            data: {
+                type: 'withdrawal_completed',
+                withdrawalId: withdrawal._id.toString(),
+                amount: withdrawal.amount,
+                paymentMethod: withdrawal.paymentMethod,
+            },
+        } : {
+            title: '❌ Withdrawal Rejected',
+            body: `Your withdrawal request of ₹${withdrawal.amount} was rejected. ${withdrawal.rejectionReason || 'Please contact support for details.'}`,
+            data: {
+                type: 'withdrawal_rejected',
+                withdrawalId: withdrawal._id.toString(),
+                amount: withdrawal.amount,
+                reason: withdrawal.rejectionReason,
+            },
+        };
+
+        console.log(`Sending withdrawal ${status} notification to ${requesterType} ${requester._id}`);
+        return sendPushNotificationByToken(requester.expoPushToken, notification);
+    } catch (error) {
+        console.error('Error sending withdrawal status notification:', error);
+        return { success: false, error: error.message };
+    }
+};
+
 module.exports = {
     sendPushNotification,
     sendPushNotificationByToken,
@@ -502,4 +555,5 @@ module.exports = {
     getUsersWithPromotionsEnabled,
     isNotificationEnabled,
     updatePushToken,
+    sendWithdrawalStatusNotification,
 };

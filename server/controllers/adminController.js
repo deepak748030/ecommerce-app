@@ -9,6 +9,7 @@ const Product = require('../models/Product');
 const WithdrawalRequest = require('../models/WithdrawalRequest');
 const { generateAdminToken } = require('../middleware/adminAuth');
 const { uploadCategoryImage, uploadBannerImage, isBase64Image, deleteImage } = require('../services/cloudinaryService');
+const { sendWithdrawalStatusNotification } = require('../services/notificationService');
 
 // @desc    Admin login
 // @route   POST /api/admin/login
@@ -2420,6 +2421,23 @@ const updateWithdrawalStatus = async (req, res) => {
         }
 
         await withdrawal.save();
+
+        // Send push notification for completed or rejected withdrawals
+        if (status === 'completed' || status === 'rejected') {
+            const requesterId = withdrawal.requesterType === 'vendor'
+                ? withdrawal.user
+                : withdrawal.deliveryPartner;
+
+            if (requesterId) {
+                const notifResult = await sendWithdrawalStatusNotification(
+                    withdrawal.requesterType,
+                    requesterId,
+                    withdrawal,
+                    status
+                );
+                console.log(`Withdrawal ${status} notification result:`, notifResult);
+            }
+        }
 
         res.json({
             success: true,

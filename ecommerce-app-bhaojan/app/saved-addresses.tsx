@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft, MapPin, Home, Briefcase, Plus, Edit2, Trash2, X, Check } from 'lucide-react-native';
@@ -7,6 +7,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAddress, Address } from '@/hooks/useAddress';
 import { getToken } from '@/lib/api';
 import { AddressSkeleton } from '@/components/Skeleton';
+import { ActionModal } from '@/components/ActionModal';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
 
 export default function SavedAddressesScreen() {
     const insets = useSafeAreaInsets();
@@ -25,14 +27,20 @@ export default function SavedAddressesScreen() {
         phone: '',
     });
 
+    // Modal states
+    const [showInfoModal, setShowInfoModal] = useState(false);
+    const [infoModalData, setInfoModalData] = useState({ title: '', message: '', type: 'info' as 'info' | 'success' | 'error' });
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [addressToDelete, setAddressToDelete] = useState<string | null>(null);
+
     const styles = createStyles(colors);
 
     useEffect(() => {
         const checkAuth = async () => {
             const token = await getToken();
             if (!token) {
-                Alert.alert('Login Required', 'Please login to manage addresses');
-                router.replace('/auth/phone');
+                setInfoModalData({ title: 'Login Required', message: 'Please login to manage addresses', type: 'info' });
+                setShowInfoModal(true);
             }
         };
         checkAuth();
@@ -66,32 +74,31 @@ export default function SavedAddressesScreen() {
         setShowModal(true);
     };
 
-    const handleDelete = async (id: string) => {
-        Alert.alert(
-            'Delete Address',
-            'Are you sure you want to delete this address?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            await deleteAddress(id);
-                        } catch (error) {
-                            Alert.alert('Error', 'Failed to delete address');
-                        }
-                    },
-                },
-            ]
-        );
+    const handleDelete = (id: string) => {
+        setAddressToDelete(id);
+        setShowDeleteConfirm(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!addressToDelete) return;
+        try {
+            await deleteAddress(addressToDelete);
+            setShowDeleteConfirm(false);
+            setAddressToDelete(null);
+        } catch (error) {
+            setShowDeleteConfirm(false);
+            setAddressToDelete(null);
+            setInfoModalData({ title: 'Error', message: 'Failed to delete address', type: 'error' });
+            setShowInfoModal(true);
+        }
     };
 
     const handleSetDefault = async (id: string) => {
         try {
             await setDefaultAddress(id);
         } catch (error) {
-            Alert.alert('Error', 'Failed to set default address');
+            setInfoModalData({ title: 'Error', message: 'Failed to set default address', type: 'error' });
+            setShowInfoModal(true);
         }
     };
 
@@ -102,7 +109,8 @@ export default function SavedAddressesScreen() {
 
     const handleSave = async () => {
         if (!formData.name || !formData.address || !formData.city || !formData.pincode || !formData.phone) {
-            Alert.alert('Missing Fields', 'Please fill all required fields');
+            setInfoModalData({ title: 'Missing Fields', message: 'Please fill all required fields', type: 'error' });
+            setShowInfoModal(true);
             return;
         }
 
@@ -133,7 +141,8 @@ export default function SavedAddressesScreen() {
             setShowModal(false);
             refreshAddresses();
         } catch (error) {
-            Alert.alert('Error', 'Failed to save address');
+            setInfoModalData({ title: 'Error', message: 'Failed to save address', type: 'error' });
+            setShowInfoModal(true);
         } finally {
             setSaving(false);
         }
@@ -328,6 +337,36 @@ export default function SavedAddressesScreen() {
                     </View>
                 </View>
             </Modal>
+
+            {/* Info Modal */}
+            <ActionModal
+                isVisible={showInfoModal}
+                onClose={() => {
+                    setShowInfoModal(false);
+                    if (infoModalData.title === 'Login Required') {
+                        router.replace('/auth/phone');
+                    }
+                }}
+                type={infoModalData.type}
+                title={infoModalData.title}
+                message={infoModalData.message}
+                buttons={[{ text: 'OK', onPress: () => { }, primary: true }]}
+            />
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmationModal
+                isVisible={showDeleteConfirm}
+                onClose={() => {
+                    setShowDeleteConfirm(false);
+                    setAddressToDelete(null);
+                }}
+                onConfirm={confirmDelete}
+                title="Delete Address"
+                message="Are you sure you want to delete this address?"
+                confirmText="Delete"
+                cancelText="Cancel"
+                confirmDestructive={true}
+            />
         </View>
     );
 }

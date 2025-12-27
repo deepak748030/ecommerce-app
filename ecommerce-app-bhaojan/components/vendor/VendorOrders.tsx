@@ -14,12 +14,12 @@ import { VendorOrder, getImageUrl } from '@/lib/api';
 import { VendorOrderSkeleton } from '@/components/Skeleton';
 import { ShippingModal } from './ShippingModal';
 
-// Removed 'delivered' - vendors cannot mark as delivered
 const STATUS_OPTIONS = [
     { value: 'pending', label: 'Pending' },
     { value: 'confirmed', label: 'Confirmed' },
     { value: 'processing', label: 'Processing' },
     { value: 'shipped', label: 'Shipped' },
+    { value: 'delivered', label: 'Delivered' },
     { value: 'cancelled', label: 'Cancelled' },
 ];
 
@@ -60,7 +60,8 @@ export function VendorOrders({ orders, loading, updatingOrderId, onUpdateStatus,
             case 'pending': return colors.warning;
             case 'confirmed':
             case 'processing': return colors.primary;
-            case 'shipped':
+            case 'shipped': return '#3B82F6';
+            case 'delivered': return '#22C55E';
             case 'cancelled': return colors.destructive;
             default: return colors.mutedForeground;
         }

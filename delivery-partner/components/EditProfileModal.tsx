@@ -12,12 +12,12 @@ import {
     ScrollView,
     Pressable,
     Image,
-    Alert,
 } from 'react-native';
 import { X, Bike, Car, Check, Camera, ImageIcon } from 'lucide-react-native';
 import { useTheme } from '../hooks/useTheme';
 import { deliveryPartnerAuthApi, PartnerData, setPartnerData } from '../lib/api';
 import * as ImagePicker from 'expo-image-picker';
+import { ActionModal } from './ActionModal';
 
 interface EditProfileModalProps {
     isVisible: boolean;
@@ -51,6 +51,21 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    // Action modal state
+    const [actionModal, setActionModal] = useState<{
+        visible: boolean;
+        type: 'success' | 'error' | 'info';
+        title: string;
+        message: string;
+    }>({ visible: false, type: 'info', title: '', message: '' });
+
+    // Image picker modal state
+    const [showImagePicker, setShowImagePicker] = useState(false);
+
+    const showModal = (type: 'success' | 'error' | 'info', title: string, message: string) => {
+        setActionModal({ visible: true, type, title, message });
+    };
+
     useEffect(() => {
         if (partnerData) {
             setName(partnerData.name || '');
@@ -64,12 +79,13 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
     const pickImage = async (useCamera: boolean) => {
         try {
+            setShowImagePicker(false);
             let result;
 
             if (useCamera) {
                 const { status } = await ImagePicker.requestCameraPermissionsAsync();
                 if (status !== 'granted') {
-                    Alert.alert('Permission Required', 'Camera permission is needed to take photos');
+                    showModal('error', 'Permission Required', 'Camera permission is needed to take photos');
                     return;
                 }
                 result = await ImagePicker.launchCameraAsync({
@@ -94,20 +110,12 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 setAvatar(base64Image);
             }
         } catch (err) {
-            Alert.alert('Error', 'Failed to pick image');
+            showModal('error', 'Error', 'Failed to pick image');
         }
     };
 
     const showImageOptions = () => {
-        Alert.alert(
-            'Update Profile Photo',
-            'Choose an option',
-            [
-                { text: 'Take Photo', onPress: () => pickImage(true) },
-                { text: 'Choose from Gallery', onPress: () => pickImage(false) },
-                { text: 'Cancel', style: 'cancel' },
-            ]
-        );
+        setShowImagePicker(true);
     };
 
     const handleSave = async () => {
@@ -277,6 +285,49 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                                 <Text style={styles.saveBtnText}>Save Changes</Text>
                             )}
                         </TouchableOpacity>
+
+                        {/* Image picker modal */}
+                        <Modal
+                            visible={showImagePicker}
+                            transparent
+                            animationType="slide"
+                            onRequestClose={() => setShowImagePicker(false)}
+                        >
+                            <View style={styles.imagePickerOverlay}>
+                                <Pressable style={styles.imagePickerBackdrop} onPress={() => setShowImagePicker(false)} />
+                                <View style={styles.imagePickerModal}>
+                                    <Text style={styles.imagePickerTitle}>Update Profile Photo</Text>
+                                    <TouchableOpacity
+                                        style={styles.imagePickerOption}
+                                        onPress={() => pickImage(true)}
+                                    >
+                                        <Camera size={20} color={colors.primary} />
+                                        <Text style={styles.imagePickerOptionText}>Take Photo</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={styles.imagePickerOption}
+                                        onPress={() => pickImage(false)}
+                                    >
+                                        <ImageIcon size={20} color={colors.primary} />
+                                        <Text style={styles.imagePickerOptionText}>Choose from Gallery</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.imagePickerOption, styles.imagePickerCancel]}
+                                        onPress={() => setShowImagePicker(false)}
+                                    >
+                                        <Text style={styles.imagePickerCancelText}>Cancel</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </Modal>
+
+                        <ActionModal
+                            isVisible={actionModal.visible}
+                            type={actionModal.type}
+                            title={actionModal.title}
+                            message={actionModal.message}
+                            onClose={() => setActionModal(prev => ({ ...prev, visible: false }))}
+                        />
                     </View>
                 </KeyboardAvoidingView>
             </View>
@@ -429,5 +480,53 @@ const createStyles = (colors: any) =>
             color: '#fff',
             fontSize: 16,
             fontWeight: '600',
+        },
+        imagePickerOverlay: {
+            flex: 1,
+            justifyContent: 'flex-end',
+        },
+        imagePickerBackdrop: {
+            ...StyleSheet.absoluteFillObject,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+        },
+        imagePickerModal: {
+            backgroundColor: colors.card,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            padding: 20,
+            paddingBottom: 34,
+        },
+        imagePickerTitle: {
+            fontSize: 18,
+            fontWeight: '700',
+            color: colors.foreground,
+            textAlign: 'center',
+            marginBottom: 20,
+        },
+        imagePickerOption: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            padding: 16,
+            gap: 12,
+            backgroundColor: colors.muted,
+            borderRadius: 12,
+            marginBottom: 10,
+        },
+        imagePickerOptionText: {
+            fontSize: 16,
+            fontWeight: '500',
+            color: colors.foreground,
+        },
+        imagePickerCancel: {
+            backgroundColor: 'transparent',
+            borderWidth: 1,
+            borderColor: colors.border,
+            justifyContent: 'center',
+            marginTop: 4,
+        },
+        imagePickerCancelText: {
+            fontSize: 16,
+            fontWeight: '500',
+            color: colors.mutedForeground,
         },
     });

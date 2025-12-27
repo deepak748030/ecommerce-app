@@ -981,6 +981,17 @@ export const vendorApi = {
         }>('/wallet/balance');
     },
 
+    // Get wallet transactions
+    getWalletTransactions: async (page: number = 1, limit: number = 20) => {
+        return apiRequest<{
+            count: number;
+            total: number;
+            page: number;
+            pages: number;
+            data: WalletTransaction[];
+        }>(`/wallet/transactions?page=${page}&limit=${limit}`);
+    },
+
     // Get withdrawal history
     getWithdrawalHistory: async (page: number = 1, limit: number = 20) => {
         return apiRequest<{
@@ -1017,4 +1028,23 @@ export interface WithdrawalRequest {
     createdAt: string;
     updatedAt: string;
     processedAt?: string;
+}
+
+// Wallet Transaction Types
+export interface WalletTransaction {
+    _id: string;
+    vendor: string;
+    order?: {
+        _id: string;
+        orderNumber: string;
+        total: number;
+        status: string;
+    };
+    amount: number;
+    type: 'credit' | 'debit' | 'withdrawal' | 'refund_debit';
+    status: 'pending' | 'completed' | 'failed';
+    description: string;
+    balanceAfter: number;
+    createdAt: string;
+    updatedAt: string;
 }

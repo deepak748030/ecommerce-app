@@ -8,12 +8,12 @@ import {
     TouchableOpacity,
     ScrollView,
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
 import { X, Wallet, Smartphone, Building2, CreditCard } from 'lucide-react-native';
 import { useTheme } from '../hooks/useTheme';
+import { ActionModal } from './ActionModal';
 
 type PaymentMethod = 'upi' | 'bank_transfer' | 'paytm' | 'phonepe' | 'googlepay';
 
@@ -56,6 +56,18 @@ export function WithdrawModal({ visible, onClose, availableBalance, onSubmit }: 
     const [bankName, setBankName] = useState('');
     const [mobileNumber, setMobileNumber] = useState('');
     const [submitting, setSubmitting] = useState(false);
+
+    // Action modal state
+    const [actionModal, setActionModal] = useState<{
+        visible: boolean;
+        type: 'success' | 'error' | 'info';
+        title: string;
+        message: string;
+    }>({ visible: false, type: 'info', title: '', message: '' });
+
+    const showModal = (type: 'success' | 'error' | 'info', title: string, message: string) => {
+        setActionModal({ visible: true, type, title, message });
+    };
 
     const resetForm = () => {
         setAmount('');
@@ -109,7 +121,7 @@ export function WithdrawModal({ visible, onClose, availableBalance, onSubmit }: 
     const handleSubmit = async () => {
         const error = validateForm();
         if (error) {
-            Alert.alert('Error', error);
+            showModal('error', 'Error', error);
             return;
         }
 
@@ -132,13 +144,15 @@ export function WithdrawModal({ visible, onClose, availableBalance, onSubmit }: 
 
             const result = await onSubmit(data);
             if (result.success) {
-                Alert.alert('Success', `Withdrawal request of ₹${data.amount} submitted successfully!`);
-                handleClose();
+                showModal('success', 'Success', `Withdrawal request of ₹${data.amount} submitted successfully!`);
+                setTimeout(() => {
+                    handleClose();
+                }, 1500);
             } else {
-                Alert.alert('Error', result.message || 'Failed to process withdrawal');
+                showModal('error', 'Error', result.message || 'Failed to process withdrawal');
             }
         } catch (error) {
-            Alert.alert('Error', 'Something went wrong. Please try again.');
+            showModal('error', 'Error', 'Something went wrong. Please try again.');
         } finally {
             setSubmitting(false);
         }
@@ -324,6 +338,14 @@ export function WithdrawModal({ visible, onClose, availableBalance, onSubmit }: 
                             <Text style={styles.submitBtnText}>Request Withdrawal</Text>
                         )}
                     </TouchableOpacity>
+
+                    <ActionModal
+                        isVisible={actionModal.visible}
+                        type={actionModal.type}
+                        title={actionModal.title}
+                        message={actionModal.message}
+                        onClose={() => setActionModal(prev => ({ ...prev, visible: false }))}
+                    />
                 </View>
             </KeyboardAvoidingView>
         </Modal>

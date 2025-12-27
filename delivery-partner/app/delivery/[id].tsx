@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Linking, Image, RefreshControl, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Linking, Image, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, MapPin, Phone, Package, Clock, Navigation, CheckCircle, Store, User, CreditCard } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useTheme';
@@ -8,6 +8,7 @@ import { deliveryOrdersApi, DeliveryOrder, DeliveryOrderItem, getPartnerData, Pa
 import PickupOtpModal from '../../components/PickupOtpModal';
 import { DeliveryDetailSkeleton } from '../../components/Skeleton';
 import KycPendingModal from '../../components/KycPendingModal';
+import { ActionModal } from '../../components/ActionModal';
 
 export default function DeliveryDetailScreen() {
     const { colors, isDark } = useTheme();
@@ -24,6 +25,8 @@ export default function DeliveryDetailScreen() {
     const [otpLoading, setOtpLoading] = useState(false);
     const [showKycModal, setShowKycModal] = useState(false);
     const [partnerData, setPartnerData] = useState<PartnerData | null>(null);
+    const [showInfoModal, setShowInfoModal] = useState(false);
+    const [infoModalData, setInfoModalData] = useState({ title: '', message: '', type: 'error' as 'info' | 'success' | 'error' });
 
     const fetchOrder = async () => {
         try {
@@ -116,10 +119,12 @@ export default function DeliveryDetailScreen() {
             if (result.success) {
                 setShowPickupOtpModal(true);
             } else {
-                Alert.alert('Error', result.message || 'Failed to send OTP');
+                setInfoModalData({ title: 'Error', message: result.message || 'Failed to send OTP', type: 'error' });
+                setShowInfoModal(true);
             }
         } catch (err) {
-            Alert.alert('Error', 'Failed to send OTP');
+            setInfoModalData({ title: 'Error', message: 'Failed to send OTP', type: 'error' });
+            setShowInfoModal(true);
         } finally {
             setOtpLoading(false);
         }
@@ -148,10 +153,12 @@ export default function DeliveryDetailScreen() {
             if (result.success) {
                 setShowDeliveryOtpModal(true);
             } else {
-                Alert.alert('Error', result.message || 'Failed to send OTP');
+                setInfoModalData({ title: 'Error', message: result.message || 'Failed to send OTP', type: 'error' });
+                setShowInfoModal(true);
             }
         } catch (err) {
-            Alert.alert('Error', 'Failed to send OTP');
+            setInfoModalData({ title: 'Error', message: 'Failed to send OTP', type: 'error' });
+            setShowInfoModal(true);
         } finally {
             setOtpLoading(false);
         }
@@ -431,6 +438,16 @@ export default function DeliveryDetailScreen() {
                 visible={showKycModal}
                 onClose={() => setShowKycModal(false)}
                 kycStatus={kycStatusForModal === 'verified' ? null : kycStatusForModal}
+            />
+
+            {/* Info Modal */}
+            <ActionModal
+                isVisible={showInfoModal}
+                onClose={() => setShowInfoModal(false)}
+                type={infoModalData.type}
+                title={infoModalData.title}
+                message={infoModalData.message}
+                buttons={[{ text: 'OK', onPress: () => { }, primary: true }]}
             />
         </SafeAreaView>
     );

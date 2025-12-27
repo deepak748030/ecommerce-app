@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { User, Star, Package, ChevronRight, Settings, HelpCircle, FileText, LogOut, Moon, Sun, Bike, Pencil, Shield, AlertCircle, CheckCircle, Clock, Camera, Info } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { router } from 'expo-router';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
 import { EditProfileModal } from '../../components/EditProfileModal';
+import { ActionModal } from '../../components/ActionModal';
 import { deliveryPartnerAuthApi, getPartnerData, PartnerData, setPartnerData, clearAllPartnerData } from '../../lib/api';
 import { ProfileScreenSkeleton } from '../../components/Skeleton';
 import { useFocusEffect } from '@react-navigation/native';
@@ -20,6 +21,9 @@ export default function ProfileScreen() {
     const [logoutLoading, setLogoutLoading] = useState(false);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [showImageOptions, setShowImageOptions] = useState(false);
+    const [showInfoModal, setShowInfoModal] = useState(false);
+    const [infoModalData, setInfoModalData] = useState({ title: '', message: '', type: 'error' as 'info' | 'success' | 'error' });
 
     const loadPartnerData = useCallback(async (isRefresh: boolean = false) => {
         try {
@@ -79,51 +83,44 @@ export default function ProfileScreen() {
         }
     };
 
-    const handleAvatarChange = async () => {
-        Alert.alert(
-            'Update Profile Photo',
-            'Choose an option',
-            [
-                {
-                    text: 'Take Photo',
-                    onPress: async () => {
-                        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-                        if (status !== 'granted') {
-                            Alert.alert('Permission Required', 'Camera permission is needed');
-                            return;
-                        }
-                        const result = await ImagePicker.launchCameraAsync({
-                            mediaTypes: ['images'],
-                            allowsEditing: true,
-                            aspect: [1, 1],
-                            quality: 0.7,
-                            base64: true,
-                        });
-                        if (!result.canceled && result.assets[0].base64) {
-                            const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
-                            updateAvatar(base64Image);
-                        }
-                    }
-                },
-                {
-                    text: 'Choose from Gallery',
-                    onPress: async () => {
-                        const result = await ImagePicker.launchImageLibraryAsync({
-                            mediaTypes: ['images'],
-                            allowsEditing: true,
-                            aspect: [1, 1],
-                            quality: 0.7,
-                            base64: true,
-                        });
-                        if (!result.canceled && result.assets[0].base64) {
-                            const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
-                            updateAvatar(base64Image);
-                        }
-                    }
-                },
-                { text: 'Cancel', style: 'cancel' },
-            ]
-        );
+    const handleAvatarChange = () => {
+        setShowImageOptions(true);
+    };
+
+    const handleTakePhoto = async () => {
+        setShowImageOptions(false);
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+            setInfoModalData({ title: 'Permission Required', message: 'Camera permission is needed', type: 'error' });
+            setShowInfoModal(true);
+            return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.7,
+            base64: true,
+        });
+        if (!result.canceled && result.assets[0].base64) {
+            const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+            updateAvatar(base64Image);
+        }
+    };
+
+    const handleChooseFromGallery = async () => {
+        setShowImageOptions(false);
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.7,
+            base64: true,
+        });
+        if (!result.canceled && result.assets[0].base64) {
+            const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+            updateAvatar(base64Image);
+        }
     };
 
     const updateAvatar = async (avatar: string) => {
@@ -134,7 +131,8 @@ export default function ProfileScreen() {
                 await setPartnerData(result.response);
             }
         } catch (error) {
-            Alert.alert('Error', 'Failed to update profile photo');
+            setInfoModalData({ title: 'Error', message: 'Failed to update profile photo', type: 'error' });
+            setShowInfoModal(true);
         }
     };
 
@@ -302,6 +300,29 @@ export default function ProfileScreen() {
                 onClose={() => setShowEditModal(false)}
                 partnerData={partnerData}
                 onSuccess={handleProfileUpdate}
+            />
+
+            {/* Image Options Modal */}
+            <ActionModal
+                isVisible={showImageOptions}
+                onClose={() => setShowImageOptions(false)}
+                type="info"
+                title="Update Profile Photo"
+                message="Choose how you want to update your profile photo"
+                buttons={[
+                    { text: 'Take Photo', onPress: handleTakePhoto, primary: true },
+                    { text: 'Choose from Gallery', onPress: handleChooseFromGallery, primary: false },
+                ]}
+            />
+
+            {/* Info Modal */}
+            <ActionModal
+                isVisible={showInfoModal}
+                onClose={() => setShowInfoModal(false)}
+                type={infoModalData.type}
+                title={infoModalData.title}
+                message={infoModalData.message}
+                buttons={[{ text: 'OK', onPress: () => { }, primary: true }]}
             />
         </SafeAreaView>
     );

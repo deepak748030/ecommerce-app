@@ -10,7 +10,6 @@ import {
     ActivityIndicator,
     ScrollView,
     Image,
-    Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +18,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { deliveryPartnerAuthApi } from '../../lib/api';
 import * as ImagePicker from 'expo-image-picker';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { ActionModal } from '../../components/ActionModal';
 
 const vehicleTypes = [
     { id: 'bicycle', label: 'Bicycle', icon: Bike },
@@ -57,6 +57,8 @@ export default function VehicleSetupScreen() {
     const [currentDocType, setCurrentDocType] = useState<keyof DocumentState>('aadhaar');
     const cameraRef = useRef<CameraView>(null);
     const [permission, requestPermission] = useCameraPermissions();
+    const [showInfoModal, setShowInfoModal] = useState(false);
+    const [infoModalData, setInfoModalData] = useState({ title: '', message: '', type: 'error' as 'info' | 'success' | 'error' });
 
     const pickImage = async (docType: keyof DocumentState) => {
         try {
@@ -73,7 +75,8 @@ export default function VehicleSetupScreen() {
                 setDocuments(prev => ({ ...prev, [docType]: base64Image }));
             }
         } catch (err) {
-            Alert.alert('Error', 'Failed to pick image');
+            setInfoModalData({ title: 'Error', message: 'Failed to pick image', type: 'error' });
+            setShowInfoModal(true);
         }
     };
 
@@ -81,7 +84,8 @@ export default function VehicleSetupScreen() {
         if (!permission?.granted) {
             const result = await requestPermission();
             if (!result.granted) {
-                Alert.alert('Permission Required', 'Camera permission is needed to take photos');
+                setInfoModalData({ title: 'Permission Required', message: 'Camera permission is needed to take photos', type: 'error' });
+                setShowInfoModal(true);
                 return;
             }
         }
@@ -103,7 +107,8 @@ export default function VehicleSetupScreen() {
                 }
                 setShowCamera(false);
             } catch (err) {
-                Alert.alert('Error', 'Failed to take picture');
+                setInfoModalData({ title: 'Error', message: 'Failed to take picture', type: 'error' });
+                setShowInfoModal(true);
             }
         }
     };
@@ -392,6 +397,16 @@ export default function VehicleSetupScreen() {
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            {/* Info Modal */}
+            <ActionModal
+                isVisible={showInfoModal}
+                onClose={() => setShowInfoModal(false)}
+                type={infoModalData.type}
+                title={infoModalData.title}
+                message={infoModalData.message}
+                buttons={[{ text: 'OK', onPress: () => { }, primary: true }]}
+            />
         </SafeAreaView>
     );
 }

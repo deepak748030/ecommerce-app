@@ -8,12 +8,12 @@ import {
     TextInput,
     Image,
     ActivityIndicator,
-    Alert,
     ScrollView,
 } from 'react-native';
 import { X, Star, Truck } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { reviewsApi, ReviewableProduct, getImageUrl } from '@/lib/api';
+import { ActionModal } from '@/components/ActionModal';
 
 interface ReviewModalProps {
     visible: boolean;
@@ -38,6 +38,8 @@ export function ReviewModal({
     const [deliveryRating, setDeliveryRating] = useState(0);
     const [comment, setComment] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [showInfoModal, setShowInfoModal] = useState(false);
+    const [infoModalData, setInfoModalData] = useState({ title: '', message: '', type: 'info' as 'info' | 'success' | 'error' });
 
     // Update selected product when modal opens or products change
     React.useEffect(() => {
@@ -52,12 +54,14 @@ export function ReviewModal({
 
     const handleSubmit = async () => {
         if (!selectedProduct) {
-            Alert.alert('Error', 'Please select a product to review');
+            setInfoModalData({ title: 'Error', message: 'Please select a product to review', type: 'error' });
+            setShowInfoModal(true);
             return;
         }
 
         if (rating === 0) {
-            Alert.alert('Error', 'Please select a product rating');
+            setInfoModalData({ title: 'Error', message: 'Please select a product rating', type: 'error' });
+            setShowInfoModal(true);
             return;
         }
 
@@ -72,15 +76,17 @@ export function ReviewModal({
             });
 
             if (response.success) {
-                Alert.alert('Success', 'Thank you for your review!');
+                setInfoModalData({ title: 'Success', message: 'Thank you for your review!', type: 'success' });
+                setShowInfoModal(true);
                 onReviewSubmitted();
-                resetAndClose();
             } else {
-                Alert.alert('Error', response.message || 'Failed to submit review');
+                setInfoModalData({ title: 'Error', message: response.message || 'Failed to submit review', type: 'error' });
+                setShowInfoModal(true);
             }
         } catch (error) {
             console.error('Submit review error:', error);
-            Alert.alert('Error', 'Failed to submit review. Please try again.');
+            setInfoModalData({ title: 'Error', message: 'Failed to submit review. Please try again.', type: 'error' });
+            setShowInfoModal(true);
         } finally {
             setSubmitting(false);
         }
@@ -286,6 +292,21 @@ export function ReviewModal({
                     </Pressable>
                 </View>
             </View>
+
+            {/* Info Modal */}
+            <ActionModal
+                isVisible={showInfoModal}
+                onClose={() => {
+                    setShowInfoModal(false);
+                    if (infoModalData.type === 'success') {
+                        resetAndClose();
+                    }
+                }}
+                type={infoModalData.type}
+                title={infoModalData.title}
+                message={infoModalData.message}
+                buttons={[{ text: 'OK', onPress: () => { }, primary: true }]}
+            />
         </Modal>
     );
 }
