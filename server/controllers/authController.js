@@ -5,6 +5,8 @@ const Order = require('../models/Order');
 const WalletTransaction = require('../models/WalletTransaction');
 const Notification = require('../models/Notification');
 const { generateToken } = require('../middleware/auth');
+const otpConfig = require('../config/otpConfig');
+const { uploadProfileImage, isBase64Image, isCloudinaryConfigured } = require('../services/cloudinaryService');
 
 // @desc    Send OTP to phone (Login)
 // @route   POST /api/auth/login
@@ -17,10 +19,13 @@ const login = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Phone number is required' });
         }
 
-        // Store OTP (hardcoded 123456 for development)
+        // Generate OTP using config
+        const otp = otpConfig.generateOtp();
+        const expiresAt = otpConfig.getExpiryDate();
+
         await Otp.findOneAndUpdate(
             { phone },
-            { phone, otp: '123456', expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
+            { phone, otp, expiresAt },
             { upsert: true, new: true }
         );
 
@@ -81,8 +86,8 @@ const verifyOtp = async (req, res) => {
 
         const storedOtp = await Otp.findOne({ phone });
 
-        // Check OTP (always accept 123456 for development)
-        if (otp !== '123456' && (!storedOtp || storedOtp.otp !== otp || new Date() > storedOtp.expiresAt)) {
+        // Verify OTP using config
+        if (!otpConfig.verifyOtp(otp, storedOtp?.otp, storedOtp?.expiresAt)) {
             return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
         }
 
@@ -129,6 +134,7 @@ const verifyOtp = async (req, res) => {
                 expoPushToken: expoPushToken || '',
             });
         } else if (expoPushToken) {
+            // Update push token at login
             user.expoPushToken = expoPushToken;
             await user.save();
         }
@@ -169,9 +175,12 @@ const resendOtp = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Phone number is required' });
         }
 
+        const otp = otpConfig.generateOtp();
+        const expiresAt = otpConfig.getExpiryDate();
+
         await Otp.findOneAndUpdate(
             { phone },
-            { phone, otp: '123456', expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
+            { phone, otp, expiresAt },
             { upsert: true, new: true }
         );
 
@@ -200,24 +209,29 @@ const register = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Phone number is required' });
         }
 
-        // Validate base64 image if provided
-        if (avatar && avatar.startsWith('data:image')) {
-            // Check size - Vercel limit is ~4.5MB payload
-            const base64Length = avatar.length * 0.75; // Approximate byte size
-            if (base64Length > 4 * 1024 * 1024) { // 4MB limit for image
-                return res.status(400).json({
-                    success: false,
-                    message: 'Image too large. Please use an image smaller than 4MB.'
-                });
-            }
-        }
-
         const existingUser = await User.findOne({ phone });
 
         if (existingUser) {
             existingUser.name = name || existingUser.name;
             existingUser.email = email || existingUser.email;
-            existingUser.avatar = avatar || existingUser.avatar;
+
+            // Upload avatar to Cloudinary if base64
+            if (avatar && isBase64Image(avatar) && isCloudinaryConfigured()) {
+                const uploadResult = await uploadProfileImage(avatar, existingUser._id.toString(), 'user');
+                if (uploadResult.success) {
+                    existingUser.avatar = uploadResult.url;
+                } else {
+                    console.error('Failed to upload avatar to Cloudinary:', uploadResult.error);
+                    // Fall back to storing small images directly if Cloudinary fails
+                    const base64Length = avatar.length * 0.75;
+                    if (base64Length <= 500 * 1024) { // Only store if < 500KB
+                        existingUser.avatar = avatar;
+                    }
+                }
+            } else if (avatar) {
+                existingUser.avatar = avatar;
+            }
+
             if (expoPushToken) {
                 existingUser.expoPushToken = expoPushToken;
             }
@@ -233,9 +247,12 @@ const register = async (req, res) => {
             });
         }
 
+        const otp = otpConfig.generateOtp();
+        const expiresAt = otpConfig.getExpiryDate();
+
         await Otp.findOneAndUpdate(
             { phone },
-            { phone, otp: '123456', expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
+            { phone, otp, expiresAt },
             { upsert: true, new: true }
         );
 
@@ -286,20 +303,27 @@ const updateProfile = async (req, res) => {
         const user = req.user;
         const { name, email, avatar } = req.body;
 
-        // Validate base64 image if provided
-        if (avatar && avatar.startsWith('data:image')) {
-            const base64Length = avatar.length * 0.75;
-            if (base64Length > 4 * 1024 * 1024) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Image too large. Please use an image smaller than 4MB.'
-                });
-            }
-        }
-
         if (name !== undefined) user.name = name;
         if (email !== undefined) user.email = email;
-        if (avatar !== undefined) user.avatar = avatar;
+
+        // Upload avatar to Cloudinary if base64
+        if (avatar !== undefined) {
+            if (isBase64Image(avatar) && isCloudinaryConfigured()) {
+                const uploadResult = await uploadProfileImage(avatar, user._id.toString(), 'user');
+                if (uploadResult.success) {
+                    user.avatar = uploadResult.url;
+                } else {
+                    console.error('Failed to upload avatar to Cloudinary:', uploadResult.error);
+                    // Fall back to storing small images directly
+                    const base64Length = avatar.length * 0.75;
+                    if (base64Length <= 500 * 1024) {
+                        user.avatar = avatar;
+                    }
+                }
+            } else {
+                user.avatar = avatar;
+            }
+        }
 
         await user.save();
 
@@ -451,10 +475,12 @@ const sendDeleteOtp = async (req, res) => {
             });
         }
 
-        // Store OTP (hardcoded 123456 for development)
+        const otp = otpConfig.generateOtp();
+        const expiresAt = otpConfig.getExpiryDate();
+
         await Otp.findOneAndUpdate(
             { phone },
-            { phone, otp: '123456', expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
+            { phone, otp, expiresAt },
             { upsert: true, new: true }
         );
 
@@ -485,8 +511,7 @@ const verifyDeleteOtp = async (req, res) => {
 
         const storedOtp = await Otp.findOne({ phone });
 
-        // Check OTP (always accept 123456 for development)
-        if (otp !== '123456' && (!storedOtp || storedOtp.otp !== otp || new Date() > storedOtp.expiresAt)) {
+        if (!otpConfig.verifyOtp(otp, storedOtp?.otp, storedOtp?.expiresAt)) {
             return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
         }
 
@@ -504,45 +529,45 @@ const verifyDeleteOtp = async (req, res) => {
     }
 };
 
-// @desc    Confirm and delete account (soft delete with 7-day grace period)
+// @desc    Delete user account (soft delete)
 // @route   POST /api/auth/delete-account/confirm
 // @access  Public
-const confirmDeleteAccount = async (req, res) => {
+const deleteAccount = async (req, res) => {
     try {
-        const { phone } = req.body;
+        const { phone, otp } = req.body;
 
-        if (!phone) {
-            return res.status(400).json({ success: false, message: 'Phone number is required' });
+        if (!phone || !otp) {
+            return res.status(400).json({ success: false, message: 'Phone and OTP are required' });
         }
 
-        const user = await User.findOne({ phone, isDeleted: { $ne: true } });
+        const storedOtp = await Otp.findOne({ phone });
+
+        if (!otpConfig.verifyOtp(otp, storedOtp?.otp, storedOtp?.expiresAt)) {
+            return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+        }
+
+        await Otp.deleteOne({ phone });
+
+        const user = await User.findOne({ phone });
 
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
-        // Calculate scheduled deletion date (7 days from now)
-        const scheduledDeletionDate = new Date();
-        scheduledDeletionDate.setDate(scheduledDeletionDate.getDate() + 7);
-
-        // Soft delete - mark user as deleted
+        // Soft delete - schedule for permanent deletion in 7 days
         user.isDeleted = true;
         user.deletedAt = new Date();
-        user.scheduledDeletionDate = scheduledDeletionDate;
-        user.expoPushToken = ''; // Clear push token
+        user.scheduledDeletionDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        user.expoPushToken = '';
         await user.save();
-
-        // Clear OTP
-        await Otp.deleteOne({ phone });
-
-        console.log(`Account soft-deleted for phone: ${phone}, scheduled for permanent deletion on: ${scheduledDeletionDate}`);
 
         res.json({
             success: true,
-            message: 'Your account and associated data will be permanently deleted within 7 days.',
+            message: 'Account scheduled for deletion. You have 7 days to recover it.',
             response: {
+                phone,
                 deleted: true,
-                scheduledDeletionDate,
+                scheduledDeletionDate: user.scheduledDeletionDate,
             },
         });
     } catch (error) {
@@ -564,5 +589,5 @@ module.exports = {
     logout,
     sendDeleteOtp,
     verifyDeleteOtp,
-    confirmDeleteAccount,
+    deleteAccount,
 };

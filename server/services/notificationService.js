@@ -1,6 +1,7 @@
 // Expo Push Notification Service
 const { Expo } = require('expo-server-sdk');
 const User = require('../models/User');
+const DeliveryPartner = require('../models/DeliveryPartner');
 
 // Create a new Expo SDK client
 const expo = new Expo();
@@ -12,15 +13,15 @@ const expo = new Expo();
  * @returns {boolean}
  */
 const isNotificationEnabled = (user, notificationType) => {
-    // If no user or settings, default to false
-    if (!user || !user.notificationSettings) {
+    // If no user or settings, default to true for order updates
+    if (!user) {
         return false;
     }
 
-    const settings = user.notificationSettings;
+    const settings = user.notificationSettings || {};
 
     // Check if push notifications are enabled globally
-    if (!settings.pushEnabled) {
+    if (settings.pushEnabled === false) {
         return false;
     }
 
@@ -33,6 +34,12 @@ const isNotificationEnabled = (user, notificationType) => {
         case 'promo':
         case 'deal':
             return settings.promotions === true; // Default false if not set
+        case 'vendor':
+        case 'vendor_order':
+            return true; // Always send vendor notifications
+        case 'delivery':
+        case 'delivery_order':
+            return true; // Always send delivery partner notifications
         case 'system':
         default:
             return settings.pushEnabled !== false; // System notifications if push enabled
@@ -40,65 +47,10 @@ const isNotificationEnabled = (user, notificationType) => {
 };
 
 /**
- * Send push notification to a single user with preference check
- * @param {object} user - User object with expoPushToken and notificationSettings
+ * Send push notification to a single recipient
+ * @param {string} expoPushToken - Expo push token
  * @param {object} notification - Notification details
- * @param {string} notification.title - Notification title
- * @param {string} notification.body - Notification body
- * @param {object} notification.data - Additional data
- * @param {string} notificationType - Type: 'order', 'promotion', 'system'
- */
-const sendPushNotification = async (user, notification, notificationType = 'system') => {
-    try {
-        // Check if user exists and has push token
-        if (!user || !user.expoPushToken) {
-            console.log('No push token for user');
-            return { success: false, error: 'No push token', skipped: true };
-        }
-
-        // Check if notification type is enabled for this user
-        if (!isNotificationEnabled(user, notificationType)) {
-            console.log(`Notification type '${notificationType}' is disabled for user ${user._id}`);
-            return { success: false, error: 'Notification disabled by user', skipped: true };
-        }
-
-        const expoPushToken = user.expoPushToken;
-
-        if (!Expo.isExpoPushToken(expoPushToken)) {
-            console.log('Invalid Expo push token:', expoPushToken);
-            return { success: false, error: 'Invalid push token' };
-        }
-
-        const message = {
-            to: expoPushToken,
-            sound: 'default',
-            title: notification.title,
-            body: notification.body,
-            data: notification.data || {},
-            priority: 'high',
-            channelId: 'default',
-        };
-
-        const chunks = expo.chunkPushNotifications([message]);
-        const tickets = [];
-
-        for (const chunk of chunks) {
-            const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-            tickets.push(...ticketChunk);
-        }
-
-        console.log('Push notification sent:', tickets);
-        return { success: true, tickets };
-    } catch (error) {
-        console.error('Error sending push notification:', error);
-        return { success: false, error: error.message };
-    }
-};
-
-/**
- * Send push notification using just token (legacy support)
- * @param {string} expoPushToken - The Expo push token
- * @param {object} notification - Notification details
+ * @returns {Promise<{success: boolean, tickets?: array, error?: string}>}
  */
 const sendPushNotificationByToken = async (expoPushToken, notification) => {
     try {
@@ -134,6 +86,31 @@ const sendPushNotificationByToken = async (expoPushToken, notification) => {
 };
 
 /**
+ * Send push notification to a single user with preference check
+ * @param {object} user - User object with expoPushToken and notificationSettings
+ * @param {object} notification - Notification details
+ * @param {string} notificationType - Type: 'order', 'promotion', 'system'
+ */
+const sendPushNotification = async (user, notification, notificationType = 'system') => {
+    try {
+        if (!user || !user.expoPushToken) {
+            console.log('No push token for user');
+            return { success: false, error: 'No push token', skipped: true };
+        }
+
+        if (!isNotificationEnabled(user, notificationType)) {
+            console.log(`Notification type '${notificationType}' is disabled for user ${user._id}`);
+            return { success: false, error: 'Notification disabled by user', skipped: true };
+        }
+
+        return sendPushNotificationByToken(user.expoPushToken, notification);
+    } catch (error) {
+        console.error('Error sending push notification:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+/**
  * Send push notifications to multiple users with preference check
  * @param {Array} users - Array of user objects with expoPushToken and notificationSettings
  * @param {object} notification - Notification details
@@ -145,13 +122,11 @@ const sendBulkPushNotifications = async (users, notification, notificationType =
         let skippedCount = 0;
 
         for (const user of users) {
-            // Skip if no token
             if (!user.expoPushToken || !Expo.isExpoPushToken(user.expoPushToken)) {
                 skippedCount++;
                 continue;
             }
 
-            // Check if notification type is enabled for this user
             if (!isNotificationEnabled(user, notificationType)) {
                 console.log(`Skipping user ${user._id} - ${notificationType} notifications disabled`);
                 skippedCount++;
@@ -190,7 +165,7 @@ const sendBulkPushNotifications = async (users, notification, notificationType =
 };
 
 /**
- * Send order status notification with user preference check
+ * Send order status notification to user
  * @param {object} user - User object with expoPushToken and notificationSettings
  * @param {object} order - Order details
  * @param {string} newStatus - New order status
@@ -239,7 +214,178 @@ const sendOrderStatusNotification = async (user, order, newStatus) => {
         status: newStatus,
     };
 
-    // Use 'order' type to check orderUpdates preference
+    return sendPushNotification(user, notification, 'order');
+};
+
+/**
+ * Send new order notification to vendor
+ * @param {string} vendorId - Vendor user ID
+ * @param {object} order - Order details
+ */
+const sendVendorNewOrderNotification = async (vendorId, order) => {
+    try {
+        const vendor = await User.findById(vendorId);
+        if (!vendor || !vendor.expoPushToken) {
+            console.log('Vendor has no push token:', vendorId);
+            return { success: false, error: 'No push token' };
+        }
+
+        const notification = {
+            title: '🛒 New Order Received!',
+            body: `Order #${order.orderNumber} - ₹${order.total}. Tap to view details.`,
+            data: {
+                type: 'vendor_new_order',
+                orderId: order._id.toString(),
+                orderNumber: order.orderNumber,
+                total: order.total,
+            },
+        };
+
+        console.log(`Sending new order notification to vendor ${vendorId}`);
+        return sendPushNotificationByToken(vendor.expoPushToken, notification);
+    } catch (error) {
+        console.error('Error sending vendor order notification:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+/**
+ * Send new delivery order notification to delivery partner
+ * @param {string} partnerId - Delivery partner ID
+ * @param {object} order - Order details
+ */
+const sendDeliveryPartnerNewOrderNotification = async (partnerId, order) => {
+    try {
+        const partner = await DeliveryPartner.findById(partnerId);
+        if (!partner || !partner.expoPushToken) {
+            console.log('Delivery partner has no push token:', partnerId);
+            return { success: false, error: 'No push token' };
+        }
+
+        const notification = {
+            title: '📦 New Delivery Available!',
+            body: `Order #${order.orderNumber} ready for pickup. Earn ₹${order.deliveryPayment || order.deliveryFee || 40}`,
+            data: {
+                type: 'delivery_new_order',
+                orderId: order._id.toString(),
+                orderNumber: order.orderNumber,
+                deliveryPayment: order.deliveryPayment || order.deliveryFee || 40,
+            },
+        };
+
+        console.log(`Sending new delivery notification to partner ${partnerId}`);
+        return sendPushNotificationByToken(partner.expoPushToken, notification);
+    } catch (error) {
+        console.error('Error sending delivery partner notification:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+/**
+ * Notify all online delivery partners about new order
+ * @param {object} order - Order details
+ */
+const notifyAllDeliveryPartnersNewOrder = async (order) => {
+    try {
+        // Get all online, verified delivery partners with push tokens
+        const partners = await DeliveryPartner.find({
+            isOnline: true,
+            isVerified: true,
+            isBlocked: false,
+            expoPushToken: { $ne: '', $exists: true },
+        }).select('expoPushToken');
+
+        if (partners.length === 0) {
+            console.log('No online delivery partners to notify');
+            return { success: false, error: 'No online partners' };
+        }
+
+        const notification = {
+            title: '📦 New Delivery Available!',
+            body: `Order #${order.orderNumber} ready for pickup. Earn ₹${order.deliveryPayment || order.deliveryFee || 40}`,
+            data: {
+                type: 'delivery_new_order',
+                orderId: order._id.toString(),
+                orderNumber: order.orderNumber,
+                deliveryPayment: order.deliveryPayment || order.deliveryFee || 40,
+            },
+        };
+
+        const messages = partners
+            .filter(p => Expo.isExpoPushToken(p.expoPushToken))
+            .map(p => ({
+                to: p.expoPushToken,
+                sound: 'default',
+                title: notification.title,
+                body: notification.body,
+                data: notification.data,
+                priority: 'high',
+                channelId: 'default',
+            }));
+
+        if (messages.length === 0) {
+            return { success: false, error: 'No valid tokens' };
+        }
+
+        const chunks = expo.chunkPushNotifications(messages);
+        const tickets = [];
+
+        for (const chunk of chunks) {
+            const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+            tickets.push(...ticketChunk);
+        }
+
+        console.log(`Notified ${messages.length} delivery partners about new order`);
+        return { success: true, tickets, count: messages.length };
+    } catch (error) {
+        console.error('Error notifying delivery partners:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+/**
+ * Send delivery status update to user
+ * @param {object} user - User object
+ * @param {object} order - Order details
+ * @param {string} deliveryStatus - Delivery status: 'accepted', 'picked_up', 'on_the_way', 'delivered'
+ * @param {object} partner - Delivery partner details (optional)
+ */
+const sendDeliveryStatusNotification = async (user, order, deliveryStatus, partner = null) => {
+    const statusMessages = {
+        accepted: {
+            title: '🚴 Delivery Partner Assigned',
+            body: partner
+                ? `${partner.name} will deliver your order #${order.orderNumber}.`
+                : `A delivery partner has been assigned to your order #${order.orderNumber}.`,
+        },
+        picked_up: {
+            title: '📦 Order Picked Up',
+            body: `Your order #${order.orderNumber} has been picked up and is on the way!`,
+        },
+        on_the_way: {
+            title: '🏃 Order On The Way',
+            body: `Your order #${order.orderNumber} is on its way to you!`,
+        },
+        delivered: {
+            title: '🎉 Order Delivered',
+            body: `Your order #${order.orderNumber} has been delivered. Enjoy!`,
+        },
+    };
+
+    const notification = statusMessages[deliveryStatus] || {
+        title: 'Delivery Update',
+        body: `Your order #${order.orderNumber} delivery status: ${deliveryStatus}`,
+    };
+
+    notification.data = {
+        type: 'delivery_status_update',
+        orderId: order._id.toString(),
+        orderNumber: order.orderNumber,
+        deliveryStatus: deliveryStatus,
+        partnerId: partner?._id?.toString() || null,
+        partnerName: partner?.name || null,
+    };
+
     return sendPushNotification(user, notification, 'order');
 };
 
@@ -264,7 +410,6 @@ const sendProductDealNotification = async (users, product) => {
         },
     };
 
-    // Use 'promotion' type to check promotions preference
     return sendBulkPushNotifications(users, notification, 'promotion');
 };
 
@@ -286,12 +431,38 @@ const getUsersWithPromotionsEnabled = async () => {
     }
 };
 
+/**
+ * Update push token for user at login/signup
+ * @param {string} userId - User ID
+ * @param {string} expoPushToken - New Expo push token
+ * @param {string} userType - 'user' or 'delivery_partner'
+ */
+const updatePushToken = async (userId, expoPushToken, userType = 'user') => {
+    try {
+        if (userType === 'delivery_partner') {
+            await DeliveryPartner.findByIdAndUpdate(userId, { expoPushToken });
+        } else {
+            await User.findByIdAndUpdate(userId, { expoPushToken });
+        }
+        console.log(`Push token updated for ${userType} ${userId}`);
+        return { success: true };
+    } catch (error) {
+        console.error('Error updating push token:', error);
+        return { success: false, error: error.message };
+    }
+};
+
 module.exports = {
     sendPushNotification,
     sendPushNotificationByToken,
     sendBulkPushNotifications,
     sendOrderStatusNotification,
+    sendVendorNewOrderNotification,
+    sendDeliveryPartnerNewOrderNotification,
+    notifyAllDeliveryPartnersNewOrder,
+    sendDeliveryStatusNotification,
     sendProductDealNotification,
     getUsersWithPromotionsEnabled,
     isNotificationEnabled,
+    updatePushToken,
 };

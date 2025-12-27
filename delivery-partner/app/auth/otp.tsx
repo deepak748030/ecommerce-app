@@ -13,6 +13,9 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { useTheme } from '../../hooks/useTheme';
 import { deliveryPartnerAuthApi } from '../../lib/api';
 
@@ -28,10 +31,59 @@ export default function OtpScreen() {
     const [error, setError] = useState('');
     const [resendTimer, setResendTimer] = useState(30);
     const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+    const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
 
     const inputRefs = useRef<(TextInput | null)[]>([]);
 
-    // Auto focus first input when screen loads 123456
+    // Get push token on mount
+    useEffect(() => {
+        const getPushToken = async () => {
+            try {
+                if (Platform.OS === 'web') {
+                    return;
+                }
+
+                if (Device.isDevice) {
+                    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+                    let finalStatus = existingStatus;
+
+                    if (existingStatus !== 'granted') {
+                        const { status } = await Notifications.requestPermissionsAsync();
+                        finalStatus = status;
+                    }
+
+                    if (finalStatus === 'granted') {
+                        const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+
+                        if (projectId) {
+                            const pushTokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+                            setExpoPushToken(pushTokenData.data);
+                            console.log('Push token obtained:', pushTokenData.data);
+                        } else {
+                            // Dev fallback token
+                            const devToken = `ExponentPushToken[dev_${Date.now()}_${Math.random().toString(36).substr(2, 9)}]`;
+                            setExpoPushToken(devToken);
+                            console.log('Dev push token:', devToken);
+                        }
+                    }
+                } else {
+                    // Simulator fallback token
+                    const simToken = `ExponentPushToken[simulator_${Date.now()}_${Math.random().toString(36).substr(2, 9)}]`;
+                    setExpoPushToken(simToken);
+                    console.log('Simulator push token:', simToken);
+                }
+            } catch (error) {
+                console.error('Error getting push token:', error);
+                // Fallback token on error
+                const fallbackToken = `ExponentPushToken[fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}]`;
+                setExpoPushToken(fallbackToken);
+            }
+        };
+
+        getPushToken();
+    }, []);
+
+    // Auto focus first input when screen loads
     useEffect(() => {
         const timer = setTimeout(() => {
             inputRefs.current[0]?.focus();
@@ -80,7 +132,8 @@ export default function OtpScreen() {
         setError('');
 
         try {
-            const result = await deliveryPartnerAuthApi.verifyOtp(phone, otpString);
+            console.log('Verifying OTP with push token:', expoPushToken);
+            const result = await deliveryPartnerAuthApi.verifyOtp(phone, otpString, expoPushToken || undefined);
 
             if (result.success && result.response) {
                 if (result.response.isNewUser || !result.response.partner.isProfileComplete) {

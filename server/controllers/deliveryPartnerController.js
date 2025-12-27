@@ -1,9 +1,21 @@
 const DeliveryPartner = require('../models/DeliveryPartner');
 const Otp = require('../models/Otp');
 const Order = require('../models/Order');
+const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { generateToken } = require('../middleware/auth');
-const { sendPushNotificationByToken } = require('../services/notificationService');
+const {
+    sendPushNotificationByToken,
+    sendDeliveryStatusNotification,
+    sendOrderStatusNotification
+} = require('../services/notificationService');
+const otpConfig = require('../config/otpConfig');
+const {
+    uploadProfileImage,
+    uploadDocumentImage,
+    isBase64Image,
+    isCloudinaryConfigured
+} = require('../services/cloudinaryService');
 
 const getDeliveryAmount = (order) => {
     const payment = typeof order.deliveryPayment === 'number' ? order.deliveryPayment : 0;
@@ -29,10 +41,12 @@ const login = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Phone number is required' });
         }
 
-        // Store OTP (hardcoded 123456 for development)
+        const otp = otpConfig.generateOtp();
+        const expiresAt = otpConfig.getExpiryDate();
+
         await Otp.findOneAndUpdate(
             { phone },
-            { phone, otp: '123456', expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
+            { phone, otp, expiresAt },
             { upsert: true, new: true }
         );
 
@@ -67,15 +81,12 @@ const verifyOtp = async (req, res) => {
 
         const storedOtp = await Otp.findOne({ phone });
 
-        // Check OTP (always accept 123456 for development)
-        if (otp !== '123456' && (!storedOtp || storedOtp.otp !== otp || new Date() > storedOtp.expiresAt)) {
+        if (!otpConfig.verifyOtp(otp, storedOtp?.otp, storedOtp?.expiresAt)) {
             return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
         }
 
-        // Clear OTP
         await Otp.deleteOne({ phone });
 
-        // Find or create delivery partner
         let partner = await DeliveryPartner.findOne({ phone });
         const isNewUser = !partner;
 
@@ -85,6 +96,7 @@ const verifyOtp = async (req, res) => {
                 expoPushToken: expoPushToken || '',
             });
         } else if (expoPushToken) {
+            // Update push token at login
             partner.expoPushToken = expoPushToken;
             await partner.save();
         }
@@ -129,9 +141,12 @@ const resendOtp = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Phone number is required' });
         }
 
+        const otp = otpConfig.generateOtp();
+        const expiresAt = otpConfig.getExpiryDate();
+
         await Otp.findOneAndUpdate(
             { phone },
-            { phone, otp: '123456', expiresAt: new Date(Date.now() + 5 * 60 * 1000) },
+            { phone, otp, expiresAt },
             { upsert: true, new: true }
         );
 
@@ -177,33 +192,6 @@ const completeProfile = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Partner not found' });
         }
 
-        // Validate base64 images if provided
-        const validateImage = (image, fieldName) => {
-            if (image && image.startsWith('data:image')) {
-                const base64Length = image.length * 0.75;
-                if (base64Length > 4 * 1024 * 1024) {
-                    return { valid: false, message: `${fieldName} image too large. Please use an image smaller than 4MB.` };
-                }
-            }
-            return { valid: true };
-        };
-
-        const imageFields = [
-            { image: aadhaarImage, name: 'Aadhaar' },
-            { image: panImage, name: 'PAN' },
-            { image: licenseImage, name: 'License' },
-            { image: selfieImage, name: 'Selfie' },
-        ];
-
-        for (const field of imageFields) {
-            if (field.image) {
-                const validation = validateImage(field.image, field.name);
-                if (!validation.valid) {
-                    return res.status(400).json({ success: false, message: validation.message });
-                }
-            }
-        }
-
         partner.name = name || partner.name;
         partner.vehicle = {
             type: vehicleType || 'bike',
@@ -212,11 +200,30 @@ const completeProfile = async (req, res) => {
             color: vehicleColor || '',
         };
 
-        // Save KYC documents
-        if (aadhaarImage) partner.documents.aadhaar = aadhaarImage;
-        if (panImage) partner.documents.pan = panImage;
-        if (licenseImage) partner.documents.license = licenseImage;
-        if (selfieImage) partner.documents.selfie = selfieImage;
+        // Upload KYC documents to Cloudinary
+        const uploadDocument = async (image, docType) => {
+            if (image && isBase64Image(image) && isCloudinaryConfigured()) {
+                const result = await uploadDocumentImage(image, partnerId, docType);
+                if (result.success) {
+                    return result.url;
+                }
+                console.error(`Failed to upload ${docType}:`, result.error);
+            }
+            return image; // Return original if upload fails or not configured
+        };
+
+        if (aadhaarImage) {
+            partner.documents.aadhaar = await uploadDocument(aadhaarImage, 'aadhaar');
+        }
+        if (panImage) {
+            partner.documents.pan = await uploadDocument(panImage, 'pan');
+        }
+        if (licenseImage) {
+            partner.documents.license = await uploadDocument(licenseImage, 'license');
+        }
+        if (selfieImage) {
+            partner.documents.selfie = await uploadDocument(selfieImage, 'selfie');
+        }
 
         // Check if all documents are provided
         const hasAllDocuments = partner.documents.aadhaar &&
@@ -321,19 +328,27 @@ const updateProfile = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Partner not found' });
         }
 
-        // Validate base64 image if provided
-        if (avatar && avatar.startsWith('data:image')) {
-            const base64Length = avatar.length * 0.75;
-            if (base64Length > 4 * 1024 * 1024) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Image too large. Please use an image smaller than 4MB.'
-                });
+        if (name !== undefined) partner.name = name;
+
+        // Upload avatar to Cloudinary
+        if (avatar !== undefined) {
+            if (isBase64Image(avatar) && isCloudinaryConfigured()) {
+                const uploadResult = await uploadProfileImage(avatar, partnerId.toString(), 'delivery-partner');
+                if (uploadResult.success) {
+                    partner.avatar = uploadResult.url;
+                } else {
+                    console.error('Failed to upload avatar:', uploadResult.error);
+                    // Fall back to storing small images
+                    const base64Length = avatar.length * 0.75;
+                    if (base64Length <= 500 * 1024) {
+                        partner.avatar = avatar;
+                    }
+                }
+            } else {
+                partner.avatar = avatar;
             }
         }
 
-        if (name !== undefined) partner.name = name;
-        if (avatar !== undefined) partner.avatar = avatar;
         if (vehicleType !== undefined) partner.vehicle.type = vehicleType;
         if (vehicleNumber !== undefined) partner.vehicle.number = vehicleNumber;
         if (vehicleModel !== undefined) partner.vehicle.model = vehicleModel;
@@ -377,7 +392,7 @@ const updateProfile = async (req, res) => {
 const toggleOnline = async (req, res) => {
     try {
         const partnerId = req.user._id;
-        const { isOnline: requestedStatus } = req.body; // Optional: allow setting specific status
+        const { isOnline: requestedStatus } = req.body;
 
         const partner = await DeliveryPartner.findById(partnerId);
 
@@ -385,7 +400,6 @@ const toggleOnline = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Partner not found' });
         }
 
-        // If a specific status is provided, use it; otherwise toggle
         if (typeof requestedStatus === 'boolean') {
             partner.isOnline = requestedStatus;
         } else {
@@ -435,7 +449,7 @@ const logout = async (req, res) => {
     }
 };
 
-// @desc    Get available orders for delivery partner (only shipped status without assigned partner)
+// @desc    Get available orders for delivery partner
 // @route   GET /api/delivery-partner/orders/available
 // @access  Private
 const getAvailableOrders = async (req, res) => {
@@ -444,13 +458,11 @@ const getAvailableOrders = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        // Get total count
         const totalCount = await Order.countDocuments({
             status: 'shipped',
             deliveryPartner: null,
         });
 
-        // Get orders that are shipped but not yet assigned to a delivery partner
         const orders = await Order.find({
             status: 'shipped',
             deliveryPartner: null,
@@ -468,14 +480,12 @@ const getAvailableOrders = async (req, res) => {
             pickupAddress: order.items[0]?.product?.fullLocation || order.items[0]?.product?.location || 'Store Location, Main Market',
             deliveryAddress: `${order.shippingAddress.address}, ${order.shippingAddress.city}`,
             customerName: order.shippingAddress.name,
-            // Don't show phone number for unaccepted orders
             amount: getDeliveryAmount(order),
             tip: order.deliveryTip || 0,
             distance: '2.5 km',
             estimatedTime: getEstimatedTimeText(order),
             items: order.items.length,
             createdAt: order.createdAt,
-            // Vendor-set delivery details
             deliveryPayment: order.deliveryPayment,
             deliveryTimeMinutes: order.deliveryTimeMinutes,
         }));
@@ -507,7 +517,6 @@ const getActiveOrders = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        // Get total count
         const totalCount = await Order.countDocuments({
             deliveryPartner: partnerId,
             status: { $in: ['shipped', 'out_for_delivery'] },
@@ -537,7 +546,6 @@ const getActiveOrders = async (req, res) => {
             estimatedTime: getEstimatedTimeText(order),
             items: order.items.length,
             createdAt: order.createdAt,
-            // Vendor-set delivery details
             deliveryPayment: order.deliveryPayment,
             deliveryTimeMinutes: order.deliveryTimeMinutes,
         }));
@@ -567,7 +575,6 @@ const acceptOrder = async (req, res) => {
         const partnerId = req.user._id;
         const orderId = req.params.id;
 
-        // Check if partner's KYC is approved
         const partner = await DeliveryPartner.findById(partnerId);
         if (!partner) {
             return res.status(404).json({ success: false, message: 'Partner not found' });
@@ -585,7 +592,7 @@ const acceptOrder = async (req, res) => {
             return res.status(403).json({ success: false, message });
         }
 
-        const order = await Order.findById(orderId);
+        const order = await Order.findById(orderId).populate('user');
 
         if (!order) {
             return res.status(404).json({ success: false, message: 'Order not found' });
@@ -595,7 +602,6 @@ const acceptOrder = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Order already accepted by another partner' });
         }
 
-        // Only allow accepting shipped orders that don't have a delivery partner
         if (order.status !== 'shipped') {
             return res.status(400).json({ success: false, message: 'Order cannot be accepted' });
         }
@@ -603,7 +609,7 @@ const acceptOrder = async (req, res) => {
         order.deliveryPartner = partnerId;
 
         // Update timeline
-        const timelineIndex = 2; // Shipped index
+        const timelineIndex = 2;
         for (let i = 0; i <= timelineIndex; i++) {
             if (order.timeline[i]) {
                 order.timeline[i].completed = true;
@@ -616,9 +622,26 @@ const acceptOrder = async (req, res) => {
         await order.save();
 
         // Update partner stats
-        if (partner) {
-            partner.stats.totalDeliveries = (partner.stats.totalDeliveries || 0) + 1;
-            await partner.save();
+        partner.stats.totalDeliveries = (partner.stats.totalDeliveries || 0) + 1;
+        await partner.save();
+
+        // Send push notification to user about delivery partner assignment
+        if (order.user) {
+            await sendDeliveryStatusNotification(order.user, order, 'accepted', partner);
+
+            // Create in-app notification
+            await Notification.create({
+                user: order.user._id,
+                title: '🚴 Delivery Partner Assigned',
+                message: `${partner.name || 'A delivery partner'} will deliver your order #${order.orderNumber}.`,
+                type: 'order',
+                data: {
+                    orderId: order._id.toString(),
+                    orderNumber: order.orderNumber,
+                    status: 'accepted',
+                    partnerName: partner.name,
+                },
+            });
         }
 
         res.json({
@@ -652,10 +675,8 @@ const getOrderById = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Order not found' });
         }
 
-        // Check if this partner has accepted this order
         const isAcceptedByMe = order.deliveryPartner && order.deliveryPartner.toString() === partnerId.toString();
 
-        // Format items with product details
         const formattedItems = order.items.map(item => ({
             id: item._id,
             name: item.name || item.product?.title || 'Unknown Product',
@@ -664,7 +685,6 @@ const getOrderById = async (req, res) => {
             image: item.image || item.product?.image || '',
         }));
 
-        // Get vendor info from first product
         const vendorAddress = order.items[0]?.product?.fullLocation || order.items[0]?.product?.location || 'Store Location, Main Market';
 
         const formattedOrder = {
@@ -674,9 +694,8 @@ const getOrderById = async (req, res) => {
             pickupAddress: vendorAddress,
             deliveryAddress: `${order.shippingAddress.address}, ${order.shippingAddress.city}, ${order.shippingAddress.state} - ${order.shippingAddress.pincode}`,
             customerName: order.shippingAddress.name,
-            // Only show phone numbers if order is accepted by this delivery partner
             customerPhone: isAcceptedByMe ? order.shippingAddress.phone : null,
-            vendorPhone: isAcceptedByMe ? '9876543210' : null, // Vendor phone (can be dynamic if you have vendor model)
+            vendorPhone: isAcceptedByMe ? '9876543210' : null,
             amount: getDeliveryAmount(order),
             tip: order.deliveryTip || 0,
             distance: '2.5 km',
@@ -689,7 +708,6 @@ const getOrderById = async (req, res) => {
             createdAt: order.createdAt,
             deliveredAt: order.deliveredAt,
             isAcceptedByMe,
-            // Vendor-set delivery details
             deliveryPayment: order.deliveryPayment,
             deliveryTimeMinutes: order.deliveryTimeMinutes,
         };
@@ -722,23 +740,19 @@ const initiatePickup = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Order not found or not accepted by you' });
         }
 
-        // Generate OTP (for development, using fixed 123456)
-        const pickupOtp = '123456';
+        // Generate OTP using config
+        const pickupOtp = otpConfig.generateOtp();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-        // Store OTP with order reference
         await Otp.findOneAndUpdate(
             { phone: `pickup_${orderId}` },
-            {
-                phone: `pickup_${orderId}`,
-                otp: pickupOtp,
-                expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
-            },
+            { phone: `pickup_${orderId}`, otp: pickupOtp, expiresAt },
             { upsert: true, new: true }
         );
 
-        // Create notification for vendor (store in DB)
+        // Create notification for vendor
         await Notification.create({
-            user: order.user, // For now sending to order user, can be changed to vendor
+            user: order.user,
             title: '📦 Pickup OTP',
             message: `Your pickup OTP for order #${order.orderNumber} is: ${pickupOtp}. Share this with the delivery partner.`,
             type: 'order',
@@ -749,10 +763,8 @@ const initiatePickup = async (req, res) => {
             },
         });
 
-        // Get vendor/user push token to send notification
-        const User = require('../models/User');
+        // Send push notification
         const user = await User.findById(order.user);
-
         if (user && user.expoPushToken) {
             await sendPushNotificationByToken(user.expoPushToken, {
                 title: '📦 Pickup OTP',
@@ -797,28 +809,24 @@ const verifyPickupOtp = async (req, res) => {
             _id: orderId,
             deliveryPartner: partnerId,
             status: 'shipped',
-        });
+        }).populate('user');
 
         if (!order) {
             return res.status(404).json({ success: false, message: 'Order not found' });
         }
 
-        // Check OTP
         const storedOtp = await Otp.findOne({ phone: `pickup_${orderId}` });
 
-        // Accept 123456 for development or check stored OTP
-        if (otp !== '123456' && (!storedOtp || storedOtp.otp !== otp || new Date() > storedOtp.expiresAt)) {
+        if (!otpConfig.verifyOtp(otp, storedOtp?.otp, storedOtp?.expiresAt)) {
             return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
         }
 
-        // Clear OTP
         await Otp.deleteOne({ phone: `pickup_${orderId}` });
 
-        // Update order status to out_for_delivery
         order.status = 'out_for_delivery';
 
         // Update timeline
-        const timelineIndex = 3; // Out for delivery index
+        const timelineIndex = 3;
         for (let i = 0; i <= timelineIndex; i++) {
             if (order.timeline[i]) {
                 order.timeline[i].completed = true;
@@ -830,16 +838,20 @@ const verifyPickupOtp = async (req, res) => {
 
         await order.save();
 
-        // Send notification to customer
-        const User = require('../models/User');
-        const user = await User.findById(order.user);
+        // Get partner for notification
+        const partner = await DeliveryPartner.findById(partnerId);
 
-        if (user && user.expoPushToken) {
-            await sendPushNotificationByToken(user.expoPushToken, {
-                title: '🚚 Order Picked Up',
-                body: `Your order #${order.orderNumber} has been picked up and is on its way!`,
+        // Send push notification to customer
+        if (order.user) {
+            await sendDeliveryStatusNotification(order.user, order, 'picked_up', partner);
+
+            // Create in-app notification
+            await Notification.create({
+                user: order.user._id,
+                title: '📦 Order Picked Up',
+                message: `Your order #${order.orderNumber} has been picked up and is on its way!`,
+                type: 'order',
                 data: {
-                    type: 'order_update',
                     orderId: order._id.toString(),
                     orderNumber: order.orderNumber,
                     status: 'out_for_delivery',
@@ -880,21 +892,17 @@ const initiateDelivery = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Order not found or not ready for delivery' });
         }
 
-        // Generate OTP (for development, using fixed 123456)
-        const deliveryOtp = '123456';
+        // Generate OTP using config
+        const deliveryOtp = otpConfig.generateOtp();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-        // Store OTP with order reference
         await Otp.findOneAndUpdate(
             { phone: `delivery_${orderId}` },
-            {
-                phone: `delivery_${orderId}`,
-                otp: deliveryOtp,
-                expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
-            },
+            { phone: `delivery_${orderId}`, otp: deliveryOtp, expiresAt },
             { upsert: true, new: true }
         );
 
-        // Create notification for customer (store in DB)
+        // Create notification for customer
         await Notification.create({
             user: order.user,
             title: '📦 Delivery OTP',
@@ -907,10 +915,8 @@ const initiateDelivery = async (req, res) => {
             },
         });
 
-        // Get customer push token to send notification
-        const User = require('../models/User');
+        // Send push notification
         const user = await User.findById(order.user);
-
         if (user && user.expoPushToken) {
             await sendPushNotificationByToken(user.expoPushToken, {
                 title: '📦 Delivery OTP',
@@ -955,29 +961,25 @@ const verifyDeliveryOtp = async (req, res) => {
             _id: orderId,
             deliveryPartner: partnerId,
             status: 'out_for_delivery',
-        });
+        }).populate('user');
 
         if (!order) {
             return res.status(404).json({ success: false, message: 'Order not found or not ready for delivery' });
         }
 
-        // Check OTP
         const storedOtp = await Otp.findOne({ phone: `delivery_${orderId}` });
 
-        // Accept 123456 for development or check stored OTP
-        if (otp !== '123456' && (!storedOtp || storedOtp.otp !== otp || new Date() > storedOtp.expiresAt)) {
+        if (!otpConfig.verifyOtp(otp, storedOtp?.otp, storedOtp?.expiresAt)) {
             return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
         }
 
-        // Clear OTP
         await Otp.deleteOne({ phone: `delivery_${orderId}` });
 
-        // Update order status to delivered
         order.status = 'delivered';
         order.deliveredAt = new Date();
 
         // Update timeline
-        const timelineIndex = 4; // Delivered index
+        const timelineIndex = 4;
         for (let i = 0; i <= timelineIndex; i++) {
             if (order.timeline[i]) {
                 order.timeline[i].completed = true;
@@ -998,16 +1000,17 @@ const verifyDeliveryOtp = async (req, res) => {
             await partner.save();
         }
 
-        // Send notification to customer
-        const User = require('../models/User');
-        const user = await User.findById(order.user);
+        // Send push notification to customer
+        if (order.user) {
+            await sendDeliveryStatusNotification(order.user, order, 'delivered', partner);
 
-        if (user && user.expoPushToken) {
-            await sendPushNotificationByToken(user.expoPushToken, {
+            // Create in-app notification
+            await Notification.create({
+                user: order.user._id,
                 title: '🎉 Order Delivered',
-                body: `Your order #${order.orderNumber} has been delivered successfully!`,
+                message: `Your order #${order.orderNumber} has been delivered successfully!`,
+                type: 'order',
                 data: {
-                    type: 'order_update',
                     orderId: order._id.toString(),
                     orderNumber: order.orderNumber,
                     status: 'delivered',
@@ -1040,7 +1043,6 @@ const getOrderHistory = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        // Get total count
         const totalCount = await Order.countDocuments({
             deliveryPartner: partnerId,
             status: 'delivered',
@@ -1070,7 +1072,6 @@ const getOrderHistory = async (req, res) => {
             items: order.items.length,
             createdAt: order.createdAt,
             deliveredAt: order.deliveredAt,
-            // Vendor-set delivery details
             deliveryPayment: order.deliveryPayment,
             deliveryTimeMinutes: order.deliveryTimeMinutes,
         }));
@@ -1104,23 +1105,19 @@ const getEarnings = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Partner not found' });
         }
 
-        // Get today's start and end
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
         const todayEnd = new Date();
         todayEnd.setHours(23, 59, 59, 999);
 
-        // Get this week's start (Monday)
         const weekStart = new Date();
         weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
         weekStart.setHours(0, 0, 0, 0);
 
-        // Get this month's start
         const monthStart = new Date();
         monthStart.setDate(1);
         monthStart.setHours(0, 0, 0, 0);
 
-        // Aggregate earnings from delivered orders
         const deliveryAmountExpr = {
             $cond: [
                 { $gt: [{ $ifNull: ['$deliveryPayment', 0] }, 0] },
@@ -1182,7 +1179,6 @@ const getEarningsHistory = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
 
-        // Get daily earnings for last 30 days
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -1215,7 +1211,6 @@ const getEarningsHistory = async (req, res) => {
             { $limit: limit },
         ]);
 
-        // Get total count of unique days
         const totalDays = await Order.aggregate([
             {
                 $match: {
