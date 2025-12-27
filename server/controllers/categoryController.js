@@ -1,4 +1,5 @@
 const Category = require('../models/Category');
+const { uploadCategoryImage, isBase64Image } = require('../services/cloudinaryService');
 
 // @desc    Get all categories
 // @route   GET /api/categories
@@ -65,9 +66,24 @@ const createCategory = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Category already exists' });
         }
 
+        // Upload image to Cloudinary if base64 provided
+        let imageUrl = '';
+        if (image && isBase64Image(image)) {
+            const tempId = Date.now().toString();
+            const uploadResult = await uploadCategoryImage(image, tempId);
+            if (uploadResult.success) {
+                imageUrl = uploadResult.url;
+            } else {
+                console.error('Failed to upload category image:', uploadResult.error);
+                return res.status(400).json({ success: false, message: 'Failed to upload image to Cloudinary' });
+            }
+        } else if (image) {
+            imageUrl = image;
+        }
+
         const category = await Category.create({
             name,
-            image: image || '',
+            image: imageUrl,
             color: color || '#DCFCE7',
         });
 
@@ -101,7 +117,22 @@ const updateCategory = async (req, res) => {
         }
 
         if (name) category.name = name;
-        if (image !== undefined) category.image = image;
+
+        // Upload new image to Cloudinary if base64 provided
+        if (image !== undefined) {
+            if (image && isBase64Image(image)) {
+                const uploadResult = await uploadCategoryImage(image, category._id.toString());
+                if (uploadResult.success) {
+                    category.image = uploadResult.url;
+                } else {
+                    console.error('Failed to upload category image:', uploadResult.error);
+                    return res.status(400).json({ success: false, message: 'Failed to upload image to Cloudinary' });
+                }
+            } else {
+                category.image = image;
+            }
+        }
+
         if (color) category.color = color;
         if (typeof isActive === 'boolean') category.isActive = isActive;
 

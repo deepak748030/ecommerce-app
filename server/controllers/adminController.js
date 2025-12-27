@@ -7,6 +7,7 @@ const Order = require('../models/Order');
 const Coupon = require('../models/Coupon');
 const Product = require('../models/Product');
 const { generateAdminToken } = require('../middleware/adminAuth');
+const { uploadCategoryImage, uploadBannerImage, isBase64Image, deleteImage } = require('../services/cloudinaryService');
 
 // @desc    Admin login
 // @route   POST /api/admin/login
@@ -572,9 +573,26 @@ const createCategory = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Category already exists' });
         }
 
+        // Upload image to Cloudinary if base64 provided
+        let imageUrl = '';
+        if (image && isBase64Image(image)) {
+            // Generate a temporary ID for the category image
+            const tempId = Date.now().toString();
+            const uploadResult = await uploadCategoryImage(image, tempId);
+            if (uploadResult.success) {
+                imageUrl = uploadResult.url;
+            } else {
+                console.error('Failed to upload category image:', uploadResult.error);
+                return res.status(400).json({ success: false, message: 'Failed to upload image to Cloudinary' });
+            }
+        } else if (image) {
+            // If it's already a URL, use it directly
+            imageUrl = image;
+        }
+
         const category = await Category.create({
             name,
-            image: image || '',
+            image: imageUrl,
             color: color || '#DCFCE7',
         });
 
@@ -603,7 +621,23 @@ const updateCategory = async (req, res) => {
         }
 
         if (name) category.name = name;
-        if (image !== undefined) category.image = image;
+
+        // Upload new image to Cloudinary if base64 provided
+        if (image !== undefined) {
+            if (image && isBase64Image(image)) {
+                const uploadResult = await uploadCategoryImage(image, category._id.toString());
+                if (uploadResult.success) {
+                    category.image = uploadResult.url;
+                } else {
+                    console.error('Failed to upload category image:', uploadResult.error);
+                    return res.status(400).json({ success: false, message: 'Failed to upload image to Cloudinary' });
+                }
+            } else {
+                // If it's a URL or empty, use it directly
+                category.image = image;
+            }
+        }
+
         if (color) category.color = color;
         if (typeof isActive === 'boolean') category.isActive = isActive;
 
@@ -765,10 +799,27 @@ const createBanner = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Banner image is required' });
         }
 
+        // Upload image to Cloudinary if base64 provided
+        let imageUrl = '';
+        if (isBase64Image(image)) {
+            // Generate a temporary ID for the banner image
+            const tempId = Date.now().toString();
+            const uploadResult = await uploadBannerImage(image, tempId);
+            if (uploadResult.success) {
+                imageUrl = uploadResult.url;
+            } else {
+                console.error('Failed to upload banner image:', uploadResult.error);
+                return res.status(400).json({ success: false, message: 'Failed to upload image to Cloudinary' });
+            }
+        } else {
+            // If it's already a URL, use it directly
+            imageUrl = image;
+        }
+
         const banner = await Banner.create({
             title,
             subtitle: subtitle || '',
-            image,
+            image: imageUrl,
             badge: badge || '',
             gradient: gradient || ['#22C55E', '#16A34A'],
             linkType: linkType || 'search',
@@ -802,7 +853,23 @@ const updateBanner = async (req, res) => {
 
         if (title) banner.title = title;
         if (subtitle !== undefined) banner.subtitle = subtitle;
-        if (image) banner.image = image;
+
+        // Upload new image to Cloudinary if base64 provided
+        if (image) {
+            if (isBase64Image(image)) {
+                const uploadResult = await uploadBannerImage(image, banner._id.toString());
+                if (uploadResult.success) {
+                    banner.image = uploadResult.url;
+                } else {
+                    console.error('Failed to upload banner image:', uploadResult.error);
+                    return res.status(400).json({ success: false, message: 'Failed to upload image to Cloudinary' });
+                }
+            } else {
+                // If it's a URL, use it directly
+                banner.image = image;
+            }
+        }
+
         if (badge !== undefined) banner.badge = badge;
         if (gradient) banner.gradient = gradient;
         if (linkType) banner.linkType = linkType;

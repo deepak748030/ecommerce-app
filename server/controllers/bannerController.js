@@ -1,4 +1,5 @@
 const Banner = require('../models/Banner');
+const { uploadBannerImage, isBase64Image } = require('../services/cloudinaryService');
 
 // @desc    Get all active banners
 // @route   GET /api/banners
@@ -57,10 +58,25 @@ exports.createBanner = async (req, res) => {
     try {
         const { title, subtitle, image, badge, gradient, linkType, linkValue, order } = req.body;
 
+        // Upload image to Cloudinary if base64 provided
+        let imageUrl = '';
+        if (image && isBase64Image(image)) {
+            const tempId = Date.now().toString();
+            const uploadResult = await uploadBannerImage(image, tempId);
+            if (uploadResult.success) {
+                imageUrl = uploadResult.url;
+            } else {
+                console.error('Failed to upload banner image:', uploadResult.error);
+                return res.status(400).json({ success: false, message: 'Failed to upload image to Cloudinary' });
+            }
+        } else if (image) {
+            imageUrl = image;
+        }
+
         const banner = await Banner.create({
             title,
             subtitle,
-            image,
+            image: imageUrl,
             badge,
             gradient,
             linkType,
@@ -86,9 +102,27 @@ exports.createBanner = async (req, res) => {
 // @access  Private (Admin)
 exports.updateBanner = async (req, res) => {
     try {
+        const { image, ...otherFields } = req.body;
+
+        // If image is base64, upload to Cloudinary
+        let updateData = { ...otherFields };
+        if (image) {
+            if (isBase64Image(image)) {
+                const uploadResult = await uploadBannerImage(image, req.params.id);
+                if (uploadResult.success) {
+                    updateData.image = uploadResult.url;
+                } else {
+                    console.error('Failed to upload banner image:', uploadResult.error);
+                    return res.status(400).json({ success: false, message: 'Failed to upload image to Cloudinary' });
+                }
+            } else {
+                updateData.image = image;
+            }
+        }
+
         const banner = await Banner.findByIdAndUpdate(
             req.params.id,
-            req.body,
+            updateData,
             { new: true, runValidators: true }
         );
 
