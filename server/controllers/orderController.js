@@ -3,7 +3,7 @@ const Product = require('../models/Product');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
 const Coupon = require('../models/Coupon');
-const { sendOrderStatusNotification } = require('../services/notificationService');
+const { sendOrderStatusNotification, sendVendorNewOrderNotification } = require('../services/notificationService');
 const { createNotification } = require('./notificationController');
 const { creditVendorWallet, debitVendorWallet, releasePendingBalance } = require('./walletController');
 const { useCoupon } = require('./couponController');
@@ -26,9 +26,10 @@ const createOrder = async (req, res) => {
         let subtotal = 0;
         const orderItems = [];
         const vendorEarnings = {}; // Track earnings per vendor
+        const vendorProducts = {}; // Track products per vendor for notifications
 
         for (const item of items) {
-            const product = await Product.findById(item.productId).populate('createdBy', '_id');
+            const product = await Product.findById(item.productId).populate('createdBy', '_id expoPushToken name');
             if (!product) {
                 return res.status(404).json({
                     success: false,
@@ -47,13 +48,22 @@ const createOrder = async (req, res) => {
                 image: product.image,
             });
 
-            // Track vendor earnings (if product has a creator/vendor)
+            // Track vendor earnings and products for notifications
             if (product.createdBy) {
                 const vendorId = product.createdBy._id ? product.createdBy._id.toString() : product.createdBy.toString();
                 if (!vendorEarnings[vendorId]) {
                     vendorEarnings[vendorId] = 0;
+                    vendorProducts[vendorId] = {
+                        vendorUser: product.createdBy,
+                        products: [],
+                    };
                 }
                 vendorEarnings[vendorId] += itemTotal;
+                vendorProducts[vendorId].products.push({
+                    name: product.title,
+                    quantity: item.quantity,
+                    price: product.price,
+                });
             }
         }
 
@@ -136,8 +146,40 @@ const createOrder = async (req, res) => {
                 status: 'pending',
             },
         });
+
         // Send push notification for order placed (checks user preferences)
         await sendOrderStatusNotification(req.user, order, 'pending');
+
+        // Send notifications to vendors about new order
+        for (const [vendorId, vendorData] of Object.entries(vendorProducts)) {
+            const vendor = vendorData.vendorUser;
+            if (vendor && vendor._id) {
+                const vendorUser = await User.findById(vendor._id);
+                if (vendorUser) {
+                    // Calculate vendor's subtotal for this order
+                    const vendorSubtotal = vendorData.products.reduce((sum, p) => sum + (p.price * p.quantity), 0);
+
+                    // Create in-app notification for vendor
+                    await createNotification(vendorUser._id, {
+                        title: '🛒 New Order Received!',
+                        message: `You have a new order #${order.orderNumber} with ${vendorData.products.length} item(s). Total: ₹${vendorSubtotal}`,
+                        type: 'order',
+                        data: {
+                            orderId: order._id.toString(),
+                            orderNumber: order.orderNumber,
+                            status: 'pending',
+                            itemsCount: vendorData.products.length,
+                            vendorSubtotal,
+                        },
+                    });
+
+                    // Send push notification to vendor
+                    if (vendorUser.expoPushToken) {
+                        await sendVendorNewOrderNotification(vendorUser, order, vendorData.products, vendorSubtotal);
+                    }
+                }
+            }
+        }
 
         res.status(201).json({
             success: true,

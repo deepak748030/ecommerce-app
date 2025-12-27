@@ -219,29 +219,41 @@ const sendOrderStatusNotification = async (user, order, newStatus) => {
 
 /**
  * Send new order notification to vendor
- * @param {string} vendorId - Vendor user ID
+ * @param {object|string} vendorOrId - Vendor user object or ID
  * @param {object} order - Order details
+ * @param {Array} products - Array of products ordered (optional)
+ * @param {number} vendorSubtotal - Vendor's subtotal (optional)
  */
-const sendVendorNewOrderNotification = async (vendorId, order) => {
+const sendVendorNewOrderNotification = async (vendorOrId, order, products = null, vendorSubtotal = null) => {
     try {
-        const vendor = await User.findById(vendorId);
+        let vendor = vendorOrId;
+
+        // If vendorOrId is a string (ID), fetch the vendor
+        if (typeof vendorOrId === 'string') {
+            vendor = await User.findById(vendorOrId);
+        }
+
         if (!vendor || !vendor.expoPushToken) {
-            console.log('Vendor has no push token:', vendorId);
+            console.log('Vendor has no push token');
             return { success: false, error: 'No push token' };
         }
 
+        const total = vendorSubtotal || order.total;
+        const itemCount = products ? products.length : order.items?.length || 0;
+
         const notification = {
             title: '🛒 New Order Received!',
-            body: `Order #${order.orderNumber} - ₹${order.total}. Tap to view details.`,
+            body: `Order #${order.orderNumber} - ${itemCount} item(s) - ₹${total}. Tap to view details.`,
             data: {
                 type: 'vendor_new_order',
                 orderId: order._id.toString(),
                 orderNumber: order.orderNumber,
-                total: order.total,
+                total: total,
+                itemCount: itemCount,
             },
         };
 
-        console.log(`Sending new order notification to vendor ${vendorId}`);
+        console.log(`Sending new order notification to vendor ${vendor._id}`);
         return sendPushNotificationByToken(vendor.expoPushToken, notification);
     } catch (error) {
         console.error('Error sending vendor order notification:', error);

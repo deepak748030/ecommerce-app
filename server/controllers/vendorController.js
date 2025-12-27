@@ -2,9 +2,45 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Category = require('../models/Category');
 const User = require('../models/User');
-const { sendOrderStatusNotification } = require('../services/notificationService');
+const { sendOrderStatusNotification, sendVendorNewOrderNotification } = require('../services/notificationService');
 const { createNotification } = require('./notificationController');
 const { releasePendingBalance } = require('./walletController');
+const { uploadProductImage, isBase64Image, isCloudinaryConfigured } = require('../services/cloudinaryService');
+
+/**
+ * Upload images to Cloudinary if base64
+ * @param {string|Array} images - Image or array of images
+ * @param {string} productId - Product ID for naming
+ * @returns {Promise<{mainImage: string, imageArray: string[]}>}
+ */
+const processProductImages = async (image, images, productId = null) => {
+    let mainImage = image || '';
+    let imageArray = images || [];
+
+    // Process main image
+    if (mainImage && isBase64Image(mainImage) && isCloudinaryConfigured()) {
+        const result = await uploadProductImage(mainImage, productId, 0);
+        if (result.success) {
+            mainImage = result.url;
+        }
+    }
+
+    // Process images array
+    if (imageArray.length > 0 && isCloudinaryConfigured()) {
+        const uploadedImages = await Promise.all(
+            imageArray.map(async (img, index) => {
+                if (isBase64Image(img)) {
+                    const result = await uploadProductImage(img, productId, index + 1);
+                    return result.success ? result.url : img;
+                }
+                return img;
+            })
+        );
+        imageArray = uploadedImages;
+    }
+
+    return { mainImage, imageArray };
+};
 
 // @desc    Get vendor's own products
 // @route   GET /api/vendor/products
@@ -79,14 +115,17 @@ const createVendorProduct = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Category not found' });
         }
 
+        // Upload images to Cloudinary
+        const { mainImage, imageArray } = await processProductImages(image, images);
+
         const product = await Product.create({
             title,
             description: description || '',
             price: parseFloat(price),
             mrp: parseFloat(mrp) || parseFloat(price),
             category: categoryDoc._id,
-            image: image || '',
-            images: images || [],
+            image: mainImage,
+            images: imageArray,
             badge: badge || '',
             location: location || '',
             fullLocation: fullLocation || '',
@@ -177,8 +216,18 @@ const updateVendorProduct = async (req, res) => {
         if (description !== undefined) product.description = description;
         if (price) product.price = parseFloat(price);
         if (mrp) product.mrp = parseFloat(mrp);
-        if (image !== undefined) product.image = image;
-        if (images !== undefined) product.images = images;
+
+        // Handle image updates with Cloudinary
+        if (image !== undefined || images !== undefined) {
+            const { mainImage, imageArray } = await processProductImages(
+                image !== undefined ? image : product.image,
+                images !== undefined ? images : product.images,
+                product._id.toString()
+            );
+            if (image !== undefined) product.image = mainImage;
+            if (images !== undefined) product.images = imageArray;
+        }
+
         if (badge !== undefined) product.badge = badge;
         if (location !== undefined) product.location = location;
         if (fullLocation !== undefined) product.fullLocation = fullLocation;

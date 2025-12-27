@@ -589,5 +589,5 @@ module.exports = {
     logout,
     sendDeleteOtp,
     verifyDeleteOtp,
-    deleteAccount,
+    confirmDeleteAccount: deleteAccount,
 };
