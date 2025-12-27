@@ -54,6 +54,18 @@ function handleNotificationNavigation(data: Record<string, unknown>) {
                 }
             });
         }
+    } else if (data?.type === 'order_update' && data?.orderId) {
+        // Handle order status update - navigate to order details
+        router.push(`/order/${data.orderId}`);
+    } else if (data?.type === 'vendor_new_order' && data?.orderId) {
+        // Handle vendor new order notification - navigate to vendor orders
+        router.push('/vendor' as any);
+    } else if (data?.type === 'delivery_status_update' && data?.orderId) {
+        // Handle delivery status update - navigate to order details
+        router.push(`/order/${data.orderId}`);
+    } else if (data?.type === 'product_deal' && data?.productId) {
+        // Handle product deal notification - navigate to product
+        router.push(`/event/${data.productId}`);
     } else if (data?.type === 'booking' && data?.bookingId) {
         router.push(`/booking/${data.bookingId}` as any);
     } else if (data?.type === 'booking_confirmed' && data?.bookingId) {
