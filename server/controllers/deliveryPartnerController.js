@@ -12,7 +12,6 @@ const {
 } = require('../services/notificationService');
 const { creditDeliveryPartnerWallet } = require('./walletController');
 const otpConfig = require('../config/otpConfig');
-const otpConfig = require('../config/otpConfig');
 const {
     uploadProfileImage,
     uploadDocumentImage,
