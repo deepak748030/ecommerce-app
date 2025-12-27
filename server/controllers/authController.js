@@ -377,12 +377,22 @@ const getNotificationSettings = async (req, res) => {
     try {
         const user = req.user;
 
+        // Initialize settings if not present
+        if (!user.notificationSettings) {
+            user.notificationSettings = {
+                pushEnabled: true,
+                orderUpdates: true,
+                promotions: false,
+            };
+            await user.save();
+        }
+
         res.json({
             success: true,
             response: {
-                pushEnabled: user.notificationSettings?.pushEnabled ?? true,
-                orderUpdates: user.notificationSettings?.orderUpdates ?? true,
-                promotions: user.notificationSettings?.promotions ?? false,
+                pushEnabled: user.notificationSettings.pushEnabled !== false,
+                orderUpdates: user.notificationSettings.orderUpdates !== false,
+                promotions: user.notificationSettings.promotions === true,
             },
         });
     } catch (error) {

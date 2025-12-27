@@ -13,15 +13,26 @@ const expo = new Expo();
  * @returns {boolean}
  */
 const isNotificationEnabled = (user, notificationType) => {
-    // If no user or settings, default to true for order updates
+    // If no user, cannot send notification
     if (!user) {
+        console.log('No user provided for notification check');
         return false;
     }
 
     const settings = user.notificationSettings || {};
 
-    // Check if push notifications are enabled globally
-    if (settings.pushEnabled === false) {
+    // Log current settings for debugging
+    console.log(`Checking notification settings for user ${user._id}:`, {
+        pushEnabled: settings.pushEnabled,
+        orderUpdates: settings.orderUpdates,
+        promotions: settings.promotions,
+        notificationType
+    });
+
+    // Check if push notifications are enabled globally (default to true if not set)
+    const isPushEnabled = settings.pushEnabled !== false;
+    if (!isPushEnabled) {
+        console.log(`Push notifications disabled for user ${user._id}`);
         return false;
     }
 
@@ -29,20 +40,27 @@ const isNotificationEnabled = (user, notificationType) => {
     switch (notificationType) {
         case 'order':
         case 'order_update':
-            return settings.orderUpdates !== false; // Default true if not set
+            // Default to true - users should receive order updates unless explicitly disabled
+            const orderEnabled = settings.orderUpdates !== false;
+            console.log(`Order notifications ${orderEnabled ? 'enabled' : 'disabled'} for user ${user._id}`);
+            return orderEnabled;
         case 'promotion':
         case 'promo':
         case 'deal':
-            return settings.promotions === true; // Default false if not set
+            // Promotions default to false - opt-in only
+            return settings.promotions === true;
         case 'vendor':
         case 'vendor_order':
-            return true; // Always send vendor notifications
+            // Always send vendor notifications - critical for business
+            return true;
         case 'delivery':
         case 'delivery_order':
-            return true; // Always send delivery partner notifications
+            // Always send delivery partner notifications - critical for operations
+            return true;
         case 'system':
         default:
-            return settings.pushEnabled !== false; // System notifications if push enabled
+            // System notifications follow global push setting
+            return isPushEnabled;
     }
 };
 
@@ -93,16 +111,23 @@ const sendPushNotificationByToken = async (expoPushToken, notification) => {
  */
 const sendPushNotification = async (user, notification, notificationType = 'system') => {
     try {
-        if (!user || !user.expoPushToken) {
-            console.log('No push token for user');
+        if (!user) {
+            console.log('No user provided for push notification');
+            return { success: false, error: 'No user provided', skipped: true };
+        }
+
+        if (!user.expoPushToken) {
+            console.log(`No push token for user ${user._id || 'unknown'}`);
             return { success: false, error: 'No push token', skipped: true };
         }
 
+        console.log(`Checking notification preferences for user ${user._id}, type: ${notificationType}`);
         if (!isNotificationEnabled(user, notificationType)) {
             console.log(`Notification type '${notificationType}' is disabled for user ${user._id}`);
             return { success: false, error: 'Notification disabled by user', skipped: true };
         }
 
+        console.log(`Sending push notification to user ${user._id}, token: ${user.expoPushToken.substring(0, 30)}...`);
         return sendPushNotificationByToken(user.expoPushToken, notification);
     } catch (error) {
         console.error('Error sending push notification:', error);

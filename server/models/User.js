@@ -39,7 +39,7 @@ const userSchema = new mongoose.Schema({
         },
         orderUpdates: {
             type: Boolean,
-            default: false,
+            default: true, // Default to true so users receive order notifications
         },
         promotions: {
             type: Boolean,

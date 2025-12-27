@@ -148,7 +148,9 @@ const createOrder = async (req, res) => {
         });
 
         // Send push notification for order placed (checks user preferences)
-        await sendOrderStatusNotification(req.user, order, 'pending');
+        console.log(`Sending order push notification to user ${req.user._id}, token: ${req.user.expoPushToken ? 'exists' : 'none'}`);
+        const userPushResult = await sendOrderStatusNotification(req.user, order, 'pending');
+        console.log('User push notification result:', userPushResult);
 
         // Send notifications to vendors about new order
         for (const [vendorId, vendorData] of Object.entries(vendorProducts)) {
@@ -173,10 +175,10 @@ const createOrder = async (req, res) => {
                         },
                     });
 
-                    // Send push notification to vendor
-                    if (vendorUser.expoPushToken) {
-                        await sendVendorNewOrderNotification(vendorUser, order, vendorData.products, vendorSubtotal);
-                    }
+                    // Send push notification to vendor - always send for vendor notifications
+                    console.log(`Sending vendor push notification to ${vendorUser._id}, token: ${vendorUser.expoPushToken ? 'exists' : 'none'}`);
+                    const vendorPushResult = await sendVendorNewOrderNotification(vendorUser, order, vendorData.products, vendorSubtotal);
+                    console.log('Vendor push notification result:', vendorPushResult);
                 }
             }
         }
