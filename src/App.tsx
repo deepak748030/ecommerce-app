@@ -14,6 +14,7 @@ import { CouponsPage } from './pages/CouponsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage'
 import { ProductsPage } from './pages/ProductsPage'
+import { WithdrawalsPage } from './pages/WithdrawalsPage'
 import DeleteAccountPage from './pages/DeleteAccountPage'
 
 function App() {
@@ -42,6 +43,7 @@ function App() {
                         <Route path="coupons" element={<CouponsPage />} />
                         <Route path="banners" element={<BannersPage />} />
                         <Route path="delivery-partners" element={<DeliveryPartnersPage />} />
+                        <Route path="withdrawals" element={<WithdrawalsPage />} />
                         <Route path="settings" element={<SettingsPage />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/" replace />} />

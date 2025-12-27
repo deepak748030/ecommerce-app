@@ -48,6 +48,7 @@ export default function ProductDetailsScreen() {
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [buyingNow, setBuyingNow] = useState(false);
 
   // Modal states
   const [showCartModal, setShowCartModal] = useState(false);
@@ -194,21 +195,30 @@ export default function ProductDetailsScreen() {
   };
 
   const handleBuyNow = async () => {
-    if (!product) return;
+    if (!product || buyingNow) return;
 
-    // Navigate to checkout with direct purchase (not from cart)
-    router.push({
-      pathname: '/checkout',
-      params: {
-        buyNow: 'true',
-        productId: product.id,
-        quantity: quantity.toString(),
-        productName: product.title,
-        productPrice: product.price.toString(),
-        productMrp: product.mrp.toString(),
-        productImage: product.image,
-      }
-    });
+    setBuyingNow(true);
+    try {
+      // Small delay to show spinner and prevent double-tap
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Navigate to checkout with direct purchase (not from cart)
+      router.push({
+        pathname: '/checkout',
+        params: {
+          buyNow: 'true',
+          productId: product.id,
+          quantity: quantity.toString(),
+          productName: product.title,
+          productPrice: product.price.toString(),
+          productMrp: product.mrp.toString(),
+          productImage: product.image,
+        }
+      });
+    } finally {
+      // Reset after navigation (in case user comes back)
+      setTimeout(() => setBuyingNow(false), 1000);
+    }
   };
 
   // Calculate total reviews from real data
@@ -427,8 +437,16 @@ export default function ProductDetailsScreen() {
                 <ShoppingCart size={18} color={colors.primary} />
               )}
             </Pressable>
-            <Pressable style={[styles.buyBtn, { backgroundColor: colors.primary }]} onPress={handleBuyNow}>
-              <Text style={[styles.buyBtnText, { color: colors.primaryForeground }]}>Buy Now</Text>
+            <Pressable
+              style={[styles.buyBtn, { backgroundColor: colors.primary }, buyingNow && { opacity: 0.7 }]}
+              onPress={handleBuyNow}
+              disabled={buyingNow}
+            >
+              {buyingNow ? (
+                <ActivityIndicator size="small" color={colors.primaryForeground} />
+              ) : (
+                <Text style={[styles.buyBtnText, { color: colors.primaryForeground }]}>Buy Now</Text>
+              )}
             </Pressable>
           </View>
         </View>

@@ -20,6 +20,9 @@ const {
     getOrderById,
     getEarnings,
     getEarningsHistory,
+    getWalletBalance,
+    requestWithdrawal,
+    getWithdrawalHistory,
 } = require('../controllers/deliveryPartnerController');
 const { protectPartner } = require('../middleware/auth');
 
@@ -49,5 +52,10 @@ router.post('/orders/:id/verify-delivery', protectPartner, verifyDeliveryOtp);
 // Earnings routes
 router.get('/earnings', protectPartner, getEarnings);
 router.get('/earnings/history', protectPartner, getEarningsHistory);
+
+// Wallet routes
+router.get('/wallet/balance', protectPartner, getWalletBalance);
+router.post('/wallet/withdraw', protectPartner, requestWithdrawal);
+router.get('/wallet/withdrawals', protectPartner, getWithdrawalHistory);
 
 module.exports = router;

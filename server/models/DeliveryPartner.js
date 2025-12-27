@@ -123,6 +123,25 @@ const deliveryPartnerSchema = new mongoose.Schema({
             default: 0,
         },
     },
+    // Wallet
+    wallet: {
+        balance: {
+            type: Number,
+            default: 0,
+        },
+        pendingBalance: {
+            type: Number,
+            default: 0,
+        },
+        totalEarnings: {
+            type: Number,
+            default: 0,
+        },
+        totalWithdrawn: {
+            type: Number,
+            default: 0,
+        },
+    },
     // Push notifications
     expoPushToken: {
         type: String,

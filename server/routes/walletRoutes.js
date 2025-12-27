@@ -5,6 +5,7 @@ const {
     getWalletTransactions,
     getWalletSummary,
     requestWithdrawal,
+    getWithdrawalHistory,
 } = require('../controllers/walletController');
 const { verifyToken } = require('../middleware/auth');
 
@@ -16,5 +17,6 @@ router.get('/balance', getWalletBalance);
 router.get('/transactions', getWalletTransactions);
 router.get('/summary', getWalletSummary);
 router.post('/withdraw', requestWithdrawal);
+router.get('/withdrawals', getWithdrawalHistory);
 
 module.exports = router;

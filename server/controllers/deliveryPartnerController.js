@@ -3,12 +3,15 @@ const Otp = require('../models/Otp');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const WithdrawalRequest = require('../models/WithdrawalRequest');
 const { generateToken } = require('../middleware/auth');
 const {
     sendPushNotificationByToken,
     sendDeliveryStatusNotification,
     sendOrderStatusNotification
 } = require('../services/notificationService');
+const { creditDeliveryPartnerWallet } = require('./walletController');
+const otpConfig = require('../config/otpConfig');
 const otpConfig = require('../config/otpConfig');
 const {
     uploadProfileImage,
@@ -991,13 +994,29 @@ const verifyDeliveryOtp = async (req, res) => {
 
         await order.save();
 
-        // Update partner earnings
+        // Update partner earnings and wallet
         const partner = await DeliveryPartner.findById(partnerId);
         if (partner) {
             const earning = getDeliveryAmount(order) + (order.deliveryTip || 0);
+
+            // Update earnings tracking
             partner.earnings.today = (partner.earnings.today || 0) + earning;
             partner.earnings.total = (partner.earnings.total || 0) + earning;
+
+            // Credit wallet
+            if (!partner.wallet) {
+                partner.wallet = {
+                    balance: 0,
+                    pendingBalance: 0,
+                    totalEarnings: 0,
+                    totalWithdrawn: 0,
+                };
+            }
+            partner.wallet.balance += earning;
+            partner.wallet.totalEarnings += earning;
+
             await partner.save();
+            console.log(`Delivery partner ${partnerId} earned ₹${earning} for order ${order.orderNumber}`);
         }
 
         // Send push notification to customer
@@ -1254,6 +1273,164 @@ const getEarningsHistory = async (req, res) => {
     }
 };
 
+// @desc    Get wallet balance for delivery partner
+// @route   GET /api/delivery-partner/wallet/balance
+// @access  Private
+const getWalletBalance = async (req, res) => {
+    try {
+        const partner = await DeliveryPartner.findById(req.user._id);
+
+        if (!partner) {
+            return res.status(404).json({ success: false, message: 'Partner not found' });
+        }
+
+        // Initialize wallet if not exists
+        if (!partner.wallet) {
+            partner.wallet = {
+                balance: 0,
+                pendingBalance: 0,
+                totalEarnings: 0,
+                totalWithdrawn: 0,
+            };
+            await partner.save();
+        }
+
+        res.json({
+            success: true,
+            response: {
+                balance: partner.wallet.balance,
+                pendingBalance: partner.wallet.pendingBalance,
+                totalEarnings: partner.wallet.totalEarnings,
+                totalWithdrawn: partner.wallet.totalWithdrawn,
+                currency: 'INR',
+                currencySymbol: '₹',
+            },
+        });
+    } catch (error) {
+        console.error('Get wallet balance error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Request withdrawal (Delivery Partner)
+// @route   POST /api/delivery-partner/wallet/withdraw
+// @access  Private
+const requestWithdrawal = async (req, res) => {
+    try {
+        const { amount, paymentMethod, upiId, accountHolderName, accountNumber, ifscCode, bankName, mobileNumber } = req.body;
+
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid withdrawal amount' });
+        }
+
+        if (!paymentMethod) {
+            return res.status(400).json({ success: false, message: 'Payment method is required' });
+        }
+
+        const partner = await DeliveryPartner.findById(req.user._id);
+
+        if (!partner) {
+            return res.status(404).json({ success: false, message: 'Partner not found' });
+        }
+
+        if (!partner.wallet || partner.wallet.balance < amount) {
+            return res.status(400).json({ success: false, message: 'Insufficient balance' });
+        }
+
+        if (amount < 100) {
+            return res.status(400).json({ success: false, message: 'Minimum withdrawal amount is ₹100' });
+        }
+
+        // Validate payment details based on method
+        if (paymentMethod === 'upi' && !upiId) {
+            return res.status(400).json({ success: false, message: 'UPI ID is required' });
+        }
+        if (paymentMethod === 'bank_transfer' && (!accountNumber || !ifscCode || !accountHolderName)) {
+            return res.status(400).json({ success: false, message: 'Bank details are required' });
+        }
+        if (['paytm', 'phonepe', 'googlepay'].includes(paymentMethod) && !mobileNumber) {
+            return res.status(400).json({ success: false, message: 'Mobile number is required' });
+        }
+
+        // Create withdrawal request
+        const withdrawalRequest = await WithdrawalRequest.create({
+            requesterType: 'delivery_partner',
+            deliveryPartner: req.user._id,
+            amount,
+            paymentMethod,
+            paymentDetails: {
+                upiId: upiId || '',
+                accountHolderName: accountHolderName || '',
+                accountNumber: accountNumber || '',
+                ifscCode: ifscCode || '',
+                bankName: bankName || '',
+                mobileNumber: mobileNumber || '',
+            },
+            balanceBefore: partner.wallet.balance,
+        });
+
+        // Deduct from balance
+        await DeliveryPartner.findByIdAndUpdate(req.user._id, {
+            $inc: { 'wallet.balance': -amount },
+        });
+
+        const updatedPartner = await DeliveryPartner.findById(req.user._id);
+
+        res.json({
+            success: true,
+            message: 'Withdrawal request submitted successfully',
+            response: {
+                request: withdrawalRequest,
+                wallet: {
+                    balance: updatedPartner.wallet.balance,
+                    pendingBalance: updatedPartner.wallet.pendingBalance,
+                    totalEarnings: updatedPartner.wallet.totalEarnings,
+                    totalWithdrawn: updatedPartner.wallet.totalWithdrawn,
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Request withdrawal error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
+// @desc    Get withdrawal history (Delivery Partner)
+// @route   GET /api/delivery-partner/wallet/withdrawals
+// @access  Private
+const getWithdrawalHistory = async (req, res) => {
+    try {
+        const { page = 1, limit = 20, status } = req.query;
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        const query = { deliveryPartner: req.user._id, requesterType: 'delivery_partner' };
+        if (status) {
+            query.status = status;
+        }
+
+        const withdrawals = await WithdrawalRequest.find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        const total = await WithdrawalRequest.countDocuments(query);
+
+        res.json({
+            success: true,
+            response: {
+                count: withdrawals.length,
+                total,
+                page: parseInt(page),
+                pages: Math.ceil(total / parseInt(limit)),
+                data: withdrawals,
+            },
+        });
+    } catch (error) {
+        console.error('Get withdrawal history error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 module.exports = {
     login,
     verifyOtp,
@@ -1274,4 +1451,8 @@ module.exports = {
     getOrderById,
     getEarnings,
     getEarningsHistory,
+    getWalletBalance,
+    requestWithdrawal,
+    getWithdrawalHistory,
 };
+

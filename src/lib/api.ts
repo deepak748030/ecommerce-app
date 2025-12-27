@@ -874,4 +874,75 @@ export const getAdminActivity = async () => {
     return response.data
 }
 
+// Withdrawal Types
+export interface WithdrawalRequest {
+    _id: string
+    requestId: string
+    requesterType: 'vendor' | 'delivery_partner'
+    user?: { _id: string; name: string; phone: string; avatar?: string }
+    deliveryPartner?: { _id: string; name: string; phone: string; avatar?: string }
+    amount: number
+    paymentMethod: string
+    paymentDetails?: {
+        upiId?: string
+        accountHolderName?: string
+        accountNumber?: string
+        ifscCode?: string
+        bankName?: string
+        mobileNumber?: string
+    }
+    status: 'pending' | 'processing' | 'completed' | 'rejected'
+    adminNotes?: string
+    rejectionReason?: string
+    transactionReference?: string
+    balanceBefore: number
+    balanceAfter?: number
+    createdAt: string
+    updatedAt?: string
+}
+
+export interface WithdrawalStats {
+    pending: number
+    processing: number
+    completed: number
+    rejected: number
+    pendingAmount: number
+    processingAmount: number
+    completedAmount: number
+    rejectedAmount: number
+}
+
+// Withdrawal APIs
+export const getWithdrawalsAdmin = async (params: {
+    page?: number
+    limit?: number
+    search?: string
+    status?: string
+    requesterType?: string
+}) => {
+    const response = await api.get('/admin/withdrawals', { params })
+    return response.data
+}
+
+export const getWithdrawalStats = async () => {
+    const response = await api.get('/admin/withdrawals/stats')
+    return response.data
+}
+
+export const updateWithdrawalStatus = async (
+    id: string,
+    status: string,
+    adminNotes?: string,
+    transactionReference?: string,
+    rejectionReason?: string
+) => {
+    const response = await api.put(`/admin/withdrawals/${id}/status`, {
+        status,
+        adminNotes,
+        transactionReference,
+        rejectionReason,
+    })
+    return response.data
+}
+
 export default api
