@@ -10,7 +10,8 @@ const {
     sendDeliveryStatusNotification,
     sendOrderStatusNotification
 } = require('../services/notificationService');
-const { creditDeliveryPartnerWallet } = require('./walletController');
+const { creditDeliveryPartnerWallet, releasePendingBalance } = require('./walletController');
+const Product = require('../models/Product');
 const otpConfig = require('../config/otpConfig');
 const {
     uploadProfileImage,
@@ -995,12 +996,12 @@ const verifyDeliveryOtp = async (req, res) => {
 
         // Update partner earnings and wallet
         const partner = await DeliveryPartner.findById(partnerId);
-        if (partner) {
-            const earning = getDeliveryAmount(order) + (order.deliveryTip || 0);
+        const deliveryEarning = getDeliveryAmount(order) + (order.deliveryTip || 0);
 
+        if (partner) {
             // Update earnings tracking
-            partner.earnings.today = (partner.earnings.today || 0) + earning;
-            partner.earnings.total = (partner.earnings.total || 0) + earning;
+            partner.earnings.today = (partner.earnings.today || 0) + deliveryEarning;
+            partner.earnings.total = (partner.earnings.total || 0) + deliveryEarning;
 
             // Credit wallet
             if (!partner.wallet) {
@@ -1011,11 +1012,78 @@ const verifyDeliveryOtp = async (req, res) => {
                     totalWithdrawn: 0,
                 };
             }
-            partner.wallet.balance += earning;
-            partner.wallet.totalEarnings += earning;
+            partner.wallet.balance += deliveryEarning;
+            partner.wallet.totalEarnings += deliveryEarning;
 
             await partner.save();
-            console.log(`Delivery partner ${partnerId} earned ₹${earning} for order ${order.orderNumber}`);
+            console.log(`Delivery partner ${partnerId} earned ₹${deliveryEarning} for order ${order.orderNumber}`);
+        }
+
+        // Release vendor pending balance to wallet (for online payments)
+        if (order.paymentMethod !== 'cod') {
+            // Need to get product details to find vendors
+            const orderWithProducts = await Order.findById(orderId).populate('items.product', 'createdBy price');
+
+            if (orderWithProducts) {
+                const vendorReleases = {};
+                for (const item of orderWithProducts.items) {
+                    if (item.product && item.product.createdBy) {
+                        const vendorId = item.product.createdBy.toString();
+                        const itemTotal = item.price * item.quantity;
+                        const vendorShare = Math.round(itemTotal * 0.9); // 90% after platform fee
+
+                        if (!vendorReleases[vendorId]) {
+                            vendorReleases[vendorId] = 0;
+                        }
+                        vendorReleases[vendorId] += vendorShare;
+                    }
+                }
+
+                // Release pending balance for each vendor (deducting delivery payment)
+                for (const [vendorId, amount] of Object.entries(vendorReleases)) {
+                    await releasePendingBalance(vendorId, amount, orderId, deliveryEarning);
+                    console.log(`Vendor ${vendorId} pending balance released: ₹${amount} (delivery deducted: ₹${deliveryEarning})`);
+                }
+            }
+        } else {
+            // For COD orders, credit vendors when delivered
+            const orderWithProducts = await Order.findById(orderId).populate('items.product', 'createdBy price');
+
+            if (orderWithProducts) {
+                const vendorCredits = {};
+                for (const item of orderWithProducts.items) {
+                    if (item.product && item.product.createdBy) {
+                        const vendorId = item.product.createdBy.toString();
+                        const itemTotal = item.price * item.quantity;
+                        const vendorShare = Math.round(itemTotal * 0.9); // 90% after platform fee
+
+                        if (!vendorCredits[vendorId]) {
+                            vendorCredits[vendorId] = 0;
+                        }
+                        vendorCredits[vendorId] += vendorShare;
+                    }
+                }
+
+                // Credit vendor wallets for COD orders (minus delivery payment)
+                for (const [vendorId, amount] of Object.entries(vendorCredits)) {
+                    const vendorActualEarning = Math.max(0, amount - deliveryEarning);
+                    const vendor = await User.findById(vendorId);
+                    if (vendor) {
+                        if (!vendor.wallet) {
+                            vendor.wallet = {
+                                balance: 0,
+                                pendingBalance: 0,
+                                totalEarnings: 0,
+                                totalWithdrawn: 0,
+                            };
+                        }
+                        vendor.wallet.balance += vendorActualEarning;
+                        vendor.wallet.totalEarnings += vendorActualEarning;
+                        await vendor.save();
+                        console.log(`COD order: Vendor ${vendorId} credited ₹${vendorActualEarning} (delivery deducted: ₹${deliveryEarning})`);
+                    }
+                }
+            }
         }
 
         // Send push notification to customer
