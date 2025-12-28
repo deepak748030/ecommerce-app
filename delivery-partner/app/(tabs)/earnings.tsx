@@ -1,10 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Wallet, Package, Star, ChevronRight, IndianRupee, ArrowUpRight } from 'lucide-react-native';
+import { Wallet, Package, Star, ChevronRight, IndianRupee, ArrowUpRight, ArrowDownLeft, TrendingUp } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../hooks/useTheme';
-import { earningsApi, walletApi, EarningsSummary, EarningsHistoryItem, WalletBalance } from '../../lib/api';
+import { earningsApi, walletApi, EarningsSummary, WalletBalance, WalletTransaction, WalletTransactionsResponse } from '../../lib/api';
 import { router } from 'expo-router';
 import { WithdrawModal, WithdrawData } from '../../components/WithdrawModal';
 
@@ -14,53 +14,74 @@ export default function EarningsScreen() {
 
     const [earnings, setEarnings] = useState<EarningsSummary | null>(null);
     const [walletBalance, setWalletBalance] = useState<WalletBalance | null>(null);
-    const [history, setHistory] = useState<EarningsHistoryItem[]>([]);
+    const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [withdrawModalVisible, setWithdrawModalVisible] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
 
-    const fetchData = useCallback(async (isRefresh: boolean = false) => {
+    const fetchData = useCallback(async (isRefresh: boolean = false, pageNum: number = 1) => {
         try {
             if (isRefresh) {
                 setRefreshing(true);
-            } else {
+                setPage(1);
+                pageNum = 1;
+            } else if (pageNum === 1) {
                 setLoading(true);
             }
 
-            const [earningsResult, historyResult, walletResult] = await Promise.all([
+            const [earningsResult, walletResult, transactionsResult] = await Promise.all([
                 earningsApi.getEarnings(),
-                earningsApi.getEarningsHistory(1, 5),
                 walletApi.getWalletBalance(),
+                walletApi.getWalletTransactions(pageNum, 15),
             ]);
 
             if (earningsResult.success && earningsResult.response) {
                 setEarnings(earningsResult.response);
             }
 
-            if (historyResult.success && historyResult.response) {
-                setHistory(historyResult.response.data || []);
-            }
-
             if (walletResult.success && walletResult.response) {
                 setWalletBalance(walletResult.response);
+            }
+
+            if (transactionsResult.success && transactionsResult.response) {
+                const newTransactions = transactionsResult.response.data || [];
+                if (pageNum === 1) {
+                    setTransactions(newTransactions);
+                } else {
+                    setTransactions(prev => [...prev, ...newTransactions]);
+                }
+                setHasMore(transactionsResult.response.hasMore);
             }
         } catch (error) {
             console.error('Error fetching earnings:', error);
         } finally {
             setLoading(false);
             setRefreshing(false);
+            setLoadingMore(false);
         }
     }, []);
 
     useFocusEffect(
         useCallback(() => {
-            fetchData(false);
+            fetchData(false, 1);
         }, [fetchData])
     );
 
     const handleRefresh = useCallback(() => {
         fetchData(true);
     }, [fetchData]);
+
+    const handleLoadMore = useCallback(() => {
+        if (!loadingMore && hasMore) {
+            setLoadingMore(true);
+            const nextPage = page + 1;
+            setPage(nextPage);
+            fetchData(false, nextPage);
+        }
+    }, [loadingMore, hasMore, page, fetchData]);
 
     const handleWithdraw = async (data: WithdrawData): Promise<{ success: boolean; message?: string }> => {
         try {
@@ -73,6 +94,141 @@ export default function EarningsScreen() {
         } catch (error) {
             return { success: false, message: 'Something went wrong' };
         }
+    };
+
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    };
+
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'completed': return colors.success;
+            case 'pending': return colors.warning;
+            case 'processing': return colors.info || colors.primary;
+            case 'rejected': return colors.destructive;
+            default: return colors.mutedForeground;
+        }
+    };
+
+    const renderTransaction = ({ item }: { item: WalletTransaction }) => (
+        <View style={styles.transactionCard}>
+            <View style={[styles.transactionIcon, { backgroundColor: item.type === 'credit' ? colors.success + '20' : colors.warning + '20' }]}>
+                {item.type === 'credit' ? (
+                    <TrendingUp size={18} color={colors.success} />
+                ) : (
+                    <ArrowDownLeft size={18} color={colors.warning} />
+                )}
+            </View>
+            <View style={styles.transactionInfo}>
+                <Text style={styles.transactionDesc} numberOfLines={1}>{item.description}</Text>
+                <Text style={styles.transactionDate}>{formatDate(item.createdAt)}</Text>
+            </View>
+            <View style={styles.transactionRight}>
+                <Text style={[styles.transactionAmount, { color: item.type === 'credit' ? colors.success : colors.foreground }]}>
+                    {item.type === 'credit' ? '+' : '-'}₹{item.amount}
+                </Text>
+                {item.tip && item.tip > 0 && (
+                    <Text style={styles.transactionTip}>+₹{item.tip} tip</Text>
+                )}
+                {item.type === 'withdrawal' && (
+                    <Text style={[styles.transactionStatus, { color: getStatusColor(item.status) }]}>
+                        {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                    </Text>
+                )}
+            </View>
+        </View>
+    );
+
+    const renderHeader = () => (
+        <>
+            {/* Wallet Balance Card */}
+            {walletBalance && (
+                <View style={styles.mainCard}>
+                    <View style={styles.walletHeader}>
+                        <Text style={styles.mainLabel}>Wallet Balance</Text>
+                        {walletBalance.balance >= 100 && (
+                            <Pressable style={styles.withdrawBtn} onPress={() => setWithdrawModalVisible(true)}>
+                                <ArrowUpRight size={14} color={colors.primary} />
+                                <Text style={styles.withdrawBtnText}>Withdraw</Text>
+                            </Pressable>
+                        )}
+                    </View>
+                    <Text style={styles.mainAmount}>₹{walletBalance.balance.toLocaleString()}</Text>
+                    <View style={styles.mainDivider} />
+                    <View style={styles.mainStats}>
+                        <View style={styles.mainStatItem}>
+                            <Text style={styles.mainStatValue}>₹{walletBalance.pendingBalance || 0}</Text>
+                            <Text style={styles.mainStatLabel}>Pending</Text>
+                        </View>
+                        <View style={styles.mainStatDivider} />
+                        <View style={styles.mainStatItem}>
+                            <Text style={styles.mainStatValue}>₹{walletBalance.totalWithdrawn || 0}</Text>
+                            <Text style={styles.mainStatLabel}>Withdrawn</Text>
+                        </View>
+                    </View>
+                </View>
+            )}
+
+            {/* Monthly Earnings Card */}
+            <View style={[styles.mainCard, { backgroundColor: colors.accent }]}>
+                <Text style={styles.mainLabel}>This Month</Text>
+                <Text style={styles.mainAmount}>₹{(earnings?.thisMonth || 0).toLocaleString()}</Text>
+                <View style={styles.mainDivider} />
+                <View style={styles.mainStats}>
+                    <View style={styles.mainStatItem}>
+                        <Text style={styles.mainStatValue}>₹{earnings?.thisWeek || 0}</Text>
+                        <Text style={styles.mainStatLabel}>This Week</Text>
+                    </View>
+                    <View style={styles.mainStatDivider} />
+                    <View style={styles.mainStatItem}>
+                        <Text style={styles.mainStatValue}>₹{earnings?.today || 0}</Text>
+                        <Text style={styles.mainStatLabel}>Today</Text>
+                    </View>
+                </View>
+            </View>
+
+            {/* Stats Cards */}
+            <View style={styles.statsRow}>
+                <View style={[styles.statCard, { backgroundColor: colors.statCard1 }]}>
+                    <Package size={18} color={colors.primary} />
+                    <Text style={styles.statValue}>{earnings?.totalDeliveries || 0}</Text>
+                    <Text style={styles.statLabel}>Deliveries</Text>
+                </View>
+                <View style={[styles.statCard, { backgroundColor: colors.statCard2 }]}>
+                    <IndianRupee size={18} color={colors.primary} />
+                    <Text style={styles.statValue}>₹{earnings?.totalTips || 0}</Text>
+                    <Text style={styles.statLabel}>Total Tips</Text>
+                </View>
+                <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
+                    <Star size={18} color={colors.primary} />
+                    <Text style={styles.statValue}>{earnings?.avgRating?.toFixed(1) || '5.0'}</Text>
+                    <Text style={styles.statLabel}>Rating</Text>
+                </View>
+            </View>
+
+            {/* Transaction History Header */}
+            <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Transaction History</Text>
+            </View>
+        </>
+    );
+
+    const renderEmpty = () => (
+        <View style={styles.emptyState}>
+            <Wallet size={40} color={colors.mutedForeground} />
+            <Text style={styles.emptyText}>No transactions yet</Text>
+            <Text style={styles.emptySubtext}>Complete deliveries to see your earnings here</Text>
+        </View>
+    );
+
+    const renderFooter = () => {
+        if (!loadingMore) return null;
+        return (
+            <View style={styles.loadingMore}>
+                <ActivityIndicator size="small" color={colors.primary} />
+            </View>
+        );
     };
 
     const renderSkeleton = () => (
@@ -119,10 +275,17 @@ export default function EarningsScreen() {
                 <Text style={styles.title}>My Earnings</Text>
             </View>
 
-            <ScrollView
-                style={styles.scrollView}
+            <FlatList
+                data={transactions}
+                renderItem={renderTransaction}
+                keyExtractor={(item, index) => `${item._id}-${index}`}
+                ListHeaderComponent={renderHeader}
+                ListEmptyComponent={renderEmpty}
+                ListFooterComponent={renderFooter}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.3}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
@@ -131,104 +294,7 @@ export default function EarningsScreen() {
                         colors={[colors.primary]}
                     />
                 }
-            >
-                {/* Wallet Balance Card */}
-                {walletBalance && (
-                    <View style={styles.mainCard}>
-                        <View style={styles.walletHeader}>
-                            <Text style={styles.mainLabel}>Wallet Balance</Text>
-                            {walletBalance.balance >= 100 && (
-                                <Pressable style={styles.withdrawBtn} onPress={() => setWithdrawModalVisible(true)}>
-                                    <ArrowUpRight size={14} color={colors.primary} />
-                                    <Text style={styles.withdrawBtnText}>Withdraw</Text>
-                                </Pressable>
-                            )}
-                        </View>
-                        <Text style={styles.mainAmount}>₹{walletBalance.balance.toLocaleString()}</Text>
-                        <View style={styles.mainDivider} />
-                        <View style={styles.mainStats}>
-                            <View style={styles.mainStatItem}>
-                                <Text style={styles.mainStatValue}>₹{walletBalance.pendingBalance || 0}</Text>
-                                <Text style={styles.mainStatLabel}>Pending</Text>
-                            </View>
-                            <View style={styles.mainStatDivider} />
-                            <View style={styles.mainStatItem}>
-                                <Text style={styles.mainStatValue}>₹{walletBalance.totalWithdrawn || 0}</Text>
-                                <Text style={styles.mainStatLabel}>Withdrawn</Text>
-                            </View>
-                        </View>
-                    </View>
-                )}
-
-                {/* Monthly Earnings Card */}
-                <View style={[styles.mainCard, { backgroundColor: colors.accent }]}>
-                    <Text style={styles.mainLabel}>This Month</Text>
-                    <Text style={styles.mainAmount}>₹{(earnings?.thisMonth || 0).toLocaleString()}</Text>
-                    <View style={styles.mainDivider} />
-                    <View style={styles.mainStats}>
-                        <View style={styles.mainStatItem}>
-                            <Text style={styles.mainStatValue}>₹{earnings?.thisWeek || 0}</Text>
-                            <Text style={styles.mainStatLabel}>This Week</Text>
-                        </View>
-                        <View style={styles.mainStatDivider} />
-                        <View style={styles.mainStatItem}>
-                            <Text style={styles.mainStatValue}>₹{earnings?.today || 0}</Text>
-                            <Text style={styles.mainStatLabel}>Today</Text>
-                        </View>
-                    </View>
-                </View>
-
-                {/* Stats Cards */}
-                <View style={styles.statsRow}>
-                    <View style={[styles.statCard, { backgroundColor: colors.statCard1 }]}>
-                        <Package size={18} color={colors.primary} />
-                        <Text style={styles.statValue}>{earnings?.totalDeliveries || 0}</Text>
-                        <Text style={styles.statLabel}>Deliveries</Text>
-                    </View>
-                    <View style={[styles.statCard, { backgroundColor: colors.statCard2 }]}>
-                        <IndianRupee size={18} color={colors.primary} />
-                        <Text style={styles.statValue}>₹{earnings?.totalTips || 0}</Text>
-                        <Text style={styles.statLabel}>Total Tips</Text>
-                    </View>
-                    <View style={[styles.statCard, { backgroundColor: colors.secondary }]}>
-                        <Star size={18} color={colors.primary} />
-                        <Text style={styles.statValue}>{earnings?.avgRating?.toFixed(1) || '5.0'}</Text>
-                        <Text style={styles.statLabel}>Rating</Text>
-                    </View>
-                </View>
-
-                {/* Recent History */}
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Recent Earnings</Text>
-                    <Pressable style={styles.viewAllBtn} onPress={() => router.push('/earnings-history' as any)}>
-                        <Text style={styles.viewAllText}>View All</Text>
-                        <ChevronRight size={14} color={colors.primary} />
-                    </Pressable>
-                </View>
-
-                {history.length === 0 ? (
-                    <View style={styles.emptyState}>
-                        <Wallet size={40} color={colors.mutedForeground} />
-                        <Text style={styles.emptyText}>No earnings history yet</Text>
-                        <Text style={styles.emptySubtext}>Complete deliveries to see your earnings here</Text>
-                    </View>
-                ) : (
-                    history.map((item, index) => (
-                        <View key={index} style={styles.historyCard}>
-                            <View style={styles.historyLeft}>
-                                <Text style={styles.historyDate}>{item.date}</Text>
-                                <Text style={styles.historyDeliveries}>{item.deliveries} deliveries</Text>
-                            </View>
-                            <View style={styles.historyRight}>
-                                <Text style={styles.historyAmount}>₹{item.amount}</Text>
-                                {item.tips > 0 && (
-                                    <Text style={styles.historyTips}>+₹{item.tips} tips</Text>
-                                )}
-                            </View>
-                        </View>
-                    ))
-                )}
-            </ScrollView>
+            />
 
             {/* Withdraw Modal */}
             <WithdrawModal
@@ -254,9 +320,6 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         fontSize: 22,
         fontWeight: '800',
         color: colors.foreground,
-    },
-    scrollView: {
-        flex: 1,
     },
     scrollContent: {
         paddingHorizontal: 6,
@@ -338,47 +401,50 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         fontWeight: '700',
         color: colors.foreground,
     },
-    viewAllBtn: {
+    transactionCard: {
         flexDirection: 'row',
-        alignItems: 'center',
-        gap: 2,
-    },
-    viewAllText: {
-        fontSize: 12,
-        color: colors.primary,
-        fontWeight: '600',
-    },
-    historyCard: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
         backgroundColor: colors.card,
-        borderRadius: 10,
+        borderRadius: 12,
         padding: 12,
         marginBottom: 8,
+        gap: 12,
     },
-    historyLeft: {},
-    historyDate: {
+    transactionIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    transactionInfo: {
+        flex: 1,
+    },
+    transactionDesc: {
         fontSize: 14,
         fontWeight: '600',
         color: colors.foreground,
     },
-    historyDeliveries: {
+    transactionDate: {
         fontSize: 11,
         color: colors.mutedForeground,
         marginTop: 2,
     },
-    historyRight: {
+    transactionRight: {
         alignItems: 'flex-end',
     },
-    historyAmount: {
+    transactionAmount: {
         fontSize: 15,
         fontWeight: '700',
-        color: colors.foreground,
     },
-    historyTips: {
+    transactionTip: {
         fontSize: 11,
         color: colors.success,
+        marginTop: 2,
+    },
+    transactionStatus: {
+        fontSize: 10,
+        fontWeight: '600',
         marginTop: 2,
     },
     emptyState: {
@@ -395,6 +461,10 @@ const createStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     emptySubtext: {
         fontSize: 12,
         color: colors.mutedForeground,
+    },
+    loadingMore: {
+        paddingVertical: 20,
+        alignItems: 'center',
     },
     skeletonContainer: {
         paddingHorizontal: 6,

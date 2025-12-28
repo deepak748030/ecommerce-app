@@ -556,11 +556,41 @@ export interface WithdrawalHistoryResponse {
     data: WithdrawalRequest[];
 }
 
+// Wallet Transaction interface
+export interface WalletTransaction {
+    _id: string;
+    transactionId: string;
+    type: 'credit' | 'withdrawal';
+    amount: number;
+    tip?: number;
+    description: string;
+    status: 'pending' | 'processing' | 'completed' | 'rejected';
+    orderNumber?: string;
+    createdAt: string;
+    processedAt?: string;
+}
+
+export interface WalletTransactionsResponse {
+    count: number;
+    total: number;
+    page: number;
+    pages: number;
+    hasMore: boolean;
+    data: WalletTransaction[];
+}
+
 // Wallet API
 export const walletApi = {
     // Get wallet balance
     getWalletBalance: async () => {
         return authFetch<WalletBalance>('/delivery-partner/wallet/balance', {
+            method: 'GET',
+        });
+    },
+
+    // Get wallet transactions with pagination
+    getWalletTransactions: async (page: number = 1, limit: number = 20) => {
+        return authFetch<WalletTransactionsResponse>(`/delivery-partner/wallet/transactions?page=${page}&limit=${limit}`, {
             method: 'GET',
         });
     },

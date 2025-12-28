@@ -924,7 +924,7 @@ export const vendorApi = {
         if (params?.page) query.append('page', params.page.toString());
         if (params?.limit) query.append('limit', params.limit.toString());
 
-        return apiRequest<{ count: number; total: number; data: VendorOrder[] }>(`/vendor/orders?${query.toString()}`);
+        return apiRequest<{ count: number; total: number; page: number; pages: number; data: VendorOrder[] }>(`/vendor/orders?${query.toString()}`);
     },
 
     // Update order status

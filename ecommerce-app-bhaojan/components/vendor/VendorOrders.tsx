@@ -14,12 +14,12 @@ import { VendorOrder, getImageUrl } from '@/lib/api';
 import { VendorOrderSkeleton } from '@/components/Skeleton';
 import { ShippingModal } from './ShippingModal';
 
+// Vendors cannot set 'delivered' status - only delivery partners can
 const STATUS_OPTIONS = [
     { value: 'pending', label: 'Pending' },
     { value: 'confirmed', label: 'Confirmed' },
     { value: 'processing', label: 'Processing' },
     { value: 'shipped', label: 'Shipped' },
-    { value: 'delivered', label: 'Delivered' },
     { value: 'cancelled', label: 'Cancelled' },
 ];
 
@@ -142,24 +142,26 @@ export function VendorOrders({ orders, loading, updatingOrderId, onUpdateStatus,
                 <Text style={styles.orderTotal}>₹{item.vendorSubtotal}</Text>
             </View>
 
-            {/* Update Status */}
-            <View style={styles.updateStatusSection}>
-                <Text style={styles.updateStatusLabel}>Status:</Text>
-                <Pressable
-                    style={styles.statusPickerButton}
-                    onPress={() => setShowStatusPicker(showStatusPicker === item._id ? null : item._id)}
-                    disabled={updatingOrderId === item._id}
-                >
-                    {updatingOrderId === item._id ? (
-                        <ActivityIndicator size="small" color={colors.primary} />
-                    ) : (
-                        <>
-                            <Text style={styles.statusPickerText}>{formatStatus(item.status)}</Text>
-                            <ChevronDown size={16} color={colors.mutedForeground} />
-                        </>
-                    )}
-                </Pressable>
-            </View>
+            {/* Update Status - Hidden for delivered orders */}
+            {item.status !== 'delivered' && (
+                <View style={styles.updateStatusSection}>
+                    <Text style={styles.updateStatusLabel}>Status:</Text>
+                    <Pressable
+                        style={styles.statusPickerButton}
+                        onPress={() => setShowStatusPicker(showStatusPicker === item._id ? null : item._id)}
+                        disabled={updatingOrderId === item._id}
+                    >
+                        {updatingOrderId === item._id ? (
+                            <ActivityIndicator size="small" color={colors.primary} />
+                        ) : (
+                            <>
+                                <Text style={styles.statusPickerText}>{formatStatus(item.status)}</Text>
+                                <ChevronDown size={16} color={colors.mutedForeground} />
+                            </>
+                        )}
+                    </Pressable>
+                </View>
+            )}
 
             {showStatusPicker === item._id && (
                 <View style={styles.statusDropdown}>

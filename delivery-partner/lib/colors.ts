@@ -29,6 +29,7 @@ export const lightColors = {
   destructive: '#EF4444',
   success: '#22C55E',
   warning: '#EAB308',
+  info: '#3B82F6',
 
   // Border & Input
   border: '#E5E7EB',
@@ -72,6 +73,7 @@ export const darkColors = {
   destructive: '#EF4444',
   success: '#22C55E',
   warning: '#EAB308',
+  info: '#3B82F6',
 
   // Border & Input
   border: '#4B4460',

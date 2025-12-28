@@ -13,7 +13,6 @@ import { ActionModal } from '@/components/ActionModal';
 import { CheckoutSkeleton } from '@/components/Skeleton';
 
 const paymentMethods = [
-    { id: 'cod', name: 'Cash on Delivery', icon: Banknote, description: 'Pay when you receive' },
     { id: 'upi', name: 'UPI', icon: Smartphone, description: 'Pay using UPI apps' },
     { id: 'card', name: 'Credit/Debit Card', icon: CreditCard, description: 'Visa, Mastercard, RuPay' },
     { id: 'wallet', name: 'Wallet', icon: Wallet, description: 'Paytm, PhonePe, etc.' },
@@ -46,7 +45,7 @@ export default function CheckoutScreen() {
 
     const { cartItems, subtotal: cartSubtotal, discount: cartDiscount, delivery: cartDelivery, tax: cartTax, total: cartTotal, itemCount: cartItemCount, loading: cartLoading, getCartForOrder, clearCart } = useCart();
     const { selectedAddress, addresses, loading: addressLoading } = useAddress();
-    const [selectedPayment, setSelectedPayment] = useState('cod');
+    const [selectedPayment, setSelectedPayment] = useState('upi');
     const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
@@ -68,10 +67,9 @@ export default function CheckoutScreen() {
     const mrpTotal = isBuyNow && buyNowItem ? buyNowItem.mrp * buyNowItem.quantity : baseSubtotal;
     const itemCount = isBuyNow && buyNowItem ? buyNowItem.quantity : cartItemCount;
 
-    // Calculate discount (coupon or default 10%)
+    // Calculate discount (only when coupon is applied)
     const couponDiscount = appliedCoupon?.discountAmount || 0;
-    const defaultDiscount = appliedCoupon ? 0 : Math.round(baseSubtotal * 0.1);
-    const totalDiscount = couponDiscount + defaultDiscount;
+    const totalDiscount = couponDiscount;
 
     const delivery = baseSubtotal > 500 ? 0 : 40;
     const tax = Math.round(baseSubtotal * 0.05);
@@ -383,15 +381,10 @@ export default function CheckoutScreen() {
                             <Text style={styles.summaryLabel}>Subtotal ({itemCount} {itemCount === 1 ? 'item' : 'items'})</Text>
                             <Text style={styles.summaryValue}>₹{baseSubtotal}</Text>
                         </View>
-                        {appliedCoupon ? (
+                        {appliedCoupon && couponDiscount > 0 && (
                             <View style={styles.summaryRow}>
                                 <Text style={styles.summaryLabel}>Coupon ({appliedCoupon.code})</Text>
                                 <Text style={[styles.summaryValue, { color: colors.success }]}>-₹{couponDiscount}</Text>
-                            </View>
-                        ) : (
-                            <View style={styles.summaryRow}>
-                                <Text style={styles.summaryLabel}>Discount (10%)</Text>
-                                <Text style={[styles.summaryValue, { color: colors.success }]}>-₹{defaultDiscount}</Text>
                             </View>
                         )}
                         <View style={styles.summaryRow}>

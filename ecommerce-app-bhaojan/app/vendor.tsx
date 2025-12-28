@@ -43,6 +43,9 @@ export default function VendorScreen() {
     // Orders state
     const [orders, setOrders] = useState<VendorOrder[]>([]);
     const [ordersLoading, setOrdersLoading] = useState(true);
+    const [ordersLoadingMore, setOrdersLoadingMore] = useState(false);
+    const [ordersPage, setOrdersPage] = useState(1);
+    const [ordersHasMore, setOrdersHasMore] = useState(true);
     const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
     // Create product state
@@ -96,19 +99,39 @@ export default function VendorScreen() {
         }
     };
 
-    const loadOrders = async () => {
+    const loadOrders = async (pageNum: number = 1, isLoadMore: boolean = false) => {
         try {
-            setOrdersLoading(true);
-            const result = await vendorApi.getOrders();
+            if (isLoadMore) {
+                setOrdersLoadingMore(true);
+            } else {
+                setOrdersLoading(true);
+                setOrdersPage(1);
+                pageNum = 1;
+            }
+            const result = await vendorApi.getOrders({ page: pageNum });
             if (result.success && result.response) {
-                setOrders(result.response.data);
+                const responseData = result.response;
+                if (isLoadMore) {
+                    setOrders(prev => [...prev, ...responseData.data]);
+                } else {
+                    setOrders(responseData.data);
+                }
+                setOrdersHasMore(responseData.page < responseData.pages);
+                setOrdersPage(pageNum);
             }
         } catch (error) {
             console.error('Error loading vendor orders:', error);
         } finally {
             setOrdersLoading(false);
+            setOrdersLoadingMore(false);
         }
     };
+
+    const handleLoadMoreOrders = useCallback(() => {
+        if (!ordersLoadingMore && ordersHasMore) {
+            loadOrders(ordersPage + 1, true);
+        }
+    }, [ordersLoadingMore, ordersHasMore, ordersPage]);
 
     useFocusEffect(
         useCallback(() => {
@@ -352,6 +375,9 @@ export default function VendorScreen() {
                         loading={ordersLoading}
                         updatingOrderId={updatingOrderId}
                         onUpdateStatus={handleUpdateOrderStatus}
+                        onLoadMore={handleLoadMoreOrders}
+                        loadingMore={ordersLoadingMore}
+                        hasMore={ordersHasMore}
                     />
                 )}
             </View>
