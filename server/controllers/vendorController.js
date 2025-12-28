@@ -395,6 +395,26 @@ const updateVendorOrderStatus = async (req, res) => {
             });
         }
 
+        // Find the order first to check current status
+        const order = await Order.findById(req.params.id)
+            .populate('user', 'expoPushToken name')
+            .populate('items.product', 'createdBy price');
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found',
+            });
+        }
+
+        // Prevent changing status if order is already delivered
+        if (order.status === 'delivered') {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot change status of delivered orders',
+            });
+        }
+
         // When shipping, require delivery payment and time
         if (status === 'shipped') {
             if (deliveryPayment === undefined || deliveryPayment === null) {
@@ -419,18 +439,6 @@ const updateVendorOrderStatus = async (req, res) => {
             return res.status(403).json({
                 success: false,
                 message: 'You have no products',
-            });
-        }
-
-        // Find the order and check if it contains vendor's products
-        const order = await Order.findById(req.params.id)
-            .populate('user', 'expoPushToken name')
-            .populate('items.product', 'createdBy price');
-
-        if (!order) {
-            return res.status(404).json({
-                success: false,
-                message: 'Order not found',
             });
         }
 
