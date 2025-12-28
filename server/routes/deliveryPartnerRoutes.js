@@ -23,6 +23,7 @@ const {
     getWalletBalance,
     requestWithdrawal,
     getWithdrawalHistory,
+    getWalletTransactions,
 } = require('../controllers/deliveryPartnerController');
 const { protectPartner } = require('../middleware/auth');
 
@@ -55,6 +56,7 @@ router.get('/earnings/history', protectPartner, getEarningsHistory);
 
 // Wallet routes
 router.get('/wallet/balance', protectPartner, getWalletBalance);
+router.get('/wallet/transactions', protectPartner, getWalletTransactions);
 router.post('/wallet/withdraw', protectPartner, requestWithdrawal);
 router.get('/wallet/withdrawals', protectPartner, getWithdrawalHistory);
 

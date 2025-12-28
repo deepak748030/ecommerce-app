@@ -121,18 +121,16 @@ const createOrder = async (req, res) => {
             description: `Payment for order ${order.orderNumber}`,
         });
 
-        // Credit vendor wallets for online payments (not COD)
-        if (paymentMethod !== 'cod') {
-            for (const [vendorId, amount] of Object.entries(vendorEarnings)) {
-                // Calculate vendor's share (90% after platform fee)
-                const vendorShare = Math.round(amount * 0.9);
-                await creditVendorWallet(
-                    vendorId,
-                    vendorShare,
-                    order._id,
-                    `Order #${order.orderNumber} - Payment received`
-                );
-            }
+        // Credit vendor wallets for all payments (online only, no COD)
+        for (const [vendorId, amount] of Object.entries(vendorEarnings)) {
+            // Calculate vendor's share (90% after platform fee)
+            const vendorShare = Math.round(amount * 0.9);
+            await creditVendorWallet(
+                vendorId,
+                vendorShare,
+                order._id,
+                `Order #${order.orderNumber} - Payment received`
+            );
         }
 
         // Create in-app notification for order placed
@@ -308,32 +306,30 @@ const cancelOrder = async (req, res) => {
             refundedAt: new Date(),
         });
 
-        // Debit vendor wallets on cancellation (for online payments)
-        if (order.paymentMethod !== 'cod') {
-            // Group items by vendor and calculate amounts to debit
-            const vendorDebits = {};
-            for (const item of order.items) {
-                if (item.product && item.product.createdBy) {
-                    const vendorId = item.product.createdBy.toString();
-                    const itemTotal = item.price * item.quantity;
-                    const vendorShare = Math.round(itemTotal * 0.9); // Same 90% as credit
+        // Debit vendor wallets on cancellation (all payments are online now)
+        // Group items by vendor and calculate amounts to debit
+        const vendorDebits = {};
+        for (const item of order.items) {
+            if (item.product && item.product.createdBy) {
+                const vendorId = item.product.createdBy.toString();
+                const itemTotal = item.price * item.quantity;
+                const vendorShare = Math.round(itemTotal * 0.9); // Same 90% as credit
 
-                    if (!vendorDebits[vendorId]) {
-                        vendorDebits[vendorId] = 0;
-                    }
-                    vendorDebits[vendorId] += vendorShare;
+                if (!vendorDebits[vendorId]) {
+                    vendorDebits[vendorId] = 0;
                 }
+                vendorDebits[vendorId] += vendorShare;
             }
+        }
 
-            // Debit each vendor
-            for (const [vendorId, amount] of Object.entries(vendorDebits)) {
-                await debitVendorWallet(
-                    vendorId,
-                    amount,
-                    order._id,
-                    `Order #${order.orderNumber} cancelled - refund deducted`
-                );
-            }
+        // Debit each vendor
+        for (const [vendorId, amount] of Object.entries(vendorDebits)) {
+            await debitVendorWallet(
+                vendorId,
+                amount,
+                order._id,
+                `Order #${order.orderNumber} cancelled - refund deducted`
+            );
         }
 
         // Create in-app notification for cancellation
@@ -476,25 +472,23 @@ const updateOrderStatus = async (req, res) => {
         if (status === 'delivered') {
             order.deliveredAt = new Date();
 
-            // Release pending balance to vendors (for online payments)
-            if (order.paymentMethod !== 'cod') {
-                const vendorReleases = {};
-                for (const item of order.items) {
-                    if (item.product && item.product.createdBy) {
-                        const vendorId = item.product.createdBy.toString();
-                        const itemTotal = item.price * item.quantity;
-                        const vendorShare = Math.round(itemTotal * 0.9);
+            // Release pending balance to vendors (all payments are online now)
+            const vendorReleases = {};
+            for (const item of order.items) {
+                if (item.product && item.product.createdBy) {
+                    const vendorId = item.product.createdBy.toString();
+                    const itemTotal = item.price * item.quantity;
+                    const vendorShare = Math.round(itemTotal * 0.9);
 
-                        if (!vendorReleases[vendorId]) {
-                            vendorReleases[vendorId] = 0;
-                        }
-                        vendorReleases[vendorId] += vendorShare;
+                    if (!vendorReleases[vendorId]) {
+                        vendorReleases[vendorId] = 0;
                     }
+                    vendorReleases[vendorId] += vendorShare;
                 }
+            }
 
-                for (const [vendorId, amount] of Object.entries(vendorReleases)) {
-                    await releasePendingBalance(vendorId, amount, order._id);
-                }
+            for (const [vendorId, amount] of Object.entries(vendorReleases)) {
+                await releasePendingBalance(vendorId, amount, order._id);
             }
         }
 

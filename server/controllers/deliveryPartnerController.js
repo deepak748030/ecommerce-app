@@ -1498,6 +1498,90 @@ const getWithdrawalHistory = async (req, res) => {
     }
 };
 
+// @desc    Get wallet transactions (Delivery Partner)
+// @route   GET /api/delivery-partner/wallet/transactions
+// @access  Private
+const getWalletTransactions = async (req, res) => {
+    try {
+        const partnerId = req.user._id;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const skip = (page - 1) * limit;
+
+        // Get delivered orders as earnings transactions
+        const deliveredOrders = await Order.find({
+            deliveryPartner: partnerId,
+            status: 'delivered',
+        })
+            .sort({ deliveredAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .select('orderNumber deliveryPayment deliveryFee deliveryTip deliveredAt total');
+
+        // Get withdrawal requests
+        const withdrawals = await WithdrawalRequest.find({
+            deliveryPartner: partnerId,
+            requesterType: 'delivery_partner',
+        })
+            .sort({ createdAt: -1 })
+            .select('requestId amount status paymentMethod createdAt processedAt');
+
+        // Combine and format transactions
+        const earningsTransactions = deliveredOrders.map(order => ({
+            _id: order._id,
+            transactionId: `EAR-${order.orderNumber}`,
+            type: 'credit',
+            amount: order.deliveryPayment || order.deliveryFee || 40,
+            tip: order.deliveryTip || 0,
+            description: `Delivery earning - Order #${order.orderNumber}`,
+            status: 'completed',
+            orderNumber: order.orderNumber,
+            createdAt: order.deliveredAt,
+        }));
+
+        const withdrawalTransactions = withdrawals.map(w => ({
+            _id: w._id,
+            transactionId: w.requestId,
+            type: 'withdrawal',
+            amount: w.amount,
+            description: `Withdrawal - ${w.paymentMethod?.toUpperCase()}`,
+            status: w.status,
+            createdAt: w.createdAt,
+            processedAt: w.processedAt,
+        }));
+
+        // Merge and sort by date
+        const allTransactions = [...earningsTransactions, ...withdrawalTransactions]
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, limit);
+
+        const totalEarnings = await Order.countDocuments({
+            deliveryPartner: partnerId,
+            status: 'delivered',
+        });
+        const totalWithdrawals = await WithdrawalRequest.countDocuments({
+            deliveryPartner: partnerId,
+            requesterType: 'delivery_partner',
+        });
+        const total = totalEarnings + totalWithdrawals;
+
+        res.json({
+            success: true,
+            response: {
+                count: allTransactions.length,
+                total,
+                page,
+                pages: Math.ceil(total / limit),
+                hasMore: page < Math.ceil(total / limit),
+                data: allTransactions,
+            },
+        });
+    } catch (error) {
+        console.error('Get wallet transactions error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 module.exports = {
     login,
     verifyOtp,
@@ -1521,5 +1605,6 @@ module.exports = {
     getWalletBalance,
     requestWithdrawal,
     getWithdrawalHistory,
+    getWalletTransactions,
 };
 
